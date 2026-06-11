@@ -10,6 +10,8 @@ application packages.
 - `tooling.md`: installed AI, GitHub, lint, and security tools.
 - `prompts.md`: reusable prompts for common development tasks.
 - `handoff-template.md`: compact handoff format for long-running work.
+- `gin-vue-admin-parity.md`: reference notes for incremental Gin-Vue-Admin
+  parity work.
 
 ## Default Workflow
 
@@ -32,4 +34,3 @@ govulncheck ./...
 gosec ./...
 osv-scanner scan source .
 ```
-

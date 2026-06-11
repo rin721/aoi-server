@@ -19,6 +19,18 @@
   Session,
   SignupRequest,
   SetupStatus,
+  SystemAPIGroup,
+  SystemAPISyncResult,
+  SystemConfigSnapshot,
+  SystemDictionary,
+  SystemDictionaryCatalog,
+  SystemDictionaryItem,
+  SystemOperationRecordPage,
+  SystemParameter,
+  SystemParameterPage,
+  SystemPermissionSyncResult,
+  SystemMenuGroup,
+  SystemServerInfo,
   Todo,
   TokenPair,
   User
@@ -140,6 +152,8 @@ export function useAdminApi() {
     getMe: () => request<User>("/api/v1/me"),
     getReady: () => request<ReadyStatus>("/ready", { auth: false }),
     getSetupStatus: () => request<SetupStatus>("/api/v1/auth/setup/status", { auth: false }),
+    getSystemConfig: () => request<SystemConfigSnapshot>("/api/v1/system/config"),
+    getSystemServerInfo: () => request<SystemServerInfo>("/api/v1/system/server-info"),
     initialAdminSetup: (body: InitialAdminSetupRequest) =>
       request<TokenPair>("/api/v1/auth/setup/initial-admin", { auth: false, body, method: "POST" }),
     inviteUser: (orgId: ID, body: { email: string, roleCode: string }) =>
@@ -162,6 +176,39 @@ export function useAdminApi() {
     listRoles: (orgId: ID) => request<Role[]>(`/api/v1/orgs/${orgId}/roles`),
     listSessions: (orgId: ID, userId?: ID | null) =>
       request<Session[]>(`/api/v1/orgs/${orgId}/sessions`, { query: userId ? { userId } : undefined }),
+    listSystemAPIs: () => request<SystemAPIGroup[]>("/api/v1/system/apis"),
+    listSystemDictionaries: () => request<SystemDictionaryCatalog>("/api/v1/system/dictionaries"),
+    listSystemMenus: () => request<SystemMenuGroup[]>("/api/v1/system/menus"),
+    listSystemOperationRecords: (query: { method?: string, page?: number, pageSize?: number, path?: string, status?: number | string } = {}) =>
+      request<SystemOperationRecordPage>("/api/v1/system/operation-records", { query }),
+    listSystemParameters: (query: { endCreatedAt?: string, key?: string, name?: string, page?: number, pageSize?: number, startCreatedAt?: string } = {}) =>
+      request<SystemParameterPage>("/api/v1/system/parameters", { query }),
+    createSystemDictionary: (body: { code: string, description?: string, name: string, status?: string }) =>
+      request<SystemDictionary>("/api/v1/system/dictionaries", { body, method: "POST" }),
+    createSystemParameter: (body: { description?: string, key: string, name: string, value: string }) =>
+      request<SystemParameter>("/api/v1/system/parameters", { body, method: "POST" }),
+    createSystemDictionaryItem: (dictionaryId: ID, body: { extra?: string, label: string, sort?: number, status?: string, value: string }) =>
+      request<SystemDictionaryItem>(`/api/v1/system/dictionaries/${dictionaryId}/items`, { body, method: "POST" }),
+    deleteSystemDictionary: (dictionaryId: ID) =>
+      request<{ deleted: boolean }>(`/api/v1/system/dictionaries/${dictionaryId}`, { method: "DELETE" }),
+    deleteSystemDictionaryItem: (itemId: ID) =>
+      request<{ deleted: boolean }>(`/api/v1/system/dictionary-items/${itemId}`, { method: "DELETE" }),
+    deleteSystemOperationRecords: (ids: ID[]) =>
+      request<{ deleted: boolean }>("/api/v1/system/operation-records", { body: { ids }, method: "DELETE" }),
+    deleteSystemParameter: (parameterId: ID) =>
+      request<{ deleted: boolean }>(`/api/v1/system/parameters/${parameterId}`, { method: "DELETE" }),
+    deleteSystemParameters: (ids: ID[]) =>
+      request<{ deleted: boolean }>("/api/v1/system/parameters", { body: { ids }, method: "DELETE" }),
+    getSystemParameterByKey: (key: string) =>
+      request<SystemParameter>("/api/v1/system/parameters/value", { query: { key } }),
+    syncSystemAPIs: () => request<SystemAPISyncResult>("/api/v1/system/apis/sync", { method: "POST" }),
+    syncSystemAPIPermissions: () => request<SystemPermissionSyncResult>("/api/v1/system/apis/permissions/sync", { method: "POST" }),
+    updateSystemDictionary: (dictionaryId: ID, body: { description?: string, name?: string, status?: string }) =>
+      request<SystemDictionary>(`/api/v1/system/dictionaries/${dictionaryId}`, { body, method: "PATCH" }),
+    updateSystemDictionaryItem: (itemId: ID, body: { extra?: string, label?: string, sort?: number, status?: string, value?: string }) =>
+      request<SystemDictionaryItem>(`/api/v1/system/dictionary-items/${itemId}`, { body, method: "PATCH" }),
+    updateSystemParameter: (parameterId: ID, body: { description?: string, key?: string, name?: string, value?: string }) =>
+      request<SystemParameter>(`/api/v1/system/parameters/${parameterId}`, { body, method: "PATCH" }),
     listTodos: () => request<Todo[]>("/api/v1/demo/todos"),
     listUsers: (orgId: ID) => request<OrganizationUser[]>(`/api/v1/orgs/${orgId}/users`),
     login: (body: LoginRequest) => request<TokenPair>("/api/v1/auth/login", { auth: false, body, method: "POST" }),

@@ -89,8 +89,8 @@ useHead({
     <AoiStatusMessage tone="danger" :message="error" />
     <AoiStatusMessage tone="success" :message="success" />
 
-    <section class="two-column-grid">
-      <article class="admin-card">
+    <section class="admin-management-grid">
+      <article class="admin-card admin-management-grid__primary">
         <div class="admin-card__header">
           <h2>组织列表</h2>
           <span class="badge">{{ organizations.length }} 个</span>

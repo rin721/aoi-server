@@ -12,7 +12,7 @@ withDefaults(defineProps<{
 </script>
 
 <template>
-  <header v-aoi-reveal="'rise'" class="page-header">
+  <header class="page-header">
     <div v-if="icon" class="page-header__icon" aria-hidden="true">
       <AoiIcon :name="icon" :size="22" decorative />
     </div>
@@ -71,6 +71,7 @@ withDefaults(defineProps<{
   margin: 8px 0 0;
   color: var(--aoi-text-muted);
   line-height: 1.7;
+  overflow-wrap: anywhere;
 }
 
 .page-header__actions {
@@ -83,15 +84,30 @@ withDefaults(defineProps<{
 
 @media (max-width: 639px) {
   .page-header {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
     gap: 10px;
+  }
+
+  .page-header__copy {
+    width: 100%;
+    min-width: 0;
   }
 
   .page-header__title {
     font-size: 22px;
   }
 
+  .page-header__description {
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-word;
+  }
+
   .page-header__actions {
-    display: none;
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    padding-top: 2px;
   }
 }
 </style>

@@ -92,6 +92,35 @@ Content-Type: application/json
 
 插件代理会向 sidecar 注入 `X-Aoi-Plugin-ID`、`X-Aoi-User-ID`、`X-Aoi-Org-ID`、`X-Aoi-Trace-ID`、`X-Aoi-Signature-Timestamp` 和 `X-Aoi-Signature` 请求头。签名密钥由 manifest 的 `secretRef` 指向运行时环境变量。
 
+## 系统接口
+
+系统接口需要 IAM access token。菜单接口按当前用户权限过滤，API 目录接口需要 `permission:read`。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/v1/system/menus` | 登录可见 | 返回当前用户可见的后台菜单分组。 |
+| GET | `/api/v1/system/config` | `config:read` | 返回当前进程脱敏后的运行配置快照，敏感字段只显示是否已配置。 |
+| GET | `/api/v1/system/server-info` | `server:read` | 返回主机 CPU/RAM/磁盘以及当前后端进程的运行时、内存、GC 和构建信息快照。 |
+| GET | `/api/v1/system/apis` | `permission:read` | 返回当前进程真实注册的 HTTP API 目录。 |
+| POST | `/api/v1/system/apis/sync` | `permission:read` | 同步当前进程 HTTP API 目录到 `system_apis` 表；表未迁移时只刷新目录并返回未持久化状态。 |
+| POST | `/api/v1/system/apis/permissions/sync` | `permission:sync` | 从当前 API 目录提取权限码并补齐 `iam_permissions` 字典，便于角色授权页直接勾选。 |
+| GET | `/api/v1/system/operation-records` | `operation:read` | 分页查询后台受保护接口的操作记录，支持请求方法、路径和状态码筛选。 |
+| DELETE | `/api/v1/system/operation-records` | `operation:delete` | 按 ID 批量删除操作记录。 |
+| GET | `/api/v1/system/parameters` | `parameter:read` | 分页查询系统参数，支持创建日期、参数名称和参数键筛选。 |
+| POST | `/api/v1/system/parameters` | `parameter:create` | 创建系统参数。 |
+| DELETE | `/api/v1/system/parameters` | `parameter:delete` | 按 ID 批量软删除系统参数。 |
+| GET | `/api/v1/system/parameters/value` | `parameter:read` | 按参数键读取系统参数。 |
+| GET | `/api/v1/system/parameters/{parameterId}` | `parameter:read` | 按 ID 读取系统参数。 |
+| PATCH | `/api/v1/system/parameters/{parameterId}` | `parameter:update` | 更新系统参数名称、键、值或说明。 |
+| DELETE | `/api/v1/system/parameters/{parameterId}` | `parameter:delete` | 软删除系统参数。 |
+| GET | `/api/v1/system/dictionaries` | `dictionary:read` | 返回系统字典目录和字典项，表未就绪时返回不可用状态。 |
+| POST | `/api/v1/system/dictionaries` | `dictionary:create` | 创建系统字典。 |
+| PATCH | `/api/v1/system/dictionaries/{dictionaryId}` | `dictionary:update` | 更新系统字典编码、名称、说明或状态。 |
+| DELETE | `/api/v1/system/dictionaries/{dictionaryId}` | `dictionary:delete` | 软删除系统字典及其字典项。 |
+| POST | `/api/v1/system/dictionaries/{dictionaryId}/items` | `dictionary:update` | 创建字典项。 |
+| PATCH | `/api/v1/system/dictionary-items/{itemId}` | `dictionary:update` | 更新字典项标签、值、扩展信息、排序或状态。 |
+| DELETE | `/api/v1/system/dictionary-items/{itemId}` | `dictionary:delete` | 软删除字典项。 |
+
 ## IAM 公开接口
 
 这些接口不要求 access token。

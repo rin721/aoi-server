@@ -18,6 +18,8 @@ import (
 	iamhandler "github.com/rei0721/go-scaffold/internal/modules/iam/handler"
 	iammodel "github.com/rei0721/go-scaffold/internal/modules/iam/model"
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
+	systemhandler "github.com/rei0721/go-scaffold/internal/modules/system/handler"
+	systemservice "github.com/rei0721/go-scaffold/internal/modules/system/service"
 	"github.com/rei0721/go-scaffold/pkg/database"
 	"github.com/rei0721/go-scaffold/pkg/web"
 	apperrors "github.com/rei0721/go-scaffold/types/errors"
@@ -49,11 +51,72 @@ type routerResponse struct {
 	Data    map[string]any `json:"data"`
 }
 
+type menuResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    []struct {
+		Code  string `json:"code"`
+		Items []struct {
+			Code       string `json:"code"`
+			Permission string `json:"permission"`
+		} `json:"items"`
+	} `json:"data"`
+}
+
+type apiCatalogResponse struct {
+	Code    int               `json:"code"`
+	Message string            `json:"message"`
+	Data    []apiCatalogGroup `json:"data"`
+}
+
+type apiCatalogGroup struct {
+	Code  string           `json:"code"`
+	Items []apiCatalogItem `json:"items"`
+}
+
+type apiCatalogItem struct {
+	Method     string `json:"method"`
+	Path       string `json:"path"`
+	Permission string `json:"permission"`
+}
+
+type apiSyncResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		Created       int               `json:"created"`
+		Groups        []apiCatalogGroup `json:"groups"`
+		Persisted     bool              `json:"persisted"`
+		Stale         int               `json:"stale"`
+		StorageStatus string            `json:"storageStatus"`
+		Total         int               `json:"total"`
+		Updated       int               `json:"updated"`
+	} `json:"data"`
+}
+
+type apiPermissionSyncResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		Created       int    `json:"created"`
+		Persisted     bool   `json:"persisted"`
+		Skipped       int    `json:"skipped"`
+		StorageStatus string `json:"storageStatus"`
+		Total         int    `json:"total"`
+	} `json:"data"`
+}
+
 type fakeIAMService struct {
 	setupStatusCalls  int
 	initialSetupCalls int
 	signupCalls       int
 	loginCalls        int
+}
+
+type permissionAuthorizer map[string]bool
+
+func (a permissionAuthorizer) Authorize(_ context.Context, _ iamservice.Principal, obj string, act string) (bool, error) {
+	return a[obj+":"+act], nil
 }
 
 func (s *fakeIAMService) BootstrapAdmin(context.Context, iamservice.BootstrapAdminInput) (*iamservice.Principal, error) {
@@ -319,6 +382,17 @@ func TestOpenAPICoversIAMProductRoutes(t *testing.T) {
 		"/api/v1/orgs/{orgId}/invitations:",
 		"/api/v1/orgs/{orgId}/invitations/{invitationId}:",
 		"/api/v1/orgs/{orgId}/roles/{roleId}:",
+		"/api/v1/system/apis:",
+		"/api/v1/system/apis/permissions/sync:",
+		"/api/v1/system/apis/sync:",
+		"/api/v1/system/config:",
+		"/api/v1/system/dictionaries:",
+		"/api/v1/system/menus:",
+		"/api/v1/system/operation-records:",
+		"/api/v1/system/parameters:",
+		"/api/v1/system/parameters/{parameterId}:",
+		"/api/v1/system/parameters/value:",
+		"/api/v1/system/server-info:",
 	} {
 		if !strings.Contains(spec, path) {
 			t.Fatalf("openapi.yaml missing path %s", path)
@@ -326,7 +400,230 @@ func TestOpenAPICoversIAMProductRoutes(t *testing.T) {
 	}
 }
 
+func TestNewRouterSystemMenusRequireAuthAndFilterPermissions(t *testing.T) {
+	auth := &fakeIAMService{}
+	systemHandler := systemhandler.New(systemservice.New(systemservice.Config{DemoEnabled: true}), permissionAuthorizer{
+		"dictionary:read": true,
+		"config:read":     true,
+		"org:read":        true,
+		"operation:read":  true,
+		"parameter:read":  true,
+		"permission:read": true,
+		"role:read":       true,
+		"server:read":     true,
+	}, nil)
+	router := newTestRouter(RouterDeps{
+		IAMAuth:       auth,
+		SystemHandler: systemHandler,
+	})
+
+	unauthorized := performRawRouterRequest(router, http.MethodGet, "/api/v1/system/menus")
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("expected system menus to require auth, got status %d body %s", unauthorized.Code, unauthorized.Body.String())
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/system/menus", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected system menus status %d, got %d body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	var body menuResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode system menu response: %v", err)
+	}
+	if body.Code != 0 || body.Message != "success" {
+		t.Fatalf("expected success response, got %#v", body)
+	}
+	if !menuContains(body, "workspace", "organizations") || !menuContains(body, "workspace", "roles") {
+		t.Fatalf("expected allowed workspace menus in %#v", body.Data)
+	}
+	if !menuContains(body, "system", "menus") || !menuContains(body, "system", "apis") {
+		t.Fatalf("expected allowed system menus in %#v", body.Data)
+	}
+	if !menuContains(body, "system", "dictionaries") {
+		t.Fatalf("expected dictionary management menu in %#v", body.Data)
+	}
+	if !menuContains(body, "system", "operation-records") {
+		t.Fatalf("expected operation history menu in %#v", body.Data)
+	}
+	if !menuContains(body, "system", "parameters") {
+		t.Fatalf("expected parameter management menu in %#v", body.Data)
+	}
+	if !menuContains(body, "system", "system-config") {
+		t.Fatalf("expected system config menu in %#v", body.Data)
+	}
+	if !menuContains(body, "system", "server-info") {
+		t.Fatalf("expected server info menu in %#v", body.Data)
+	}
+	if menuContains(body, "workspace", "users") {
+		t.Fatalf("expected users menu to be hidden without user:read permission: %#v", body.Data)
+	}
+	if !menuContains(body, "examples", "todos") {
+		t.Fatalf("expected demo menu when demo is enabled: %#v", body.Data)
+	}
+}
+
 // TestNewRouterDoesNotRegisterRemovedUserManagementRoutes 固定 HTTP 路由、中间件顺序和错误响应契约，确保后续注释补全或结构调整不改变该场景。
+func TestNewRouterSystemAPIsRequirePermissionAndListCatalog(t *testing.T) {
+	auth := &fakeIAMService{}
+	systemHandler := systemhandler.New(systemservice.New(systemservice.Config{}), permissionAuthorizer{
+		"permission:read": true,
+	}, nil)
+	router := newTestRouter(RouterDeps{
+		IAMAuth:       auth,
+		IAMAuthz:      permissionAuthorizer{"permission:read": true},
+		SystemHandler: systemHandler,
+	})
+
+	unauthorized := performRawRouterRequest(router, http.MethodGet, "/api/v1/system/apis")
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("expected system apis to require auth, got status %d body %s", unauthorized.Code, unauthorized.Body.String())
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/system/apis", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected system apis status %d, got %d body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	var body apiCatalogResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode system api response: %v", err)
+	}
+	if body.Code != 0 || body.Message != "success" {
+		t.Fatalf("expected success response, got %#v", body)
+	}
+	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/apis", "permission:read") {
+		t.Fatalf("expected system api catalog to include itself with permission: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/config", "config:read") {
+		t.Fatalf("expected system api catalog to include config with permission: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/server-info", "server:read") {
+		t.Fatalf("expected system api catalog to include server info with permission: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodPost, "/api/v1/system/apis/sync", "permission:read") {
+		t.Fatalf("expected system api catalog to include sync route with permission: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodPost, "/api/v1/system/apis/permissions/sync", "permission:sync") {
+		t.Fatalf("expected system api catalog to include permission sync route with permission: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/dictionaries", "dictionary:read") {
+		t.Fatalf("expected system api catalog to include dictionaries: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodPost, "/api/v1/system/dictionaries", "dictionary:create") {
+		t.Fatalf("expected system api catalog to include dictionary create: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/operation-records", "operation:read") {
+		t.Fatalf("expected system api catalog to include operation history list: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodDelete, "/api/v1/system/operation-records", "operation:delete") {
+		t.Fatalf("expected system api catalog to include operation history delete: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/parameters", "parameter:read") {
+		t.Fatalf("expected system api catalog to include parameter list: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodPost, "/api/v1/system/parameters", "parameter:create") {
+		t.Fatalf("expected system api catalog to include parameter create: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/parameters/:parameterId", "parameter:read") {
+		t.Fatalf("expected system api catalog to include parameter detail: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodPatch, "/api/v1/system/parameters/:parameterId", "parameter:update") {
+		t.Fatalf("expected system api catalog to include parameter update: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodDelete, "/api/v1/system/parameters/:parameterId", "parameter:delete") {
+		t.Fatalf("expected system api catalog to include parameter delete: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/menus", "") {
+		t.Fatalf("expected system api catalog to include menus: %#v", body.Data)
+	}
+}
+
+func TestNewRouterSystemAPISyncReturnsLiveCatalogWithoutStorage(t *testing.T) {
+	auth := &fakeIAMService{}
+	systemHandler := systemhandler.New(systemservice.New(systemservice.Config{}), permissionAuthorizer{
+		"permission:read": true,
+	}, nil)
+	router := newTestRouter(RouterDeps{
+		IAMAuth:       auth,
+		IAMAuthz:      permissionAuthorizer{"permission:read": true},
+		SystemHandler: systemHandler,
+	})
+
+	unauthorized := performRawRouterRequest(router, http.MethodPost, "/api/v1/system/apis/sync")
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("expected system api sync to require auth, got status %d body %s", unauthorized.Code, unauthorized.Body.String())
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/system/apis/sync", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected system api sync status %d, got %d body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	var body apiSyncResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode system api sync response: %v", err)
+	}
+	if body.Code != 0 || body.Message != "success" {
+		t.Fatalf("expected success response, got %#v", body)
+	}
+	if body.Data.Persisted || body.Data.StorageStatus != "memory" {
+		t.Fatalf("expected in-memory sync result without repository, got %#v", body.Data)
+	}
+	if body.Data.Total == 0 || !apiGroupsContain(body.Data.Groups, http.MethodPost, "/api/v1/system/apis/sync", "permission:read") {
+		t.Fatalf("expected sync result to include live catalog routes, got %#v", body.Data.Groups)
+	}
+}
+
+func TestNewRouterSystemAPIPermissionSyncReturnsUnavailableWithoutStore(t *testing.T) {
+	auth := &fakeIAMService{}
+	systemHandler := systemhandler.New(systemservice.New(systemservice.Config{}), permissionAuthorizer{
+		"permission:read": true,
+		"permission:sync": true,
+	}, nil)
+	router := newTestRouter(RouterDeps{
+		IAMAuth:       auth,
+		IAMAuthz:      permissionAuthorizer{"permission:sync": true},
+		SystemHandler: systemHandler,
+	})
+
+	unauthorized := performRawRouterRequest(router, http.MethodPost, "/api/v1/system/apis/permissions/sync")
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("expected system api permission sync to require auth, got status %d body %s", unauthorized.Code, unauthorized.Body.String())
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/system/apis/permissions/sync", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected system api permission sync status %d, got %d body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	var body apiPermissionSyncResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode system api permission sync response: %v", err)
+	}
+	if body.Code != 0 || body.Message != "success" {
+		t.Fatalf("expected success response, got %#v", body)
+	}
+	if body.Data.Persisted || body.Data.StorageStatus != "unavailable" {
+		t.Fatalf("expected unavailable permission sync without store, got %#v", body.Data)
+	}
+	if body.Data.Total == 0 {
+		t.Fatalf("expected permission sync result to count route permissions, got %#v", body.Data)
+	}
+}
+
 func TestNewRouterDoesNotRegisterRemovedUserManagementRoutes(t *testing.T) {
 	router := newTestRouter(RouterDeps{})
 
@@ -470,7 +767,36 @@ func performJSONRouterRequest(router http.Handler, method string, path string, b
 	return recorder
 }
 
+func menuContains(body menuResponse, groupCode string, itemCode string) bool {
+	for _, group := range body.Data {
+		if group.Code != groupCode {
+			continue
+		}
+		for _, item := range group.Items {
+			if item.Code == itemCode {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // assertSuccessResponse 校验测试响应或状态中的关键字段，使测试断言聚焦在对外契约而非重复解析细节。
+func apiCatalogContains(body apiCatalogResponse, method string, path string, permission string) bool {
+	return apiGroupsContain(body.Data, method, path, permission)
+}
+
+func apiGroupsContain(groups []apiCatalogGroup, method string, path string, permission string) bool {
+	for _, group := range groups {
+		for _, item := range group.Items {
+			if item.Method == method && item.Path == path && item.Permission == permission {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func assertSuccessResponse(t *testing.T, body routerResponse) {
 	t.Helper()
 

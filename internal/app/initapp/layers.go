@@ -15,6 +15,8 @@ import (
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
 	pluginhandler "github.com/rei0721/go-scaffold/internal/modules/plugins/handler"
 	pluginservice "github.com/rei0721/go-scaffold/internal/modules/plugins/service"
+	systemhandler "github.com/rei0721/go-scaffold/internal/modules/system/handler"
+	systemservice "github.com/rei0721/go-scaffold/internal/modules/system/service"
 	"github.com/rei0721/go-scaffold/pkg/cache"
 	"github.com/rei0721/go-scaffold/pkg/database"
 	"github.com/rei0721/go-scaffold/pkg/executor"
@@ -55,6 +57,7 @@ type Modules struct {
 	Demo    DemoModule
 	IAM     IAMModule
 	Plugins PluginsModule
+	System  SystemModule
 }
 
 // DemoModule 保存 Demo Todo 模块的三层对象。
@@ -75,6 +78,11 @@ type IAMModule struct {
 type PluginsModule struct {
 	Service pluginservice.Service
 	Handler *pluginhandler.Handler
+}
+
+type SystemModule struct {
+	Service systemservice.Service
+	Handler *systemhandler.Handler
 }
 
 // Transport 保存对外服务入口。

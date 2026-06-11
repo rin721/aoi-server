@@ -11,6 +11,7 @@ import (
 	iamhandler "github.com/rei0721/go-scaffold/internal/modules/iam/handler"
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
 	pluginhandler "github.com/rei0721/go-scaffold/internal/modules/plugins/handler"
+	systemhandler "github.com/rei0721/go-scaffold/internal/modules/system/handler"
 	httptransport "github.com/rei0721/go-scaffold/internal/transport/http"
 	rpctransport "github.com/rei0721/go-scaffold/internal/transport/rpc"
 	"github.com/rei0721/go-scaffold/pkg/database"
@@ -39,6 +40,7 @@ func NewTransport(core Core, infra Infrastructure, modules Modules) (Transport, 
 		modules.Demo.TodoHandler,
 		modules.IAM.Handler,
 		modules.Plugins.Handler,
+		modules.System.Handler,
 		modules.IAM.Service,
 	)
 	if err != nil {
@@ -103,6 +105,7 @@ func NewHTTPServer(
 	todoHandler *demohandler.TodoHandler,
 	iamHandler *iamhandler.Handler,
 	pluginHandler *pluginhandler.Handler,
+	systemHandler *systemhandler.Handler,
 	iamService iamservice.Service,
 ) (*web.Engine, httpserver.HTTPServer, error) {
 	middlewareCfg := middleware.DefaultMiddlewareConfig()
@@ -119,6 +122,7 @@ func NewHTTPServer(
 		TodoHandler:   todoHandler,
 		IAMHandler:    iamHandler,
 		PluginHandler: pluginHandler,
+		SystemHandler: systemHandler,
 		IAMAuth:       iamService,
 		IAMAuthz:      iamService,
 		WebUI: httptransport.WebUIDeps{

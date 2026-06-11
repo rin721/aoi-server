@@ -55,6 +55,13 @@ type Engine struct {
 	engine *gin.Engine
 }
 
+// RouteInfo exposes registered HTTP route metadata without leaking Gin types.
+type RouteInfo struct {
+	Method  string
+	Path    string
+	Handler string
+}
+
 type group struct {
 	group *gin.RouterGroup
 }
@@ -112,6 +119,19 @@ func CORS(cfg CORSConfig) HandlerFunc {
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	e.engine.ServeHTTP(w, r)
+}
+
+func (e *Engine) Routes() []RouteInfo {
+	routes := e.engine.Routes()
+	out := make([]RouteInfo, 0, len(routes))
+	for _, route := range routes {
+		out = append(out, RouteInfo{
+			Method:  route.Method,
+			Path:    route.Path,
+			Handler: route.Handler,
+		})
+	}
+	return out
 }
 
 // MountStaticSPA 在指定前缀托管静态单页应用，并把非资源路由回退到 index.html。

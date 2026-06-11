@@ -149,8 +149,8 @@ useHead({
     <AoiStatusMessage v-if="inviteToken" tone="success" :message="`调试 token：${inviteToken}`" />
     <AoiStatusMessage v-if="inviteUrl" tone="success" :message="`调试链接：${inviteUrl}`" />
 
-    <section class="two-column-grid">
-      <article class="admin-card">
+    <section class="admin-management-grid">
+      <article class="admin-card admin-management-grid__primary">
         <div class="admin-card__header">
           <h2>组织用户</h2>
           <span class="badge">{{ users.length }} 人</span>
@@ -183,9 +183,10 @@ useHead({
                 <td>
                   <div class="toolbar-row">
                     <AoiSelect v-model="roleDrafts[item.user.id]" label="角色" :options="roleOptions" />
-                    <AoiButton appearance="soft" icon="save" @click="updateMemberRole(item)">保存</AoiButton>
+                    <AoiButton appearance="soft" icon="save" size="sm" @click="updateMemberRole(item)">保存</AoiButton>
                     <AoiButton
                       appearance="soft"
+                      size="sm"
                       :intent="item.membershipStatus === 'active' ? 'danger' : 'neutral'"
                       :icon="item.membershipStatus === 'active' ? 'ban' : 'check'"
                       @click="updateMemberStatus(item, item.membershipStatus === 'active' ? 'disabled' : 'active')"
