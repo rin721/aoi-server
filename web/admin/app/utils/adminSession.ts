@@ -4,9 +4,9 @@ const storageKey = "aoi-admin-session"
 
 type AccessTokenClaims = {
   exp?: number
-  orgId?: number
-  sessionId?: number
-  userId?: number
+  orgId?: string | number
+  sessionId?: string | number
+  userId?: string | number
 }
 
 export type StoredAdminSession = TokenPair & {
@@ -77,7 +77,8 @@ export function decodeAccessTokenClaims(accessToken = getStoredAccessToken()): A
 }
 
 export function currentOrgIdFromToken(accessToken = getStoredAccessToken()) {
-  return decodeAccessTokenClaims(accessToken)?.orgId || null
+  const orgId = decodeAccessTokenClaims(accessToken)?.orgId
+  return typeof orgId === "string" ? orgId : null
 }
 
 function decodeBase64URL(value: string) {

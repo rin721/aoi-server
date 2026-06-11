@@ -18,5 +18,7 @@ type DemoModule = initapp.DemoModule
 
 type IAMModule = initapp.IAMModule
 
+type PluginsModule = initapp.PluginsModule
+
 // TransportLayer 是传输层的公开别名，包含 Gin 路由和 HTTP server 包装器。
 type TransportLayer = initapp.Transport

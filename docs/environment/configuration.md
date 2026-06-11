@@ -53,7 +53,9 @@ DB_HOST
 | Executor | `RIN_APP_EXECUTOR_ENABLED` |
 | Storage | `RIN_APP_STORAGE_ENABLED`, `RIN_APP_STORAGE_FS_TYPE`, `RIN_APP_STORAGE_BASE_PATH`, `RIN_APP_STORAGE_ENABLE_WATCH`, `RIN_APP_STORAGE_WATCH_BUFFER_SIZE` |
 | Demo | `RIN_APP_DEMO_ENABLED`, `RIN_APP_DEMO_APPLY_SCHEMA_ON_START` |
-| Auth | `RIN_APP_AUTH_ENABLED`, `RIN_APP_AUTH_ISSUER`, `RIN_APP_AUTH_AUDIENCE`, `RIN_APP_AUTH_SIGNING_KEY`, `RIN_APP_AUTH_ACCESS_TOKEN_TTL_SECONDS`, `RIN_APP_AUTH_REFRESH_TOKEN_TTL_SECONDS`, `RIN_APP_AUTH_REFRESH_TOKEN_PEPPER`, `RIN_APP_AUTH_MFA_SECRET_KEY` |
+| WebUI | `RIN_APP_WEBUI_ENABLED`, `RIN_APP_WEBUI_MOUNT_PATH`, `RIN_APP_WEBUI_DIST_DIR`, `RIN_APP_WEBUI_PUBLIC_BASE_URL`, `NUXT_PUBLIC_SHOW_DEMO_TODO` |
+| Plugins | `RIN_APP_PLUGINS_ENABLED`, `RIN_APP_PLUGINS_MANIFESTS`, `RIN_APP_PLUGINS_HEALTH_TIMEOUT_SECONDS`, `RIN_APP_PLUGINS_PROXY_TIMEOUT_SECONDS` |
+| Auth | `RIN_APP_AUTH_ENABLED`, `RIN_APP_AUTH_SELF_SIGNUP_ENABLED`, `RIN_APP_AUTH_ISSUER`, `RIN_APP_AUTH_AUDIENCE`, `RIN_APP_AUTH_SIGNING_KEY`, `RIN_APP_AUTH_ACCESS_TOKEN_TTL_SECONDS`, `RIN_APP_AUTH_REFRESH_TOKEN_TTL_SECONDS`, `RIN_APP_AUTH_REFRESH_TOKEN_PEPPER`, `RIN_APP_AUTH_MFA_SECRET_KEY`, `RIN_APP_AUTH_NOTIFICATION_DRIVER`, `RIN_APP_AUTH_SMTP_HOST`, `RIN_APP_AUTH_SMTP_PORT`, `RIN_APP_AUTH_SMTP_USERNAME`, `RIN_APP_AUTH_SMTP_PASSWORD`, `RIN_APP_AUTH_SMTP_FROM`, `RIN_APP_AUTH_PASSWORD_MIN_LENGTH`, `RIN_APP_AUTH_PASSWORD_REQUIRE_LOWER`, `RIN_APP_AUTH_PASSWORD_REQUIRE_UPPER`, `RIN_APP_AUTH_PASSWORD_REQUIRE_NUMBER`, `RIN_APP_AUTH_PASSWORD_REQUIRE_SYMBOL` |
 | Migration | `RIN_APP_MIGRATION_AUTO_APPLY`, `RIN_APP_MIGRATION_DIR` |
 | CORS | `RIN_APP_CORS_ENABLED`, `RIN_APP_CORS_ALLOW_ORIGINS`, `RIN_APP_CORS_ALLOW_METHODS`, `RIN_APP_CORS_ALLOW_HEADERS`, `RIN_APP_CORS_EXPOSE_HEADERS`, `RIN_APP_CORS_ALLOW_CREDENTIALS`, `RIN_APP_CORS_MAX_AGE` |
 
@@ -68,12 +70,17 @@ DB_HOST
 - JSON-RPC 独立入口默认关闭，启用后默认监听 `127.0.0.1:10099`；
 - Demo 模块默认开启；
 - IAM 模块默认开启；
+- Admin WebUI 默认不在主导航显示 Demo Todo，可在构建前设置 `NUXT_PUBLIC_SHOW_DEMO_TODO=true` 打开；
+- 示例配置开启自助注册，并使用 `debug` 通知驱动返回邀请和重置密码调试链接；
+- 插件默认关闭；启用后会读取 `plugins.manifests` 中的 JSON/YAML manifest；
 - 迁移默认不自动执行，应通过 `db migrate up` 显式应用。
 
 生产示例：
 
 - 监听 `0.0.0.0`；
 - 默认关闭 Demo；
+- 默认关闭自助注册，通知驱动配置为 `smtp`，不在 API 响应中返回邀请或重置 token；
+- 插件默认关闭，sidecar 进程由 Compose、systemd 或 Kubernetes 等外部编排系统管理；
 - 敏感值应通过环境变量、CI/CD secrets 或容器编排系统注入。
 
 ## 新增配置字段
@@ -84,3 +91,17 @@ DB_HOST
 4. 更新 `configs/config.example.yaml`、`.env.example` 和生产示例。
 5. 在 `internal/config` 中新增或调整测试。
 6. 字段面向用户或运维时，同步更新本文档。
+
+## Admin WebUI 配置
+
+`web/aoi-web` 是当前后台前端主线；`web/admin` 仅作为旧实现和回滚参考保留。Go 后端默认在 `webui.mount_path=/admin` 挂载静态产物，默认产物目录为 `webui.dist_dir=./web/aoi-web/.output/public`，公开后台地址由 `webui.public_base_url=/admin` 描述。
+
+Nuxt 侧运行时配置保持最小化：
+
+| 变量 | 默认值 | 用途 |
+| --- | --- | --- |
+| `NUXT_APP_BASE_URL` | `/admin/` | Nuxt 静态资源和路由 baseURL，需要与 Go `webui.mount_path` 对齐。 |
+| `NUXT_PUBLIC_API_BASE_URL` | 空字符串 | API 前缀；空值表示同源调用 Go API。 |
+| `NUXT_PUBLIC_SHOW_DEMO_TODO` | `false` | 是否在后台导航中显示 Demo Todo。 |
+
+用于 Go 静态托管时，先在 `web/aoi-web` 执行 `pnpm generate`，确保 `.output/public/index.html` 存在。`pnpm build` 保留为构建检查，不替代静态产物生成。

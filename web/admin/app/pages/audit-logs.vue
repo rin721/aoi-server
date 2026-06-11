@@ -5,6 +5,11 @@ const api = useAdminApi()
 const auth = useAuthStore()
 const logs = ref<AuditLog[]>([])
 const limit = ref("100")
+const action = ref("")
+const userId = ref("")
+const from = ref("")
+const to = ref("")
+const cursor = ref("")
 const loading = ref(false)
 const error = ref("")
 
@@ -16,7 +21,14 @@ async function load() {
   loading.value = true
   error.value = ""
   try {
-    logs.value = await api.listAuditLogs(auth.currentOrgId, Number(limit.value) || 100)
+    logs.value = await api.listAuditLogs(auth.currentOrgId, {
+      action: action.value.trim() || undefined,
+      cursor: cursor.value.trim() || undefined,
+      from: from.value ? new Date(from.value).toISOString() : undefined,
+      limit: Number(limit.value) || 100,
+      to: to.value ? new Date(to.value).toISOString() : undefined,
+      userId: userId.value.trim() || undefined
+    })
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
@@ -58,6 +70,11 @@ useHead({
       <div class="admin-card__header">
         <h2>日志</h2>
         <div class="toolbar-row">
+          <AoiTextField v-model="action" label="Action" icon="activity" placeholder="auth.login" @enter="load" />
+          <AoiTextField v-model="userId" label="User ID" icon="user" @enter="load" />
+          <AoiTextField v-model="from" label="From" type="datetime-local" icon="calendar" @enter="load" />
+          <AoiTextField v-model="to" label="To" type="datetime-local" icon="calendar" @enter="load" />
+          <AoiTextField v-model="cursor" label="Cursor" icon="chevrons-down" @enter="load" />
           <AoiTextField v-model="limit" label="Limit" type="number" icon="list-filter" @enter="load" />
           <AoiButton appearance="soft" icon="search" @click="load">查询</AoiButton>
         </div>

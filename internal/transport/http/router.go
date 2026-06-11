@@ -11,6 +11,7 @@ import (
 	"github.com/rei0721/go-scaffold/internal/middleware"
 	demohandler "github.com/rei0721/go-scaffold/internal/modules/demo/handler"
 	iamhandler "github.com/rei0721/go-scaffold/internal/modules/iam/handler"
+	pluginhandler "github.com/rei0721/go-scaffold/internal/modules/plugins/handler"
 	"github.com/rei0721/go-scaffold/pkg/database"
 	"github.com/rei0721/go-scaffold/pkg/i18n"
 	"github.com/rei0721/go-scaffold/pkg/logger"
@@ -21,16 +22,17 @@ import (
 
 // RouterDeps 聚合 HTTP 路由装配所需依赖，允许测试或可选模块传入 nil 以裁剪路由。
 type RouterDeps struct {
-	Mode        string
-	Logger      logger.Logger
-	I18n        i18n.I18n
-	Database    database.Database
-	Middleware  middleware.MiddlewareConfig
-	TodoHandler *demohandler.TodoHandler
-	IAMHandler  *iamhandler.Handler
-	IAMAuth     middleware.Authenticator
-	IAMAuthz    middleware.Authorizer
-	WebUI       WebUIDeps
+	Mode          string
+	Logger        logger.Logger
+	I18n          i18n.I18n
+	Database      database.Database
+	Middleware    middleware.MiddlewareConfig
+	TodoHandler   *demohandler.TodoHandler
+	IAMHandler    *iamhandler.Handler
+	PluginHandler *pluginhandler.Handler
+	IAMAuth       middleware.Authenticator
+	IAMAuthz      middleware.Authorizer
+	WebUI         WebUIDeps
 }
 
 // WebUIDeps 描述管理台静态产物挂载所需配置，避免 transport 层直接依赖应用配置结构。
@@ -72,6 +74,9 @@ func NewRouter(deps RouterDeps) *web.Engine {
 	if deps.IAMHandler != nil {
 		registerIAMRoutes(v1, deps)
 	}
+	if deps.PluginHandler != nil {
+		registerPluginRoutes(v1, deps)
+	}
 	registerWebUI(r, deps)
 
 	return r
@@ -103,12 +108,17 @@ func registerWebUI(r *web.Engine, deps RouterDeps) {
 
 func registerIAMRoutes(v1 web.Router, deps RouterDeps) {
 	auth := v1.Group("/auth")
+	auth.Use(middleware.RateLimit(middleware.RateLimitConfig{Enabled: true, Limit: 20, Window: time.Minute}))
+	auth.GET("/setup/status", deps.IAMHandler.SetupStatus)
+	auth.POST("/setup/initial-admin", deps.IAMHandler.InitialAdminSetup)
+	auth.POST("/signup", deps.IAMHandler.Signup)
 	auth.POST("/login", deps.IAMHandler.Login)
 	auth.POST("/refresh", deps.IAMHandler.Refresh)
 	auth.POST("/password/forgot", deps.IAMHandler.ForgotPassword)
 	auth.POST("/password/reset", deps.IAMHandler.ResetPassword)
 
 	invitations := v1.Group("/invitations")
+	invitations.Use(middleware.RateLimit(middleware.RateLimitConfig{Enabled: true, Limit: 20, Window: time.Minute}))
 	invitations.POST("/:token/accept", deps.IAMHandler.AcceptInvitation)
 
 	protected := v1.Group("")
@@ -126,14 +136,28 @@ func registerIAMRoutes(v1 web.Router, deps RouterDeps) {
 	}
 	orgs.GET("", middleware.RequirePermission(deps.IAMAuthz, "org", "read", deps.IAMHandler.ListOrganizations))
 	orgs.POST("", middleware.RequirePermission(deps.IAMAuthz, "org", "create", deps.IAMHandler.CreateOrganization))
+	orgs.PATCH("/:orgId", orgScoped("org", "update", deps.IAMHandler.UpdateOrganization))
 	orgs.GET("/:orgId/users", orgScoped("user", "read", deps.IAMHandler.ListUsers))
+	orgs.PATCH("/:orgId/users/:userId", orgScoped("user", "update", deps.IAMHandler.UpdateUser))
 	orgs.POST("/:orgId/users/invitations", orgScoped("user", "invite", deps.IAMHandler.InviteUser))
+	orgs.GET("/:orgId/invitations", orgScoped("user", "invite", deps.IAMHandler.ListInvitations))
+	orgs.DELETE("/:orgId/invitations/:invitationId", orgScoped("user", "invite", deps.IAMHandler.RevokeInvitation))
 	orgs.GET("/:orgId/roles", orgScoped("role", "read", deps.IAMHandler.ListRoles))
 	orgs.POST("/:orgId/roles", orgScoped("role", "create", deps.IAMHandler.CreateRole))
+	orgs.PATCH("/:orgId/roles/:roleId", orgScoped("role", "update", deps.IAMHandler.UpdateRole))
 	orgs.GET("/:orgId/permissions", orgScoped("permission", "read", deps.IAMHandler.ListPermissions))
 	orgs.GET("/:orgId/sessions", orgScoped("session", "read", deps.IAMHandler.ListSessions))
 	orgs.DELETE("/:orgId/sessions/:sessionId", orgScoped("session", "revoke", deps.IAMHandler.RevokeSession))
 	orgs.GET("/:orgId/audit-logs", orgScoped("audit", "read", deps.IAMHandler.ListAuditLogs))
+}
+
+func registerPluginRoutes(v1 web.Router, deps RouterDeps) {
+	plugins := v1.Group("/plugins")
+	plugins.Use(middleware.Auth(deps.IAMAuth))
+	plugins.GET("", middleware.RequirePermission(deps.IAMAuthz, "plugin", "read", deps.PluginHandler.List))
+	plugins.GET("/:pluginId", middleware.RequirePermission(deps.IAMAuthz, "plugin", "read", deps.PluginHandler.Get))
+	plugins.GET("/:pluginId/health", middleware.RequirePermission(deps.IAMAuthz, "plugin", "read", deps.PluginHandler.Health))
+	plugins.ANY("/:pluginId/proxy/*path", middleware.RequirePermission(deps.IAMAuthz, "plugin", "proxy", deps.PluginHandler.Proxy))
 }
 
 // health 返回轻量存活探针响应，只证明进程与路由栈仍可处理请求。

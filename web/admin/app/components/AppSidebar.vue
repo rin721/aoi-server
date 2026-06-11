@@ -1,5 +1,11 @@
 <script setup lang="ts">
+import type { PluginManifest, PluginMenu } from "~/types/api"
+
 const route = useRoute()
+const config = useRuntimeConfig()
+const api = useAdminApi()
+const auth = useAuthStore()
+const pluginItems = ref<Array<{ icon: string, label: string, to: string }>>([])
 
 const primaryItems = [
   { icon: "layout-dashboard", label: "仪表盘", to: "/" },
@@ -8,13 +14,47 @@ const primaryItems = [
   { icon: "shield-check", label: "角色权限", to: "/roles" },
   { icon: "monitor-check", label: "会话", to: "/sessions" },
   { icon: "scroll-text", label: "审计日志", to: "/audit-logs" },
-  { icon: "lock-keyhole", label: "安全", to: "/security" },
-  { icon: "list-checks", label: "Demo Todo", to: "/todos" }
+  { icon: "lock-keyhole", label: "安全", to: "/security" }
 ]
+
+const navItems = computed(() => [
+  ...primaryItems,
+  ...(config.public.showDemoTodo ? [{ icon: "list-checks", label: "Demo Todo", to: "/todos" }] : []),
+  ...pluginItems.value
+])
+
+async function loadPlugins() {
+  if (!auth.authenticated) {
+    pluginItems.value = []
+    return
+  }
+  try {
+    const plugins = await api.listPlugins()
+    pluginItems.value = plugins.flatMap(pluginMenuItems)
+  } catch {
+    pluginItems.value = []
+  }
+}
+
+function pluginMenuItems(plugin: PluginManifest) {
+  return plugin.menus.map((menu: PluginMenu) => ({
+    icon: menu.icon || "blocks",
+    label: menu.label || plugin.name,
+    to: pluginMenuPath(plugin.id, menu.path)
+  }))
+}
+
+function pluginMenuPath(pluginId: string, path: string) {
+  const cleanPath = path && path !== "/" ? `/${path.replace(/^\/+/, "")}` : ""
+  return `/plugins/${encodeURIComponent(pluginId)}${cleanPath}`
+}
 
 function isActive(to: string) {
   return to === "/" ? route.path === "/" : route.path.startsWith(to)
 }
+
+onMounted(loadPlugins)
+watch(() => [auth.authenticated, auth.currentOrgId], loadPlugins)
 </script>
 
 <template>
@@ -29,7 +69,7 @@ function isActive(to: string) {
 
     <nav class="app-sidebar__nav" aria-label="主导航">
       <NuxtLink
-        v-for="item in primaryItems"
+        v-for="item in navItems"
         :key="item.to"
         class="app-sidebar__item"
         :class="{ 'app-sidebar__item--active': isActive(item.to) }"

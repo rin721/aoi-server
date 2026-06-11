@@ -59,6 +59,8 @@ useHead({
     </AoiButton>
 
     <div class="auth-links">
+      <NuxtLink to="/setup">首次初始化</NuxtLink>
+      <NuxtLink to="/signup">创建工作区</NuxtLink>
       <NuxtLink to="/password/forgot">忘记密码</NuxtLink>
       <NuxtLink to="/password/reset">已有重置令牌</NuxtLink>
     </div>

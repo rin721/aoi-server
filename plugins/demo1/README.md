@@ -1,52 +1,37 @@
-# demo1 RPC Plugin Example
+# demo1 Sidecar Plugin
 
-`demo1` 是一个独立 Go module，用来演示外部插件如何通过 JSON-RPC 调用主服务。
+`demo1` 演示 Aoi Admin v1 的外部 sidecar 插件形态：
 
-## 目录结构
-
-```text
-plugins/demo1
-|-- main.go              # 示例入口，编排一次 health/ping/methods 调用
-|-- go.mod               # 插件自己的 Go module
-`-- rpcclient
-    |-- client.go        # HTTP 传输、/health、JSON-RPC 调用通用逻辑
-    |-- protocol.go      # JSON-RPC 请求、响应、错误模型
-    `-- system.go        # system.ping 和 system.methods 的类型化封装
-```
+- `plugin.yaml` 是主服务读取的插件 manifest；
+- `main.go` 启动独立 HTTP sidecar；
+- `assets/remote.js` 是 Admin WebUI 动态加载的远程 ESM 微前端；
+- `/api/hello` 通过主服务 `/api/v1/plugins/demo1/proxy/api/hello` 代理访问。
 
 ## 运行
 
-先启用主服务 RPC 配置：
+在仓库根目录启用插件配置和代理签名密钥：
 
-```yaml
-rpc:
-  enabled: true
-  host: 127.0.0.1
-  port: 10099
+```powershell
+$env:RIN_APP_PLUGINS_ENABLED="true"
+$env:AOI_DEMO1_PLUGIN_SECRET="dev-demo1-secret-change-me"
 ```
 
 启动主服务：
 
 ```powershell
-go run ./cmd/main server
+go run ./cmd/main db migrate up --config=configs/config.yaml
+go run ./cmd/main server --config=configs/config.yaml
 ```
 
-运行示例插件：
+另开一个终端启动 sidecar：
 
 ```powershell
 cd plugins/demo1
 go run .
 ```
 
-可指定 RPC 地址和超时：
+登录后打开 `http://127.0.0.1:9999/admin/plugins/demo1`，即可看到远程模块通过代理读取 sidecar 数据。
 
-```powershell
-go run . -rpc-url http://127.0.0.1:10099 -timeout 5s
-```
+## 协议边界
 
-## 设计意图
-
-- `rpcclient/protocol.go` 只放 JSON-RPC 协议结构。
-- `rpcclient/client.go` 只处理 HTTP、请求 ID、响应校验和错误包装。
-- `rpcclient/system.go` 放具体方法的类型化封装。
-- `main.go` 只展示插件如何使用客户端，不关心协议细节。
+v1 插件协议以 manifest、HTTP 代理和 remote ESM 为主。目录中的 `rpcclient` 保留为旧 JSON-RPC 示例参考，不作为 v1 插件主协议。

@@ -434,6 +434,7 @@ func (m *manager) copyConfig(src *Config) *Config {
 	dst.CORS.ExposeHeaders = append([]string(nil), src.CORS.ExposeHeaders...)
 	dst.Auth.Audience = append([]string(nil), src.Auth.Audience...)
 	dst.WebUI = copyWebUIConfig(src.WebUI)
+	dst.Plugins = copyPluginsConfig(src.Plugins)
 	return &dst
 }
 

@@ -7,14 +7,15 @@ import (
 
 const (
 	DefaultWebUIMountPath = "/admin"
-	DefaultWebUIDistDir   = "./web/admin/.output/public"
+	DefaultWebUIDistDir   = "./web/aoi-web/.output/public"
 )
 
 // WebUIConfig 控制内置管理台静态产物的托管行为。
 type WebUIConfig struct {
-	Enabled   *bool  `mapstructure:"enabled" envname:"WEBUI_ENABLED" json:"enabled" yaml:"enabled" toml:"enabled"`
-	MountPath string `mapstructure:"mount_path" envname:"WEBUI_MOUNT_PATH" json:"mount_path" yaml:"mount_path" toml:"mount_path"`
-	DistDir   string `mapstructure:"dist_dir" envname:"WEBUI_DIST_DIR" json:"dist_dir" yaml:"dist_dir" toml:"dist_dir"`
+	Enabled       *bool  `mapstructure:"enabled" envname:"WEBUI_ENABLED" json:"enabled" yaml:"enabled" toml:"enabled"`
+	MountPath     string `mapstructure:"mount_path" envname:"WEBUI_MOUNT_PATH" json:"mount_path" yaml:"mount_path" toml:"mount_path"`
+	DistDir       string `mapstructure:"dist_dir" envname:"WEBUI_DIST_DIR" json:"dist_dir" yaml:"dist_dir" toml:"dist_dir"`
+	PublicBaseURL string `mapstructure:"public_base_url" envname:"WEBUI_PUBLIC_BASE_URL" json:"public_base_url" yaml:"public_base_url" toml:"public_base_url"`
 }
 
 // ValidateName 返回 WebUI 配置分区名称。
@@ -45,6 +46,7 @@ func (c *WebUIConfig) Validate() error {
 	if strings.TrimSpace(c.DistDir) == "" {
 		return fmt.Errorf("dist_dir is required")
 	}
+	c.PublicBaseURL = strings.TrimRight(strings.TrimSpace(c.PublicBaseURL), "/")
 	return nil
 }
 

@@ -7,10 +7,8 @@ const orgOptions = computed(() => auth.orgs.map((org) => ({
 })))
 
 async function switchOrg(value: string) {
-  const orgId = Number(value)
-
-  if (orgId > 0 && orgId !== auth.currentOrgId) {
-    await auth.switchOrg(orgId)
+  if (value && value !== auth.currentOrgId) {
+    await auth.switchOrg(value)
   }
 }
 

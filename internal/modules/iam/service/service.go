@@ -10,9 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/rei0721/go-scaffold/internal/modules/iam/model"
 	"github.com/rei0721/go-scaffold/internal/modules/iam/repository"
@@ -36,22 +38,36 @@ var (
 	ErrAccountDisabled  = errors.New("account disabled")
 	ErrSessionRevoked   = errors.New("session revoked")
 	ErrInvitationClosed = errors.New("invitation is not available")
+	ErrSignupDisabled   = errors.New("self signup is disabled")
+	ErrSetupCompleted   = errors.New("setup already completed")
 )
 
 type Config struct {
-	MFAIssuer         string
-	MFASecretKey      string
-	LoginMaxFailures  int
-	LoginLockDuration time.Duration
-	InvitationTTL     time.Duration
-	PasswordResetTTL  time.Duration
-	Now               func() time.Time
+	SelfSignupEnabled  bool
+	MFAIssuer          string
+	MFASecretKey       string
+	LoginMaxFailures   int
+	LoginLockDuration  time.Duration
+	InvitationTTL      time.Duration
+	PasswordResetTTL   time.Duration
+	NotificationDriver string
+	PublicBaseURL      string
+	PasswordPolicy     PasswordPolicy
+	Now                func() time.Time
+}
+
+type PasswordPolicy struct {
+	MinLength     int
+	RequireLower  bool
+	RequireUpper  bool
+	RequireNumber bool
+	RequireSymbol bool
 }
 
 type Principal struct {
-	UserID    int64  `json:"userId"`
-	OrgID     int64  `json:"orgId"`
-	SessionID int64  `json:"sessionId"`
+	UserID    int64  `json:"userId,string"`
+	OrgID     int64  `json:"orgId,string"`
+	SessionID int64  `json:"sessionId,string"`
 	Username  string `json:"username"`
 	Email     string `json:"email"`
 }
@@ -70,6 +86,28 @@ type LoginInput struct {
 	MFACode    string
 	UserAgent  string
 	IPAddress  string
+}
+
+type SignupInput struct {
+	OrgCode     string
+	OrgName     string
+	Username    string
+	Email       string
+	DisplayName string
+	Password    string
+	UserAgent   string
+	IPAddress   string
+}
+
+type InitialAdminSetupInput struct {
+	OrgCode     string
+	OrgName     string
+	Username    string
+	Email       string
+	DisplayName string
+	Password    string
+	UserAgent   string
+	IPAddress   string
 }
 
 type RefreshInput struct {
@@ -125,9 +163,50 @@ type CreateRoleInput struct {
 	Permissions []string
 }
 
+type UpdateUserInput struct {
+	Principal Principal
+	UserID    int64
+	Status    *string
+	Roles     []string
+	HasRoles  bool
+	UserAgent string
+	IPAddress string
+}
+
+type UpdateRoleInput struct {
+	Principal      Principal
+	RoleID         int64
+	Name           string
+	Description    string
+	Permissions    []string
+	HasPermissions bool
+	UserAgent      string
+	IPAddress      string
+}
+
+type UpdateOrganizationInput struct {
+	Principal Principal
+	OrgID     int64
+	Name      string
+	UserAgent string
+	IPAddress string
+}
+
+type AuditLogFilter = repository.AuditLogFilter
+
 type OrganizationUser struct {
-	User  model.User `json:"user"`
-	Roles []string   `json:"roles"`
+	User             model.User `json:"user"`
+	MembershipStatus string     `json:"membershipStatus"`
+	Roles            []string   `json:"roles"`
+}
+
+type NotificationDelivery struct {
+	Token string `json:"token,omitempty"`
+	URL   string `json:"url,omitempty"`
+}
+
+type SetupStatus struct {
+	Required bool `json:"required"`
 }
 
 type Notifier interface {
@@ -138,11 +217,13 @@ type Notifier interface {
 type InvitationNotice struct {
 	Email string
 	Token string
+	URL   string
 }
 
 type PasswordResetNotice struct {
 	Email string
 	Token string
+	URL   string
 }
 
 type NoopNotifier struct{}
@@ -152,6 +233,9 @@ func (NoopNotifier) SendPasswordReset(context.Context, PasswordResetNotice) erro
 
 type Service interface {
 	BootstrapAdmin(context.Context, BootstrapAdminInput) (*Principal, error)
+	SetupStatus(context.Context) (SetupStatus, error)
+	InitialAdminSetup(context.Context, InitialAdminSetupInput) (TokenPair, error)
+	Signup(context.Context, SignupInput) (TokenPair, error)
 	Login(context.Context, LoginInput) (TokenPair, error)
 	Refresh(context.Context, RefreshInput) (TokenPair, error)
 	Logout(context.Context, Principal) error
@@ -162,19 +246,25 @@ type Service interface {
 	ListMyOrganizations(context.Context, Principal) ([]model.Organization, error)
 	ListOrganizations(context.Context, Principal) ([]model.Organization, error)
 	CreateOrganization(context.Context, Principal, string, string) (*model.Organization, error)
-	InviteUser(context.Context, InviteUserInput) (string, error)
+	UpdateOrganization(context.Context, UpdateOrganizationInput) (*model.Organization, error)
+	InviteUser(context.Context, InviteUserInput) (NotificationDelivery, error)
+	ListInvitations(context.Context, Principal) ([]model.Invitation, error)
+	RevokeInvitation(context.Context, Principal, int64, string, string) error
 	AcceptInvitation(context.Context, AcceptInvitationInput) (*Principal, error)
-	ForgotPassword(context.Context, ForgotPasswordInput) (string, error)
+	ForgotPassword(context.Context, ForgotPasswordInput) (NotificationDelivery, error)
 	ResetPassword(context.Context, ResetPasswordInput) error
 	SetupMFA(context.Context, Principal) (string, string, error)
 	VerifyMFA(context.Context, Principal, string) error
 	ListUsers(context.Context, Principal) ([]OrganizationUser, error)
+	UpdateUser(context.Context, UpdateUserInput) (*OrganizationUser, error)
 	ListRoles(context.Context, Principal) ([]model.Role, error)
 	CreateRole(context.Context, CreateRoleInput) (*model.Role, error)
+	UpdateRole(context.Context, UpdateRoleInput) (*model.Role, error)
 	ListPermissions(context.Context, Principal) ([]model.Permission, error)
 	ListSessions(context.Context, Principal, int64) ([]model.Session, error)
 	RevokeSession(context.Context, Principal, int64) error
-	ListAuditLogs(context.Context, Principal, int) ([]model.AuditLog, error)
+	ListAuditLogs(context.Context, Principal, AuditLogFilter) ([]model.AuditLog, error)
+	RecordAudit(context.Context, Principal, string, string, string, string, string, map[string]any) error
 	LoadPolicies(context.Context) error
 }
 
@@ -204,6 +294,12 @@ func New(db database.Database, repo repository.Repository, crypto passwordcrypto
 	}
 	if cfg.PasswordResetTTL <= 0 {
 		cfg.PasswordResetTTL = 30 * time.Minute
+	}
+	if cfg.NotificationDriver == "" {
+		cfg.NotificationDriver = "debug"
+	}
+	if cfg.PasswordPolicy.MinLength <= 0 {
+		cfg.PasswordPolicy.MinLength = 8
 	}
 	if cfg.MFAIssuer == "" {
 		cfg.MFAIssuer = "go-scaffold"
@@ -279,6 +375,158 @@ func (s *service) BootstrapAdmin(ctx context.Context, input BootstrapAdminInput)
 	}
 	_ = s.LoadPolicies(ctx)
 	return principal, nil
+}
+
+func (s *service) SetupStatus(ctx context.Context) (SetupStatus, error) {
+	count, err := s.repo.CountUsers(ctx)
+	if err != nil {
+		return SetupStatus{}, err
+	}
+	return SetupStatus{Required: count == 0}, nil
+}
+
+func (s *service) InitialAdminSetup(ctx context.Context, input InitialAdminSetupInput) (TokenPair, error) {
+	input.OrgCode = normalizeCode(input.OrgCode)
+	input.OrgName = strings.TrimSpace(input.OrgName)
+	input.Username = normalizeCode(input.Username)
+	input.Email = normalizeEmail(input.Email)
+	input.DisplayName = strings.TrimSpace(input.DisplayName)
+	if input.OrgCode == "" || input.OrgName == "" || input.Username == "" || input.Email == "" || input.Password == "" {
+		return TokenPair{}, ErrInvalidInput
+	}
+	if input.DisplayName == "" {
+		input.DisplayName = input.Username
+	}
+	if err := s.validatePassword(input.Password); err != nil {
+		return TokenPair{}, err
+	}
+
+	var pair TokenPair
+	err := s.db.WithTx(ctx, func(txCtx context.Context, tx database.Executor) error {
+		repo := s.repo.WithExecutor(tx)
+		count, err := repo.CountUsers(txCtx)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrSetupCompleted
+		}
+		if _, err := repo.FindOrganizationByCode(txCtx, input.OrgCode); err == nil {
+			return ErrDuplicate
+		} else if !errors.Is(err, database.ErrNotFound) {
+			return err
+		}
+
+		hash, err := s.crypto.HashPassword(input.Password)
+		if err != nil {
+			return err
+		}
+		now := s.now()
+		org := &model.Organization{ID: s.ids.NextID(), Code: input.OrgCode, Name: input.OrgName, Status: model.StatusActive, CreatedAt: now, UpdatedAt: now}
+		if err := repo.CreateOrganization(txCtx, org); err != nil {
+			return err
+		}
+		user := &model.User{ID: s.ids.NextID(), Username: input.Username, Email: input.Email, PasswordHash: hash, DisplayName: input.DisplayName, Status: model.StatusActive, CreatedAt: now, UpdatedAt: now}
+		if err := repo.CreateUser(txCtx, user); err != nil {
+			return err
+		}
+		if err := s.ensureMembership(txCtx, repo, org.ID, user.ID); err != nil {
+			return err
+		}
+		if err := s.ensureBuiltins(txCtx, repo, org.ID); err != nil {
+			return err
+		}
+		if err := s.addUserRole(txCtx, repo, user.ID, org.ID, model.RoleOwner); err != nil {
+			return err
+		}
+		issued, err := s.createSessionAndTokensWithRepo(txCtx, repo, user, org.ID, input.UserAgent, input.IPAddress)
+		if err != nil {
+			return err
+		}
+		pair = issued
+		return s.audit(txCtx, repo, &org.ID, &user.ID, "iam.initial_setup", "organization", strconv.FormatInt(org.ID, 10), input.IPAddress, input.UserAgent, map[string]any{"orgCode": org.Code, "email": user.Email})
+	})
+	if err != nil {
+		return TokenPair{}, err
+	}
+	_ = s.LoadPolicies(ctx)
+	return pair, nil
+}
+
+func (s *service) Signup(ctx context.Context, input SignupInput) (TokenPair, error) {
+	if !s.cfg.SelfSignupEnabled {
+		return TokenPair{}, ErrSignupDisabled
+	}
+	input.OrgCode = normalizeCode(input.OrgCode)
+	input.OrgName = strings.TrimSpace(input.OrgName)
+	input.Username = normalizeCode(input.Username)
+	input.Email = normalizeEmail(input.Email)
+	input.DisplayName = strings.TrimSpace(input.DisplayName)
+	if input.OrgCode == "" || input.OrgName == "" || input.Username == "" || input.Email == "" || input.Password == "" {
+		return TokenPair{}, ErrInvalidInput
+	}
+	if input.DisplayName == "" {
+		input.DisplayName = input.Username
+	}
+	if err := s.validatePassword(input.Password); err != nil {
+		return TokenPair{}, err
+	}
+
+	var pair TokenPair
+	err := s.db.WithTx(ctx, func(txCtx context.Context, tx database.Executor) error {
+		repo := s.repo.WithExecutor(tx)
+		if _, err := repo.FindOrganizationByCode(txCtx, input.OrgCode); err == nil {
+			return ErrDuplicate
+		} else if !errors.Is(err, database.ErrNotFound) {
+			return err
+		}
+		if _, err := repo.FindUserByIdentifier(txCtx, input.Username); err == nil {
+			return ErrDuplicate
+		} else if !errors.Is(err, database.ErrNotFound) {
+			return err
+		}
+		if input.Email != input.Username {
+			if _, err := repo.FindUserByIdentifier(txCtx, input.Email); err == nil {
+				return ErrDuplicate
+			} else if !errors.Is(err, database.ErrNotFound) {
+				return err
+			}
+		}
+
+		hash, err := s.crypto.HashPassword(input.Password)
+		if err != nil {
+			return err
+		}
+		now := s.now()
+		org := &model.Organization{ID: s.ids.NextID(), Code: input.OrgCode, Name: input.OrgName, Status: model.StatusActive, CreatedAt: now, UpdatedAt: now}
+		if err := repo.CreateOrganization(txCtx, org); err != nil {
+			return err
+		}
+		user := &model.User{ID: s.ids.NextID(), Username: input.Username, Email: input.Email, PasswordHash: hash, DisplayName: input.DisplayName, Status: model.StatusActive, CreatedAt: now, UpdatedAt: now}
+		if err := repo.CreateUser(txCtx, user); err != nil {
+			return err
+		}
+		if err := s.ensureMembership(txCtx, repo, org.ID, user.ID); err != nil {
+			return err
+		}
+		if err := s.ensureBuiltins(txCtx, repo, org.ID); err != nil {
+			return err
+		}
+		if err := s.addUserRole(txCtx, repo, user.ID, org.ID, model.RoleOwner); err != nil {
+			return err
+		}
+		issued, err := s.createSessionAndTokensWithRepo(txCtx, repo, user, org.ID, input.UserAgent, input.IPAddress)
+		if err != nil {
+			return err
+		}
+		pair = issued
+		return s.audit(txCtx, repo, &org.ID, &user.ID, "auth.signup", "organization", strconv.FormatInt(org.ID, 10), input.IPAddress, input.UserAgent, map[string]any{"orgCode": org.Code, "email": user.Email})
+	})
+	if err != nil {
+		return TokenPair{}, err
+	}
+	_ = s.LoadPolicies(ctx)
+	return pair, nil
 }
 
 func (s *service) Login(ctx context.Context, input LoginInput) (TokenPair, error) {
@@ -436,29 +684,69 @@ func (s *service) CreateOrganization(ctx context.Context, p Principal, code, nam
 	if code == "" || name == "" {
 		return nil, ErrInvalidInput
 	}
-	now := s.now()
-	org := &model.Organization{ID: s.ids.NextID(), Code: code, Name: name, Status: model.StatusActive, CreatedAt: now, UpdatedAt: now}
-	if err := s.repo.CreateOrganization(ctx, org); err != nil {
+	var org *model.Organization
+	err := s.db.WithTx(ctx, func(txCtx context.Context, tx database.Executor) error {
+		repo := s.repo.WithExecutor(tx)
+		if _, err := repo.FindOrganizationByCode(txCtx, code); err == nil {
+			return ErrDuplicate
+		} else if !errors.Is(err, database.ErrNotFound) {
+			return err
+		}
+		now := s.now()
+		org = &model.Organization{ID: s.ids.NextID(), Code: code, Name: name, Status: model.StatusActive, CreatedAt: now, UpdatedAt: now}
+		if err := repo.CreateOrganization(txCtx, org); err != nil {
+			return err
+		}
+		if err := s.ensureMembership(txCtx, repo, org.ID, p.UserID); err != nil {
+			return err
+		}
+		if err := s.ensureBuiltins(txCtx, repo, org.ID); err != nil {
+			return err
+		}
+		if err := s.addUserRole(txCtx, repo, p.UserID, org.ID, model.RoleOwner); err != nil {
+			return err
+		}
+		return s.audit(txCtx, repo, &org.ID, &p.UserID, "org.create", "organization", strconv.FormatInt(org.ID, 10), "", "", nil)
+	})
+	if err != nil {
 		return nil, err
 	}
-	_ = s.ensureBuiltins(ctx, s.repo, org.ID)
-	_ = s.audit(ctx, s.repo, &org.ID, &p.UserID, "org.create", "organization", strconv.FormatInt(org.ID, 10), "", "", nil)
 	_ = s.LoadPolicies(ctx)
 	return org, nil
 }
 
-func (s *service) InviteUser(ctx context.Context, input InviteUserInput) (string, error) {
+func (s *service) UpdateOrganization(ctx context.Context, input UpdateOrganizationInput) (*model.Organization, error) {
+	if input.OrgID != input.Principal.OrgID {
+		return nil, ErrForbidden
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		return nil, ErrInvalidInput
+	}
+	org, err := s.repo.FindOrganizationByID(ctx, input.OrgID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	org.Name = name
+	if err := s.repo.SaveOrganization(ctx, org); err != nil {
+		return nil, err
+	}
+	_ = s.audit(ctx, s.repo, &input.Principal.OrgID, &input.Principal.UserID, "org.update", "organization", strconv.FormatInt(org.ID, 10), input.IPAddress, input.UserAgent, map[string]any{"name": name})
+	return org, nil
+}
+
+func (s *service) InviteUser(ctx context.Context, input InviteUserInput) (NotificationDelivery, error) {
 	email := normalizeEmail(input.Email)
 	roleCode := normalizeCode(input.RoleCode)
 	if email == "" || roleCode == "" {
-		return "", ErrInvalidInput
+		return NotificationDelivery{}, ErrInvalidInput
 	}
 	if _, err := s.repo.FindRole(ctx, input.Principal.OrgID, roleCode); err != nil {
-		return "", ErrNotFound
+		return NotificationDelivery{}, ErrNotFound
 	}
 	raw, hash, err := s.oneTimeToken()
 	if err != nil {
-		return "", err
+		return NotificationDelivery{}, err
 	}
 	now := s.now()
 	invitation := &model.Invitation{
@@ -466,11 +754,34 @@ func (s *service) InviteUser(ctx context.Context, input InviteUserInput) (string
 		Status: model.StatusPending, InvitedBy: input.Principal.UserID, ExpiresAt: now.Add(s.cfg.InvitationTTL), CreatedAt: now, UpdatedAt: now,
 	}
 	if err := s.repo.CreateInvitation(ctx, invitation); err != nil {
-		return "", err
+		return NotificationDelivery{}, err
 	}
-	_ = s.notifier.SendInvitation(ctx, InvitationNotice{Email: email, Token: raw})
+	adminPath := "invitations/" + url.PathEscape(raw)
+	_ = s.notifier.SendInvitation(ctx, InvitationNotice{Email: email, Token: raw, URL: s.notificationURL(adminPath)})
 	_ = s.audit(ctx, s.repo, &input.Principal.OrgID, &input.Principal.UserID, "user.invite", "invitation", strconv.FormatInt(invitation.ID, 10), input.IPAddress, input.UserAgent, map[string]any{"email": email})
-	return raw, nil
+	return s.debugDelivery(raw, adminPath), nil
+}
+
+func (s *service) ListInvitations(ctx context.Context, p Principal) ([]model.Invitation, error) {
+	return s.repo.ListInvitationsByOrg(ctx, p.OrgID)
+}
+
+func (s *service) RevokeInvitation(ctx context.Context, p Principal, invitationID int64, userAgent, ip string) error {
+	invitation, err := s.repo.FindInvitationByID(ctx, invitationID)
+	if err != nil {
+		return ErrNotFound
+	}
+	if invitation.OrgID != p.OrgID {
+		return ErrForbidden
+	}
+	if invitation.Status != model.StatusPending {
+		return ErrInvitationClosed
+	}
+	invitation.Status = model.StatusRevoked
+	if err := s.repo.SaveInvitation(ctx, invitation); err != nil {
+		return err
+	}
+	return s.audit(ctx, s.repo, &p.OrgID, &p.UserID, "invite.revoke", "invitation", strconv.FormatInt(invitation.ID, 10), ip, userAgent, map[string]any{"email": invitation.Email})
 }
 
 func (s *service) AcceptInvitation(ctx context.Context, input AcceptInvitationInput) (*Principal, error) {
@@ -487,6 +798,9 @@ func (s *service) AcceptInvitation(ctx context.Context, input AcceptInvitationIn
 	displayName := strings.TrimSpace(input.DisplayName)
 	if username == "" || input.Password == "" {
 		return nil, ErrInvalidInput
+	}
+	if err := s.validatePassword(input.Password); err != nil {
+		return nil, err
 	}
 	if displayName == "" {
 		displayName = username
@@ -532,23 +846,24 @@ func (s *service) AcceptInvitation(ctx context.Context, input AcceptInvitationIn
 	return principal, nil
 }
 
-func (s *service) ForgotPassword(ctx context.Context, input ForgotPasswordInput) (string, error) {
+func (s *service) ForgotPassword(ctx context.Context, input ForgotPasswordInput) (NotificationDelivery, error) {
 	user, err := s.repo.FindUserByIdentifier(ctx, normalizeEmail(input.Email))
 	if err != nil {
-		return "", nil
+		return NotificationDelivery{}, nil
 	}
 	raw, hash, err := s.oneTimeToken()
 	if err != nil {
-		return "", err
+		return NotificationDelivery{}, err
 	}
 	now := s.now()
 	reset := &model.PasswordReset{ID: s.ids.NextID(), UserID: user.ID, TokenHash: hash, Status: model.StatusPending, ExpiresAt: now.Add(s.cfg.PasswordResetTTL), CreatedAt: now, UpdatedAt: now}
 	if err := s.repo.CreatePasswordReset(ctx, reset); err != nil {
-		return "", err
+		return NotificationDelivery{}, err
 	}
-	_ = s.notifier.SendPasswordReset(ctx, PasswordResetNotice{Email: user.Email, Token: raw})
+	adminPath := "password/reset?token=" + url.QueryEscape(raw)
+	_ = s.notifier.SendPasswordReset(ctx, PasswordResetNotice{Email: user.Email, Token: raw, URL: s.notificationURL(adminPath)})
 	_ = s.audit(ctx, s.repo, nil, &user.ID, "password.forgot", "password_reset", strconv.FormatInt(reset.ID, 10), input.IPAddress, input.UserAgent, nil)
-	return raw, nil
+	return s.debugDelivery(raw, adminPath), nil
 }
 
 func (s *service) ResetPassword(ctx context.Context, input ResetPasswordInput) error {
@@ -558,6 +873,9 @@ func (s *service) ResetPassword(ctx context.Context, input ResetPasswordInput) e
 	}
 	if reset.Status != model.StatusPending || reset.ExpiresAt.Before(s.now()) {
 		return ErrInvalidToken
+	}
+	if err := s.validatePassword(input.NewPassword); err != nil {
+		return err
 	}
 	user, err := s.repo.FindUserByID(ctx, reset.UserID)
 	if err != nil {
@@ -657,20 +975,74 @@ func (s *service) VerifyMFA(ctx context.Context, p Principal, code string) error
 }
 
 func (s *service) ListUsers(ctx context.Context, p Principal) ([]OrganizationUser, error) {
-	users, err := s.repo.ListUsersByOrg(ctx, p.OrgID)
+	memberships, err := s.repo.ListMembershipsByOrg(ctx, p.OrgID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]OrganizationUser, 0, len(users))
-	for _, user := range users {
+	out := make([]OrganizationUser, 0, len(memberships))
+	for _, membership := range memberships {
+		user, err := s.repo.FindUserByID(ctx, membership.UserID)
+		if err != nil {
+			continue
+		}
 		roles, _ := s.authz.GetRolesForUser(ctx, userSubject(user.ID), strconv.FormatInt(p.OrgID, 10))
-		out = append(out, OrganizationUser{User: user, Roles: roles})
+		out = append(out, OrganizationUser{User: *user, MembershipStatus: membership.Status, Roles: roles})
 	}
 	return out, nil
 }
 
+func (s *service) UpdateUser(ctx context.Context, input UpdateUserInput) (*OrganizationUser, error) {
+	membership, err := s.repo.FindMembershipAnyStatus(ctx, input.Principal.OrgID, input.UserID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	user, err := s.repo.FindUserByID(ctx, input.UserID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	if input.Status != nil {
+		status := normalizeCode(*input.Status)
+		switch status {
+		case model.StatusActive, model.StatusDisabled:
+			membership.Status = status
+			if err := s.repo.SaveMembership(ctx, membership); err != nil {
+				return nil, err
+			}
+			_ = s.audit(ctx, s.repo, &input.Principal.OrgID, &input.Principal.UserID, "user.update", "membership", strconv.FormatInt(membership.ID, 10), input.IPAddress, input.UserAgent, map[string]any{"userId": input.UserID, "status": status})
+		default:
+			return nil, ErrInvalidInput
+		}
+	}
+	if input.HasRoles {
+		for _, roleCode := range input.Roles {
+			if _, err := s.repo.FindRole(ctx, input.Principal.OrgID, normalizeCode(roleCode)); err != nil {
+				return nil, ErrNotFound
+			}
+		}
+		if err := s.repo.DeleteCasbinRules(ctx, "g", userSubject(input.UserID), "", strconv.FormatInt(input.Principal.OrgID, 10)); err != nil {
+			return nil, err
+		}
+		for _, roleCode := range input.Roles {
+			if err := s.addUserRole(ctx, s.repo, input.UserID, input.Principal.OrgID, roleCode); err != nil {
+				return nil, err
+			}
+		}
+		_ = s.LoadPolicies(ctx)
+		_ = s.audit(ctx, s.repo, &input.Principal.OrgID, &input.Principal.UserID, "user.roles.update", "user", strconv.FormatInt(input.UserID, 10), input.IPAddress, input.UserAgent, map[string]any{"roles": input.Roles})
+	}
+	roles, _ := s.authz.GetRolesForUser(ctx, userSubject(user.ID), strconv.FormatInt(input.Principal.OrgID, 10))
+	return &OrganizationUser{User: *user, MembershipStatus: membership.Status, Roles: roles}, nil
+}
+
 func (s *service) ListRoles(ctx context.Context, p Principal) ([]model.Role, error) {
-	return s.repo.ListRoles(ctx, p.OrgID)
+	roles, err := s.repo.ListRoles(ctx, p.OrgID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range roles {
+		_ = s.hydrateRolePermissions(ctx, &roles[i])
+	}
+	return roles, nil
 }
 
 func (s *service) CreateRole(ctx context.Context, input CreateRoleInput) (*model.Role, error) {
@@ -694,6 +1066,46 @@ func (s *service) CreateRole(ctx context.Context, input CreateRoleInput) (*model
 		}
 	}
 	_ = s.LoadPolicies(ctx)
+	_ = s.hydrateRolePermissions(ctx, role)
+	return role, nil
+}
+
+func (s *service) UpdateRole(ctx context.Context, input UpdateRoleInput) (*model.Role, error) {
+	role, err := s.repo.FindRoleByID(ctx, input.RoleID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	if role.OrgID != input.Principal.OrgID {
+		return nil, ErrForbidden
+	}
+	if role.System {
+		return nil, ErrForbidden
+	}
+	name := strings.TrimSpace(input.Name)
+	if name != "" {
+		role.Name = name
+	}
+	role.Description = strings.TrimSpace(input.Description)
+	if err := s.repo.SaveRole(ctx, role); err != nil {
+		return nil, err
+	}
+	if input.HasPermissions {
+		if err := s.repo.DeleteCasbinRules(ctx, "p", roleSubject(role.Code), strconv.FormatInt(input.Principal.OrgID, 10)); err != nil {
+			return nil, err
+		}
+		for _, permission := range input.Permissions {
+			obj, act := permissionObjectAction(permission)
+			if obj == "" || act == "" {
+				continue
+			}
+			if err := s.addPolicy(ctx, s.repo, input.Principal.OrgID, role.Code, obj, act); err != nil {
+				return nil, err
+			}
+		}
+		_ = s.LoadPolicies(ctx)
+	}
+	_ = s.hydrateRolePermissions(ctx, role)
+	_ = s.audit(ctx, s.repo, &input.Principal.OrgID, &input.Principal.UserID, "role.update", "role", strconv.FormatInt(role.ID, 10), input.IPAddress, input.UserAgent, map[string]any{"permissions": input.Permissions})
 	return role, nil
 }
 
@@ -721,8 +1133,12 @@ func (s *service) RevokeSession(ctx context.Context, p Principal, sessionID int6
 	return s.repo.SaveSession(ctx, session)
 }
 
-func (s *service) ListAuditLogs(ctx context.Context, p Principal, limit int) ([]model.AuditLog, error) {
-	return s.repo.ListAuditLogs(ctx, p.OrgID, limit)
+func (s *service) ListAuditLogs(ctx context.Context, p Principal, filter AuditLogFilter) ([]model.AuditLog, error) {
+	return s.repo.ListAuditLogs(ctx, p.OrgID, filter)
+}
+
+func (s *service) RecordAudit(ctx context.Context, p Principal, action, resource, resourceID, ip, userAgent string, metadata map[string]any) error {
+	return s.audit(ctx, s.repo, &p.OrgID, &p.UserID, action, resource, resourceID, ip, userAgent, metadata)
 }
 
 func (s *service) LoadPolicies(ctx context.Context) error {
@@ -734,6 +1150,10 @@ func (s *service) LoadPolicies(ctx context.Context) error {
 }
 
 func (s *service) createSessionAndTokens(ctx context.Context, user *model.User, orgID int64, userAgent, ip string) (TokenPair, error) {
+	return s.createSessionAndTokensWithRepo(ctx, s.repo, user, orgID, userAgent, ip)
+}
+
+func (s *service) createSessionAndTokensWithRepo(ctx context.Context, repo repository.Repository, user *model.User, orgID int64, userAgent, ip string) (TokenPair, error) {
 	now := s.now()
 	sessionID := s.ids.NextID()
 	pair, err := s.tokens.IssuePair(ctx, token.Subject{UserID: user.ID, OrgID: orgID, SessionID: sessionID})
@@ -741,7 +1161,7 @@ func (s *service) createSessionAndTokens(ctx context.Context, user *model.User, 
 		return TokenPair{}, err
 	}
 	session := &model.Session{ID: sessionID, UserID: user.ID, OrgID: orgID, RefreshTokenHash: pair.RefreshTokenHash, UserAgent: userAgent, IPAddress: ip, ExpiresAt: pair.RefreshExpiresAt, CreatedAt: now, UpdatedAt: now}
-	if err := s.repo.CreateSession(ctx, session); err != nil {
+	if err := repo.CreateSession(ctx, session); err != nil {
 		return TokenPair{}, err
 	}
 	return tokenPair(pair), nil
@@ -892,6 +1312,71 @@ func (s *service) oneTimeToken() (string, string, error) {
 	return value, s.tokens.HashRefreshToken(value), nil
 }
 
+func (s *service) debugDelivery(token string, adminPath string) NotificationDelivery {
+	if !s.debugNotificationsEnabled() {
+		return NotificationDelivery{}
+	}
+	return NotificationDelivery{Token: token, URL: s.notificationURL(adminPath)}
+}
+
+func (s *service) notificationURL(adminPath string) string {
+	adminPath = strings.TrimLeft(adminPath, "/")
+	base := s.publicBaseURL()
+	if base == "" {
+		return "/admin/" + adminPath
+	}
+	return strings.TrimRight(base, "/") + "/" + adminPath
+}
+
+func (s *service) debugNotificationsEnabled() bool {
+	switch normalizeCode(s.cfg.NotificationDriver) {
+	case "", "debug", "noop", "local":
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *service) publicBaseURL() string {
+	return strings.TrimRight(strings.TrimSpace(s.cfg.PublicBaseURL), "/")
+}
+
+func (s *service) validatePassword(value string) error {
+	policy := s.cfg.PasswordPolicy
+	if policy.MinLength <= 0 {
+		policy.MinLength = 8
+	}
+	if len([]rune(value)) < policy.MinLength {
+		return ErrInvalidInput
+	}
+	var hasLower, hasUpper, hasNumber, hasSymbol bool
+	for _, r := range value {
+		switch {
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsDigit(r):
+			hasNumber = true
+		case unicode.IsPunct(r) || unicode.IsSymbol(r):
+			hasSymbol = true
+		}
+	}
+	if policy.RequireLower && !hasLower {
+		return ErrInvalidInput
+	}
+	if policy.RequireUpper && !hasUpper {
+		return ErrInvalidInput
+	}
+	if policy.RequireNumber && !hasNumber {
+		return ErrInvalidInput
+	}
+	if policy.RequireSymbol && !hasSymbol {
+		return ErrInvalidInput
+	}
+	return nil
+}
+
 func (s *service) encryptSecret(secret string) (string, error) {
 	block, err := aes.NewCipher(secretKey(s.cfg.MFASecretKey))
 	if err != nil {
@@ -968,6 +1453,18 @@ func permissionObjectAction(code string) (string, string) {
 	return parts[0], parts[1]
 }
 
+func (s *service) hydrateRolePermissions(ctx context.Context, role *model.Role) error {
+	if role == nil {
+		return nil
+	}
+	permissions, err := s.repo.ListRolePermissions(ctx, role.OrgID, roleSubject(role.Code))
+	if err != nil {
+		return err
+	}
+	role.Permissions = permissions
+	return nil
+}
+
 func secretKey(value string) []byte {
 	sum := sha256.Sum256([]byte(value))
 	return sum[:]
@@ -982,6 +1479,7 @@ type permissionSeed struct {
 var builtinPermissions = []permissionSeed{
 	{Code: "org:create", Name: "Create organizations", Description: "Create organizations"},
 	{Code: "org:read", Name: "Read organizations", Description: "Read organizations"},
+	{Code: "org:update", Name: "Update organizations", Description: "Update organization settings"},
 	{Code: "user:read", Name: "Read users", Description: "Read organization users"},
 	{Code: "user:invite", Name: "Invite users", Description: "Invite users into organization"},
 	{Code: "user:update", Name: "Update users", Description: "Update organization users"},
@@ -993,4 +1491,6 @@ var builtinPermissions = []permissionSeed{
 	{Code: "session:read", Name: "Read sessions", Description: "Read sessions"},
 	{Code: "session:revoke", Name: "Revoke sessions", Description: "Revoke sessions"},
 	{Code: "audit:read", Name: "Read audit logs", Description: "Read audit logs"},
+	{Code: "plugin:read", Name: "Read plugins", Description: "Read installed plugin manifests"},
+	{Code: "plugin:proxy", Name: "Proxy plugins", Description: "Call installed plugin sidecar APIs"},
 }

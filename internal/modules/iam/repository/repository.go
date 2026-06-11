@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/rei0721/go-scaffold/internal/modules/iam/model"
@@ -16,17 +17,25 @@ type Repository interface {
 	FindOrganizationByID(context.Context, int64) (*model.Organization, error)
 	FindOrganizationByCode(context.Context, string) (*model.Organization, error)
 	ListOrganizations(context.Context) ([]model.Organization, error)
+	SaveOrganization(context.Context, *model.Organization) error
 	CreateUser(context.Context, *model.User) error
+	CountUsers(context.Context) (int64, error)
 	FindUserByID(context.Context, int64) (*model.User, error)
 	FindUserByIdentifier(context.Context, string) (*model.User, error)
 	SaveUser(context.Context, *model.User) error
 	CreateMembership(context.Context, *model.Membership) error
 	FindMembership(context.Context, int64, int64) (*model.Membership, error)
+	FindMembershipAnyStatus(context.Context, int64, int64) (*model.Membership, error)
 	ListMembershipsByUser(context.Context, int64) ([]model.Membership, error)
+	ListMembershipsByOrg(context.Context, int64) ([]model.Membership, error)
+	SaveMembership(context.Context, *model.Membership) error
 	ListUsersByOrg(context.Context, int64) ([]model.User, error)
 	CreateRole(context.Context, *model.Role) error
+	FindRoleByID(context.Context, int64) (*model.Role, error)
 	FindRole(context.Context, int64, string) (*model.Role, error)
 	ListRoles(context.Context, int64) ([]model.Role, error)
+	ListRolePermissions(context.Context, int64, string) ([]string, error)
+	SaveRole(context.Context, *model.Role) error
 	CreatePermission(context.Context, *model.Permission) error
 	FindPermission(context.Context, string) (*model.Permission, error)
 	ListPermissions(context.Context) ([]model.Permission, error)
@@ -36,7 +45,9 @@ type Repository interface {
 	ListSessionsByUser(context.Context, int64) ([]model.Session, error)
 	SaveSession(context.Context, *model.Session) error
 	CreateInvitation(context.Context, *model.Invitation) error
+	FindInvitationByID(context.Context, int64) (*model.Invitation, error)
 	FindInvitationByTokenHash(context.Context, string) (*model.Invitation, error)
+	ListInvitationsByOrg(context.Context, int64) ([]model.Invitation, error)
 	SaveInvitation(context.Context, *model.Invitation) error
 	CreatePasswordReset(context.Context, *model.PasswordReset) error
 	FindPasswordResetByTokenHash(context.Context, string) (*model.PasswordReset, error)
@@ -45,9 +56,19 @@ type Repository interface {
 	FindActiveMFAFactor(context.Context, int64) (*model.MFAFactor, error)
 	SaveMFAFactor(context.Context, *model.MFAFactor) error
 	CreateAuditLog(context.Context, *model.AuditLog) error
-	ListAuditLogs(context.Context, int64, int) ([]model.AuditLog, error)
+	ListAuditLogs(context.Context, int64, AuditLogFilter) ([]model.AuditLog, error)
 	AddCasbinRule(context.Context, *model.CasbinRule) error
+	DeleteCasbinRules(context.Context, string, ...string) error
 	ListCasbinRules(context.Context) ([]authorization.Rule, error)
+}
+
+type AuditLogFilter struct {
+	Action string
+	UserID int64
+	From   time.Time
+	To     time.Time
+	Limit  int
+	Cursor int64
 }
 
 type repository struct {
@@ -88,8 +109,17 @@ func (r *repository) ListOrganizations(ctx context.Context) ([]model.Organizatio
 	return orgs, err
 }
 
+func (r *repository) SaveOrganization(ctx context.Context, org *model.Organization) error {
+	org.UpdatedAt = time.Now().UTC()
+	return r.db.Save(ctx, org)
+}
+
 func (r *repository) CreateUser(ctx context.Context, user *model.User) error {
 	return r.db.Create(ctx, user)
+}
+
+func (r *repository) CountUsers(ctx context.Context) (int64, error) {
+	return r.db.Count(ctx, &model.User{}, alive())
 }
 
 func (r *repository) FindUserByID(ctx context.Context, id int64) (*model.User, error) {
@@ -130,6 +160,18 @@ func (r *repository) FindMembership(ctx context.Context, orgID, userID int64) (*
 	return &membership, nil
 }
 
+func (r *repository) FindMembershipAnyStatus(ctx context.Context, orgID, userID int64) (*model.Membership, error) {
+	var membership model.Membership
+	err := r.db.First(ctx, &membership,
+		database.Where("org_id = ? AND user_id = ?", orgID, userID),
+		alive(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &membership, nil
+}
+
 func (r *repository) ListMembershipsByUser(ctx context.Context, userID int64) ([]model.Membership, error) {
 	var memberships []model.Membership
 	err := r.db.Find(ctx, &memberships,
@@ -138,6 +180,21 @@ func (r *repository) ListMembershipsByUser(ctx context.Context, userID int64) ([
 		alive(),
 	)
 	return memberships, err
+}
+
+func (r *repository) ListMembershipsByOrg(ctx context.Context, orgID int64) ([]model.Membership, error) {
+	var memberships []model.Membership
+	err := r.db.Find(ctx, &memberships,
+		database.Where("org_id = ?", orgID),
+		alive(),
+		database.Order("id DESC"),
+	)
+	return memberships, err
+}
+
+func (r *repository) SaveMembership(ctx context.Context, membership *model.Membership) error {
+	membership.UpdatedAt = time.Now().UTC()
+	return r.db.Save(ctx, membership)
 }
 
 func (r *repository) ListUsersByOrg(ctx context.Context, orgID int64) ([]model.User, error) {
@@ -155,6 +212,14 @@ func (r *repository) CreateRole(ctx context.Context, role *model.Role) error {
 	return r.db.Create(ctx, role)
 }
 
+func (r *repository) FindRoleByID(ctx context.Context, id int64) (*model.Role, error) {
+	var role model.Role
+	if err := r.db.First(ctx, &role, database.Where("id = ?", id), alive()); err != nil {
+		return nil, err
+	}
+	return &role, nil
+}
+
 func (r *repository) FindRole(ctx context.Context, orgID int64, code string) (*model.Role, error) {
 	var role model.Role
 	if err := r.db.First(ctx, &role, database.Where("org_id = ? AND code = ?", orgID, code), alive()); err != nil {
@@ -167,6 +232,29 @@ func (r *repository) ListRoles(ctx context.Context, orgID int64) ([]model.Role, 
 	var roles []model.Role
 	err := r.db.Find(ctx, &roles, database.Where("org_id = ?", orgID), alive(), database.Order("code ASC"))
 	return roles, err
+}
+
+func (r *repository) ListRolePermissions(ctx context.Context, orgID int64, roleSubject string) ([]string, error) {
+	var rows []model.CasbinRule
+	if err := r.db.Find(ctx, &rows,
+		database.Where("ptype = ? AND v0 = ? AND v1 = ?", "p", roleSubject, strconv.FormatInt(orgID, 10)),
+		database.Order("v2 ASC, v3 ASC"),
+	); err != nil {
+		return nil, err
+	}
+	permissions := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.V2 == "" || row.V3 == "" {
+			continue
+		}
+		permissions = append(permissions, row.V2+":"+row.V3)
+	}
+	return permissions, nil
+}
+
+func (r *repository) SaveRole(ctx context.Context, role *model.Role) error {
+	role.UpdatedAt = time.Now().UTC()
+	return r.db.Save(ctx, role)
 }
 
 func (r *repository) CreatePermission(ctx context.Context, permission *model.Permission) error {
@@ -222,12 +310,26 @@ func (r *repository) CreateInvitation(ctx context.Context, invitation *model.Inv
 	return r.db.Create(ctx, invitation)
 }
 
+func (r *repository) FindInvitationByID(ctx context.Context, id int64) (*model.Invitation, error) {
+	var invitation model.Invitation
+	if err := r.db.First(ctx, &invitation, database.Where("id = ?", id)); err != nil {
+		return nil, err
+	}
+	return &invitation, nil
+}
+
 func (r *repository) FindInvitationByTokenHash(ctx context.Context, hash string) (*model.Invitation, error) {
 	var invitation model.Invitation
 	if err := r.db.First(ctx, &invitation, database.Where("token_hash = ?", hash)); err != nil {
 		return nil, err
 	}
 	return &invitation, nil
+}
+
+func (r *repository) ListInvitationsByOrg(ctx context.Context, orgID int64) ([]model.Invitation, error) {
+	var invitations []model.Invitation
+	err := r.db.Find(ctx, &invitations, database.Where("org_id = ?", orgID), database.Order("created_at DESC"))
+	return invitations, err
 }
 
 func (r *repository) SaveInvitation(ctx context.Context, invitation *model.Invitation) error {
@@ -279,12 +381,32 @@ func (r *repository) CreateAuditLog(ctx context.Context, audit *model.AuditLog) 
 	return r.db.Create(ctx, audit)
 }
 
-func (r *repository) ListAuditLogs(ctx context.Context, orgID int64, limit int) ([]model.AuditLog, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 100
+func (r *repository) ListAuditLogs(ctx context.Context, orgID int64, filter AuditLogFilter) ([]model.AuditLog, error) {
+	if filter.Limit <= 0 || filter.Limit > 500 {
+		filter.Limit = 100
+	}
+	opts := []database.QueryOption{
+		database.Where("org_id = ?", orgID),
+		database.Order("created_at DESC, id DESC"),
+		database.Limit(filter.Limit),
+	}
+	if filter.Action != "" {
+		opts = append(opts, database.Where("action = ?", filter.Action))
+	}
+	if filter.UserID > 0 {
+		opts = append(opts, database.Where("user_id = ?", filter.UserID))
+	}
+	if !filter.From.IsZero() {
+		opts = append(opts, database.Where("created_at >= ?", filter.From))
+	}
+	if !filter.To.IsZero() {
+		opts = append(opts, database.Where("created_at <= ?", filter.To))
+	}
+	if filter.Cursor > 0 {
+		opts = append(opts, database.Where("id < ?", filter.Cursor))
 	}
 	var logs []model.AuditLog
-	err := r.db.Find(ctx, &logs, database.Where("org_id = ?", orgID), database.Order("created_at DESC"), database.Limit(limit))
+	err := r.db.Find(ctx, &logs, opts...)
 	return logs, err
 }
 
@@ -301,6 +423,18 @@ func (r *repository) AddCasbinRule(ctx context.Context, rule *model.CasbinRule) 
 		return err
 	}
 	return r.db.Create(ctx, rule)
+}
+
+func (r *repository) DeleteCasbinRules(ctx context.Context, ptype string, values ...string) error {
+	opts := []database.QueryOption{database.Where("ptype = ?", ptype)}
+	for i, value := range values {
+		if value == "" {
+			continue
+		}
+		opts = append(opts, database.Where("v"+strconv.Itoa(i)+" = ?", value))
+	}
+	_, err := r.db.Delete(ctx, &model.CasbinRule{}, opts...)
+	return err
 }
 
 func (r *repository) ListCasbinRules(ctx context.Context) ([]authorization.Rule, error) {

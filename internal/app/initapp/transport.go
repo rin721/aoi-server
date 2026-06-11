@@ -10,6 +10,7 @@ import (
 	demohandler "github.com/rei0721/go-scaffold/internal/modules/demo/handler"
 	iamhandler "github.com/rei0721/go-scaffold/internal/modules/iam/handler"
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
+	pluginhandler "github.com/rei0721/go-scaffold/internal/modules/plugins/handler"
 	httptransport "github.com/rei0721/go-scaffold/internal/transport/http"
 	rpctransport "github.com/rei0721/go-scaffold/internal/transport/rpc"
 	"github.com/rei0721/go-scaffold/pkg/database"
@@ -37,6 +38,7 @@ func NewTransport(core Core, infra Infrastructure, modules Modules) (Transport, 
 		corsConfig,
 		modules.Demo.TodoHandler,
 		modules.IAM.Handler,
+		modules.Plugins.Handler,
 		modules.IAM.Service,
 	)
 	if err != nil {
@@ -100,6 +102,7 @@ func NewHTTPServer(
 	corsConfig middleware.CORSConfig,
 	todoHandler *demohandler.TodoHandler,
 	iamHandler *iamhandler.Handler,
+	pluginHandler *pluginhandler.Handler,
 	iamService iamservice.Service,
 ) (*web.Engine, httpserver.HTTPServer, error) {
 	middlewareCfg := middleware.DefaultMiddlewareConfig()
@@ -108,15 +111,16 @@ func NewHTTPServer(
 	webUICfg.ApplyDefaults()
 
 	router := httptransport.NewRouter(httptransport.RouterDeps{
-		Mode:        cfg.Server.Mode,
-		Logger:      log,
-		I18n:        i18nApp,
-		Database:    db,
-		Middleware:  middlewareCfg,
-		TodoHandler: todoHandler,
-		IAMHandler:  iamHandler,
-		IAMAuth:     iamService,
-		IAMAuthz:    iamService,
+		Mode:          cfg.Server.Mode,
+		Logger:        log,
+		I18n:          i18nApp,
+		Database:      db,
+		Middleware:    middlewareCfg,
+		TodoHandler:   todoHandler,
+		IAMHandler:    iamHandler,
+		PluginHandler: pluginHandler,
+		IAMAuth:       iamService,
+		IAMAuthz:      iamService,
 		WebUI: httptransport.WebUIDeps{
 			Enabled:   webUICfg.EnabledValue(),
 			MountPath: webUICfg.MountPath,

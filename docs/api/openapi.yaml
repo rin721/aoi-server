@@ -16,6 +16,7 @@ tags:
   - name: IAM 组织
   - name: IAM 会话
   - name: IAM 审计
+  - name: 插件
 security:
   - bearerAuth: []
 paths:
@@ -181,6 +182,83 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/setup/status:
+    get:
+      tags: [IAM 认证]
+      summary: Check whether first-time admin setup is required
+      security: []
+      responses:
+        "200":
+          description: Setup status.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SetupStatus"
+        "429":
+          description: Public auth endpoint rate limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResult"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/setup/initial-admin:
+    post:
+      tags: [IAM 认证]
+      summary: Create the first organization owner when IAM has no users
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitialAdminSetupRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TokenPair"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: Public auth endpoint rate limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResult"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/signup:
+    post:
+      tags: [IAM 认证]
+      summary: 自助注册并创建首个组织 owner
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TokenPair"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: 认证入口触发限流。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResult"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/v1/auth/login:
     post:
       tags: [IAM 认证]
@@ -285,7 +363,7 @@ paths:
               $ref: "#/components/schemas/ForgotPasswordRequest"
       responses:
         "200":
-          description: 重置令牌已生成。当前 no-op 通知器会在响应中返回该令牌。
+          description: 重置通知已创建。debug/noop/local 通知驱动会在响应中返回调试 token/link。
           content:
             application/json:
               schema:
@@ -294,11 +372,7 @@ paths:
                   - type: object
                     properties:
                       data:
-                        type: object
-                        required: [token]
-                        properties:
-                          token:
-                            type: string
+                        $ref: "#/components/schemas/NotificationDelivery"
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -518,6 +592,40 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+    patch:
+      tags: [IAM 组织]
+      summary: 更新当前组织信息
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrgRequest"
+      responses:
+        "200":
+          description: 组织已更新。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Organization"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/v1/orgs/{orgId}/users:
     parameters:
       - $ref: "#/components/parameters/OrgID"
@@ -544,6 +652,45 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/users/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      tags: [IAM 组织]
+      summary: 更新成员状态或角色
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: 成员已更新。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/OrganizationUser"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/v1/orgs/{orgId}/users/invitations:
     parameters:
       - $ref: "#/components/parameters/OrgID"
@@ -558,7 +705,66 @@ paths:
               $ref: "#/components/schemas/InviteUserRequest"
       responses:
         "201":
-          description: 邀请令牌已生成。当前 no-op 通知器会在响应中返回该令牌。
+          description: 邀请已创建。debug/noop/local 通知驱动会在响应中返回调试 token/link。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NotificationDelivery"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/invitations:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+    get:
+      tags: [IAM 组织]
+      summary: 查询当前组织邀请
+      responses:
+        "200":
+          description: 邀请列表。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Invitation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/invitations/{invitationId}:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+      - name: invitationId
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      tags: [IAM 组织]
+      summary: 撤销待处理邀请
+      responses:
+        "200":
+          description: 邀请已撤销。
           content:
             application/json:
               schema:
@@ -568,10 +774,10 @@ paths:
                     properties:
                       data:
                         type: object
-                        required: [token]
+                        required: [revoked]
                         properties:
-                          token:
-                            type: string
+                          revoked:
+                            type: boolean
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -637,6 +843,45 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/roles/{roleId}:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+      - name: roleId
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      tags: [IAM 组织]
+      summary: 更新自定义角色
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "200":
+          description: 角色已更新。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/v1/orgs/{orgId}/permissions:
     parameters:
       - $ref: "#/components/parameters/OrgID"
@@ -674,8 +919,7 @@ paths:
           in: query
           required: false
           schema:
-            type: integer
-            format: int64
+            type: string
       responses:
         "200":
           description: 会话列表。
@@ -705,9 +949,7 @@ paths:
         in: path
         required: true
         schema:
-          type: integer
-          format: int64
-          minimum: 1
+          type: string
     delete:
       tags: [IAM 会话]
       summary: 撤销当前组织中的会话
@@ -744,6 +986,33 @@ paths:
       tags: [IAM 审计]
       summary: 查询当前组织审计日志
       parameters:
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
         - name: limit
           in: query
           required: false
@@ -773,6 +1042,116 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/v1/plugins:
+    get:
+      tags: [插件]
+      summary: 列出插件
+      description: 返回当前用户可见菜单已过滤后的插件 manifest。
+      responses:
+        "200":
+          description: 插件列表。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PluginManifest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/plugins/{pluginId}:
+    parameters:
+      - $ref: "#/components/parameters/PluginID"
+    get:
+      tags: [插件]
+      summary: 读取插件
+      responses:
+        "200":
+          description: 插件 manifest。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PluginManifest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/plugins/{pluginId}/health:
+    parameters:
+      - $ref: "#/components/parameters/PluginID"
+    get:
+      tags: [插件]
+      summary: 检查插件健康状态
+      responses:
+        "200":
+          description: 插件健康状态。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PluginHealthStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/plugins/{pluginId}/proxy/{path}:
+    parameters:
+      - $ref: "#/components/parameters/PluginID"
+      - $ref: "#/components/parameters/PluginProxyPath"
+    get:
+      tags: [插件]
+      summary: 代理插件 GET 请求
+      responses:
+        "200":
+          description: 插件 sidecar 原始响应。
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          description: 插件代理失败。
+    post:
+      tags: [插件]
+      summary: 代理插件 POST 请求
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: 插件 sidecar 原始响应。
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          description: 插件代理失败。
 components:
   securitySchemes:
     bearerAuth:
@@ -794,9 +1173,20 @@ components:
       required: true
       description: 必须与 access token 中的组织 ID 一致。
       schema:
-        type: integer
-        format: int64
-        minimum: 1
+        type: string
+    PluginID:
+      name: pluginId
+      in: path
+      required: true
+      schema:
+        type: string
+    PluginProxyPath:
+      name: path
+      in: path
+      required: true
+      description: 插件代理路径，必须匹配 manifest proxy.prefixes。
+      schema:
+        type: string
   responses:
     TokenPair:
       description: 令牌对。
@@ -945,6 +1335,84 @@ components:
           type: string
         completed:
           type: boolean
+    PluginManifest:
+      type: object
+      required: [id, name, version, baseURL, healthPath, frontend, menus, permissions, proxy]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        baseURL:
+          type: string
+        healthPath:
+          type: string
+        frontend:
+          type: object
+          properties:
+            entry:
+              type: string
+        menus:
+          type: array
+          items:
+            $ref: "#/components/schemas/PluginMenu"
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PluginPermission"
+        proxy:
+          type: object
+          properties:
+            prefixes:
+              type: array
+              items:
+                type: string
+        secretRef:
+          type: string
+    PluginMenu:
+      type: object
+      required: [code, label, path]
+      properties:
+        code:
+          type: string
+        label:
+          type: string
+        icon:
+          type: string
+        path:
+          type: string
+        permission:
+          type: string
+        order:
+          type: integer
+    PluginPermission:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+    PluginHealthStatus:
+      type: object
+      required: [id, status, statusCode, durationMs]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [ok, unhealthy]
+        statusCode:
+          type: integer
+        durationMs:
+          type: integer
+          format: int64
+        error:
+          type: string
     LoginRequest:
       type: object
       required: [identifier, password]
@@ -959,6 +1427,33 @@ components:
           type: string
         mfaCode:
           type: string
+    SignupRequest:
+      type: object
+      required: [orgCode, orgName, username, email, password]
+      properties:
+        orgCode:
+          type: string
+        orgName:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        password:
+          type: string
+          format: password
+    InitialAdminSetupRequest:
+      allOf:
+        - $ref: "#/components/schemas/SignupRequest"
+    SetupStatus:
+      type: object
+      required: [required]
+      properties:
+        required:
+          type: boolean
     RefreshRequest:
       type: object
       required: [refreshToken]
@@ -970,8 +1465,7 @@ components:
       required: [orgId]
       properties:
         orgId:
-          type: integer
-          format: int64
+          type: string
     ForgotPasswordRequest:
       type: object
       required: [email]
@@ -1013,6 +1507,12 @@ components:
           type: string
         name:
           type: string
+    UpdateOrgRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
     InviteUserRequest:
       type: object
       required: [email, roleCode]
@@ -1037,6 +1537,29 @@ components:
           items:
             type: string
             example: user:read
+    UpdateUserRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, disabled]
+        roles:
+          type: array
+          items:
+            type: string
+            example: admin
+    UpdateRoleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+            example: user:read
     TokenPair:
       type: object
       required: [accessToken, accessExpiresAt, refreshToken, refreshExpiresAt]
@@ -1051,19 +1574,25 @@ components:
         refreshExpiresAt:
           type: string
           format: date-time
+    NotificationDelivery:
+      type: object
+      properties:
+        token:
+          type: string
+          description: 仅 debug/noop/local 通知驱动返回。
+        url:
+          type: string
+          description: 仅 debug/noop/local 通知驱动返回。
     Principal:
       type: object
       required: [userId, orgId, sessionId, username, email]
       properties:
         userId:
-          type: integer
-          format: int64
+          type: string
         orgId:
-          type: integer
-          format: int64
+          type: string
         sessionId:
-          type: integer
-          format: int64
+          type: string
         username:
           type: string
         email:
@@ -1082,8 +1611,7 @@ components:
       required: [id, code, name, status, createdAt, updatedAt]
       properties:
         id:
-          type: integer
-          format: int64
+          type: string
         code:
           type: string
         name:
@@ -1102,8 +1630,7 @@ components:
       required: [id, username, email, displayName, status, mfaEnabled, createdAt, updatedAt]
       properties:
         id:
-          type: integer
-          format: int64
+          type: string
         username:
           type: string
         email:
@@ -1132,24 +1659,55 @@ components:
           format: date-time
     OrganizationUser:
       type: object
-      required: [user, roles]
+      required: [user, membershipStatus, roles]
       properties:
         user:
           $ref: "#/components/schemas/User"
+        membershipStatus:
+          type: string
+          enum: [active, disabled]
         roles:
           type: array
           items:
             type: string
+    Invitation:
+      type: object
+      required: [id, orgId, email, roleCode, status, invitedBy, expiresAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        orgId:
+          type: string
+        email:
+          type: string
+          format: email
+        roleCode:
+          type: string
+        status:
+          type: string
+          enum: [pending, used, revoked]
+        invitedBy:
+          type: string
+        acceptedBy:
+          type: string
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     Role:
       type: object
       required: [id, orgId, code, name, description, system, createdAt, updatedAt]
       properties:
         id:
-          type: integer
-          format: int64
+          type: string
         orgId:
-          type: integer
-          format: int64
+          type: string
         code:
           type: string
         name:
@@ -1158,6 +1716,11 @@ components:
           type: string
         system:
           type: boolean
+        permissions:
+          type: array
+          items:
+            type: string
+            example: user:read
         createdAt:
           type: string
           format: date-time
@@ -1169,8 +1732,7 @@ components:
       required: [id, code, name, description, createdAt, updatedAt]
       properties:
         id:
-          type: integer
-          format: int64
+          type: string
         code:
           type: string
         name:
@@ -1188,14 +1750,11 @@ components:
       required: [id, userId, orgId, userAgent, ipAddress, expiresAt, createdAt, updatedAt]
       properties:
         id:
-          type: integer
-          format: int64
+          type: string
         userId:
-          type: integer
-          format: int64
+          type: string
         orgId:
-          type: integer
-          format: int64
+          type: string
         userAgent:
           type: string
         ipAddress:
@@ -1222,15 +1781,12 @@ components:
       required: [id, action, resource, resourceId, ipAddress, userAgent, metadata, createdAt]
       properties:
         id:
-          type: integer
-          format: int64
+          type: string
         orgId:
-          type: integer
-          format: int64
+          type: string
           nullable: true
         userId:
-          type: integer
-          format: int64
+          type: string
           nullable: true
         action:
           type: string

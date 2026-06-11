@@ -15,6 +15,7 @@ Available plugin-backed workflows in this environment:
 - GitHub Actions failure investigation through `gh-fix-ci`.
 - Draft PR publishing through `yeet`.
 - OpenAI docs lookup and Browser-based local web checks when needed.
+- Browser visual checks are required for visible frontend changes. For the Aoi Admin WebUI, inspect at least desktop `1440x900` and mobile `390x844`, and report routes, viewports, console errors, and residual visual risk in the handoff.
 
 Restart Codex after skill installation so newly installed skills are loaded in
 future sessions.
@@ -57,4 +58,3 @@ Do not install these by default:
 - Testcontainers: useful after real database integration tests are introduced.
 - Figma, Notion, Linear, Cloudflare, and frontend Playwright skills: not
   aligned with the current backend scaffold scope.
-

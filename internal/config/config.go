@@ -24,6 +24,7 @@ type Config struct {
 	Auth      AuthConfig      `mapstructure:"auth"`
 	Migration MigrationConfig `mapstructure:"migration"`
 	WebUI     WebUIConfig     `mapstructure:"webui"`
+	Plugins   PluginsConfig   `mapstructure:"plugins"`
 }
 
 // Validator 表示可以对自身执行配置校验的分区接口。
@@ -49,6 +50,7 @@ func (c *Config) Validate() error {
 		&c.Auth,
 		&c.Migration,
 		&c.WebUI,
+		&c.Plugins,
 	}
 	for _, validator := range validators {
 		if validator == nil {
@@ -57,6 +59,9 @@ func (c *Config) Validate() error {
 		if err := validator.Validate(); err != nil {
 			return fmt.Errorf("%s config: %w", validator.ValidateName(), err)
 		}
+	}
+	if c.Plugins.Enabled && !c.Auth.Enabled {
+		return fmt.Errorf("%s config: auth must be enabled when plugins are enabled", c.Plugins.ValidateName())
 	}
 	return nil
 }
@@ -83,6 +88,12 @@ func (c *Config) ValidateOld() error {
 	}
 	if err := c.WebUI.Validate(); err != nil {
 		return fmt.Errorf("webui config: %w", err)
+	}
+	if err := c.Plugins.Validate(); err != nil {
+		return fmt.Errorf("plugins config: %w", err)
+	}
+	if c.Plugins.Enabled && !c.Auth.Enabled {
+		return fmt.Errorf("plugins config: auth must be enabled when plugins are enabled")
 	}
 	return nil
 }

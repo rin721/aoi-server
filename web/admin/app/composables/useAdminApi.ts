@@ -2,15 +2,23 @@ import type {
   ApiErrorPayload,
   AuditLog,
   HealthStatus,
+  ID,
+  InitialAdminSetupRequest,
+  Invitation,
   LoginRequest,
   MFASetupPayload,
+  NotificationDelivery,
   Organization,
   OrganizationUser,
   Permission,
+  PluginHealthStatus,
+  PluginManifest,
   ReadyStatus,
   Result,
   Role,
   Session,
+  SignupRequest,
+  SetupStatus,
   Todo,
   TokenPair,
   User
@@ -22,6 +30,21 @@ type RequestOptions = {
   method?: "DELETE" | "GET" | "PATCH" | "POST" | "PUT"
   query?: Record<string, unknown>
   retryAuth?: boolean
+}
+
+type AuditLogQuery = {
+  action?: string
+  cursor?: ID | null
+  from?: string
+  limit?: number
+  to?: string
+  userId?: ID | null
+}
+
+export type PluginProxyOptions = {
+  body?: unknown
+  method?: "DELETE" | "GET" | "PATCH" | "POST" | "PUT"
+  query?: Record<string, unknown>
 }
 
 let refreshPromise: Promise<boolean> | null = null
@@ -99,49 +122,76 @@ export function useAdminApi() {
 
   return {
     acceptInvitation: (token: string, body: { displayName?: string, password: string, username: string }) =>
-      request<{ email?: string, orgId?: number, sessionId?: number, userId?: number }>(`/api/v1/invitations/${encodeURIComponent(token)}/accept`, {
+      request<{ email?: string, orgId?: ID, sessionId?: ID, userId?: ID }>(`/api/v1/invitations/${encodeURIComponent(token)}/accept`, {
         auth: false,
         body,
         method: "POST"
       }),
     createOrganization: (body: { code: string, name: string }) =>
       request<Organization>("/api/v1/orgs", { body, method: "POST" }),
-    createRole: (orgId: number, body: { code: string, description?: string, name: string, permissions: string[] }) =>
+    createRole: (orgId: ID, body: { code: string, description?: string, name: string, permissions: string[] }) =>
       request<Role>(`/api/v1/orgs/${orgId}/roles`, { body, method: "POST" }),
     createTodo: (body: { completed?: boolean, description?: string, title: string }) =>
       request<Todo>("/api/v1/demo/todos", { body, method: "POST" }),
     deleteTodo: (id: number) => request<{ deleted: boolean }>(`/api/v1/demo/todos/${id}`, { method: "DELETE" }),
     forgotPassword: (email: string) =>
-      request<{ token: string }>("/api/v1/auth/password/forgot", { auth: false, body: { email }, method: "POST" }),
+      request<NotificationDelivery>("/api/v1/auth/password/forgot", { auth: false, body: { email }, method: "POST" }),
     getHealth: () => request<HealthStatus>("/health", { auth: false }),
     getMe: () => request<User>("/api/v1/me"),
     getReady: () => request<ReadyStatus>("/ready", { auth: false }),
-    inviteUser: (orgId: number, body: { email: string, roleCode: string }) =>
-      request<{ token: string }>(`/api/v1/orgs/${orgId}/users/invitations`, { body, method: "POST" }),
-    listAuditLogs: (orgId: number, limit = 100) =>
-      request<AuditLog[]>(`/api/v1/orgs/${orgId}/audit-logs`, { query: { limit } }),
+    getSetupStatus: () => request<SetupStatus>("/api/v1/auth/setup/status", { auth: false }),
+    initialAdminSetup: (body: InitialAdminSetupRequest) =>
+      request<TokenPair>("/api/v1/auth/setup/initial-admin", { auth: false, body, method: "POST" }),
+    inviteUser: (orgId: ID, body: { email: string, roleCode: string }) =>
+      request<NotificationDelivery>(`/api/v1/orgs/${orgId}/users/invitations`, { body, method: "POST" }),
+    listAuditLogs: (orgId: ID, query: AuditLogQuery | number = 100) =>
+      request<AuditLog[]>(`/api/v1/orgs/${orgId}/audit-logs`, { query: typeof query === "number" ? { limit: query } : query }),
+    listInvitations: (orgId: ID) => request<Invitation[]>(`/api/v1/orgs/${orgId}/invitations`),
     listMyOrganizations: () => request<Organization[]>("/api/v1/me/orgs"),
     listOrganizations: () => request<Organization[]>("/api/v1/orgs"),
-    listPermissions: (orgId: number) => request<Permission[]>(`/api/v1/orgs/${orgId}/permissions`),
-    listRoles: (orgId: number) => request<Role[]>(`/api/v1/orgs/${orgId}/roles`),
-    listSessions: (orgId: number, userId?: number | null) =>
+    listPermissions: (orgId: ID) => request<Permission[]>(`/api/v1/orgs/${orgId}/permissions`),
+    getPlugin: (pluginId: string) => request<PluginManifest>(`/api/v1/plugins/${encodeURIComponent(pluginId)}`),
+    getPluginHealth: (pluginId: string) => request<PluginHealthStatus>(`/api/v1/plugins/${encodeURIComponent(pluginId)}/health`),
+    listPlugins: () => request<PluginManifest[]>("/api/v1/plugins"),
+    proxyPlugin: <T = unknown>(pluginId: string, path: string, options: PluginProxyOptions = {}) =>
+      request<T>(pluginProxyEndpoint(pluginId, path), {
+        body: options.body,
+        method: options.method || "GET",
+        query: options.query
+      }),
+    listRoles: (orgId: ID) => request<Role[]>(`/api/v1/orgs/${orgId}/roles`),
+    listSessions: (orgId: ID, userId?: ID | null) =>
       request<Session[]>(`/api/v1/orgs/${orgId}/sessions`, { query: userId ? { userId } : undefined }),
     listTodos: () => request<Todo[]>("/api/v1/demo/todos"),
-    listUsers: (orgId: number) => request<OrganizationUser[]>(`/api/v1/orgs/${orgId}/users`),
+    listUsers: (orgId: ID) => request<OrganizationUser[]>(`/api/v1/orgs/${orgId}/users`),
     login: (body: LoginRequest) => request<TokenPair>("/api/v1/auth/login", { auth: false, body, method: "POST" }),
     logout: () => request<{ loggedOut: boolean }>("/api/v1/auth/logout", { method: "POST", retryAuth: false }),
     refreshSession: (refreshToken: string) =>
       request<TokenPair>("/api/v1/auth/refresh", { auth: false, body: { refreshToken }, method: "POST", retryAuth: false }),
     resetPassword: (body: { newPassword: string, token: string }) =>
       request<{ reset: boolean }>("/api/v1/auth/password/reset", { auth: false, body, method: "POST" }),
-    revokeSession: (orgId: number, sessionId: number) =>
+    revokeInvitation: (orgId: ID, invitationId: ID) =>
+      request<{ revoked: boolean }>(`/api/v1/orgs/${orgId}/invitations/${invitationId}`, { method: "DELETE" }),
+    revokeSession: (orgId: ID, sessionId: ID) =>
       request<{ revoked: boolean }>(`/api/v1/orgs/${orgId}/sessions/${sessionId}`, { method: "DELETE" }),
     setupMFA: () => request<MFASetupPayload>("/api/v1/auth/mfa/setup", { method: "POST" }),
-    switchOrg: (orgId: number) => request<TokenPair>("/api/v1/auth/switch-org", { body: { orgId }, method: "POST" }),
+    signup: (body: SignupRequest) => request<TokenPair>("/api/v1/auth/signup", { auth: false, body, method: "POST" }),
+    switchOrg: (orgId: ID) => request<TokenPair>("/api/v1/auth/switch-org", { body: { orgId }, method: "POST" }),
+    updateOrganization: (orgId: ID, body: { name: string }) =>
+      request<Organization>(`/api/v1/orgs/${orgId}`, { body, method: "PATCH" }),
+    updateRole: (orgId: ID, roleId: ID, body: { description?: string, name?: string, permissions?: string[] }) =>
+      request<Role>(`/api/v1/orgs/${orgId}/roles/${roleId}`, { body, method: "PATCH" }),
     updateTodo: (id: number, body: { completed?: boolean, description?: string, title?: string }) =>
       request<Todo>(`/api/v1/demo/todos/${id}`, { body, method: "PUT" }),
+    updateUser: (orgId: ID, userId: ID, body: { roles?: string[], status?: string }) =>
+      request<OrganizationUser>(`/api/v1/orgs/${orgId}/users/${userId}`, { body, method: "PATCH" }),
     verifyMFA: (code: string) => request<{ verified: boolean }>("/api/v1/auth/mfa/verify", { body: { code }, method: "POST" })
   }
+}
+
+function pluginProxyEndpoint(pluginId: string, path: string) {
+  const cleanPath = path.startsWith("/") ? path : `/${path}`
+  return `/api/v1/plugins/${encodeURIComponent(pluginId)}/proxy${cleanPath}`
 }
 
 function toAdminApiError(error: unknown, endpoint: string): ApiErrorPayload {

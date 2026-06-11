@@ -47,12 +47,26 @@ storage:
   enable_watch: false
   watch_buffer_size: 100
 
+webui:
+  enabled: true
+  mount_path: /admin
+  dist_dir: ./web/aoi-web/.output/public
+  public_base_url: ${WEBUI_PUBLIC_BASE_URL}
+
+plugins:
+  enabled: ${PLUGINS_ENABLED:false}
+  manifests:
+    - ${PLUGINS_MANIFEST_PATH:./plugins/demo1/plugin.yaml}
+  health_timeout_seconds: 3
+  proxy_timeout_seconds: 30
+
 demo:
   enabled: false
   apply_schema_on_start: false
 
 auth:
   enabled: true
+  self_signup_enabled: false
   issuer: go-scaffold
   audience:
     - go-scaffold-api
@@ -66,6 +80,21 @@ auth:
   login_lock_minutes: 15
   invitation_ttl_seconds: 86400
   password_reset_ttl_seconds: 1800
+  notification_driver: smtp
+  smtp:
+    host: ${AUTH_SMTP_HOST}
+    port: ${AUTH_SMTP_PORT:587}
+    username: ${AUTH_SMTP_USERNAME}
+    password: ${AUTH_SMTP_PASSWORD}
+    from: ${AUTH_SMTP_FROM}
+    from_name: ${AUTH_SMTP_FROM_NAME:Aoi Admin}
+    starttls: true
+  password_policy:
+    min_length: 10
+    require_lower: true
+    require_upper: true
+    require_number: true
+    require_symbol: false
   casbin_reload_interval_seconds: 300
 
 migration:

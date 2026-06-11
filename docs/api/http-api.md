@@ -79,15 +79,31 @@ Content-Type: application/json
 
 `title`、`description`、`completed` 都是可选字段，只更新请求体中出现的字段。
 
+## 插件接口
+
+插件接口需要 IAM access token，并通过 Casbin 的 `plugin:read` 或 `plugin:proxy` 权限控制。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/v1/plugins` | `plugin:read` | 列出已安装插件 manifest，菜单会按当前用户权限过滤。 |
+| GET | `/api/v1/plugins/{id}` | `plugin:read` | 读取单个插件 manifest。 |
+| GET | `/api/v1/plugins/{id}/health` | `plugin:read` | 检查 sidecar 插件健康状态。 |
+| ANY | `/api/v1/plugins/{id}/proxy/*path` | `plugin:proxy` | 代理访问插件 sidecar API。 |
+
+插件代理会向 sidecar 注入 `X-Aoi-Plugin-ID`、`X-Aoi-User-ID`、`X-Aoi-Org-ID`、`X-Aoi-Trace-ID`、`X-Aoi-Signature-Timestamp` 和 `X-Aoi-Signature` 请求头。签名密钥由 manifest 的 `secretRef` 指向运行时环境变量。
+
 ## IAM 公开接口
 
 这些接口不要求 access token。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
+| GET | `/api/v1/auth/setup/status` | 查询是否需要首次初始化管理员。 |
+| POST | `/api/v1/auth/setup/initial-admin` | 空 IAM 用户表时创建首个组织 owner，并返回登录令牌。 |
+| POST | `/api/v1/auth/signup` | 自助注册，创建组织、首个 owner 和登录令牌。 |
 | POST | `/api/v1/auth/login` | 登录并签发 access token 与 refresh token。 |
 | POST | `/api/v1/auth/refresh` | 使用 refresh token 刷新令牌。 |
-| POST | `/api/v1/auth/password/forgot` | 创建密码重置令牌。 |
+| POST | `/api/v1/auth/password/forgot` | 创建密码重置通知；debug/noop/local 通知驱动会返回调试 token/link，smtp 不返回 token。 |
 | POST | `/api/v1/auth/password/reset` | 使用重置令牌重置密码。 |
 | POST | `/api/v1/invitations/{token}/accept` | 接受组织邀请。 |
 
@@ -131,7 +147,7 @@ Content-Type: application/json
 }
 ```
 
-当前 no-op 通知器会在响应中直接返回 `token`。
+`auth.notification_driver=debug/noop/local` 时响应会包含调试 `token` 和 `url`；`smtp` 或外部通知模式不会在响应中暴露一次性 token。
 
 ### 重置密码
 
@@ -195,11 +211,16 @@ Content-Type: application/json
 | 方法 | 路径 | 权限对象/动作 | 说明 |
 | --- | --- | --- | --- |
 | GET | `/api/v1/orgs` | `org:read` | 查询组织列表。 |
-| POST | `/api/v1/orgs` | `org:create` | 创建组织。 |
+| POST | `/api/v1/orgs` | `org:create` | 创建组织，并把当前用户设为新组织 owner。 |
+| PATCH | `/api/v1/orgs/{orgId}` | `org:update` | 更新当前组织信息。 |
 | GET | `/api/v1/orgs/{orgId}/users` | `user:read` | 查询当前组织用户。 |
+| PATCH | `/api/v1/orgs/{orgId}/users/{userId}` | `user:update` | 更新成员状态或角色。 |
 | POST | `/api/v1/orgs/{orgId}/users/invitations` | `user:invite` | 邀请用户加入当前组织。 |
+| GET | `/api/v1/orgs/{orgId}/invitations` | `user:invite` | 查询当前组织邀请。 |
+| DELETE | `/api/v1/orgs/{orgId}/invitations/{invitationId}` | `user:invite` | 撤销待处理邀请。 |
 | GET | `/api/v1/orgs/{orgId}/roles` | `role:read` | 查询当前组织角色。 |
 | POST | `/api/v1/orgs/{orgId}/roles` | `role:create` | 在当前组织创建角色。 |
+| PATCH | `/api/v1/orgs/{orgId}/roles/{roleId}` | `role:update` | 更新自定义角色。 |
 | GET | `/api/v1/orgs/{orgId}/permissions` | `permission:read` | 查询可用权限。 |
 
 路径中的 `{orgId}` 必须与 access token 中的 `orgId` 一致。
@@ -259,7 +280,7 @@ GET /api/v1/orgs/10001/sessions?userId=10002
 可选查询参数：
 
 ```http
-GET /api/v1/orgs/10001/audit-logs?limit=100
+GET /api/v1/orgs/10001/audit-logs?action=auth.login&userId=10002&limit=100&cursor=90001
 ```
 
 `limit` 默认值为 `100`。

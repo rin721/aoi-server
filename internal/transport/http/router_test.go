@@ -3,6 +3,7 @@ package httptransport
 // 本测试文件固定 HTTP 路由、中间件顺序和错误响应契约，防止注释补全和后续重构改变外部可观察行为。
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,7 +13,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	iamhandler "github.com/rei0721/go-scaffold/internal/modules/iam/handler"
+	iammodel "github.com/rei0721/go-scaffold/internal/modules/iam/model"
+	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
 	"github.com/rei0721/go-scaffold/pkg/database"
 	"github.com/rei0721/go-scaffold/pkg/web"
 	apperrors "github.com/rei0721/go-scaffold/types/errors"
@@ -43,6 +48,114 @@ type routerResponse struct {
 	Message string         `json:"message"`
 	Data    map[string]any `json:"data"`
 }
+
+type fakeIAMService struct {
+	setupStatusCalls  int
+	initialSetupCalls int
+	signupCalls       int
+	loginCalls        int
+}
+
+func (s *fakeIAMService) BootstrapAdmin(context.Context, iamservice.BootstrapAdminInput) (*iamservice.Principal, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) SetupStatus(context.Context) (iamservice.SetupStatus, error) {
+	s.setupStatusCalls++
+	return iamservice.SetupStatus{Required: true}, nil
+}
+func (s *fakeIAMService) InitialAdminSetup(context.Context, iamservice.InitialAdminSetupInput) (iamservice.TokenPair, error) {
+	s.initialSetupCalls++
+	return iamservice.TokenPair{AccessToken: "access", RefreshToken: "refresh", AccessExpiresAt: time.Now().Add(time.Hour), RefreshExpiresAt: time.Now().Add(time.Hour)}, nil
+}
+func (s *fakeIAMService) Signup(context.Context, iamservice.SignupInput) (iamservice.TokenPair, error) {
+	s.signupCalls++
+	return iamservice.TokenPair{AccessToken: "access", RefreshToken: "refresh", AccessExpiresAt: time.Now().Add(time.Hour), RefreshExpiresAt: time.Now().Add(time.Hour)}, nil
+}
+func (s *fakeIAMService) Login(context.Context, iamservice.LoginInput) (iamservice.TokenPair, error) {
+	s.loginCalls++
+	return iamservice.TokenPair{AccessToken: "access", RefreshToken: "refresh", AccessExpiresAt: time.Now().Add(time.Hour), RefreshExpiresAt: time.Now().Add(time.Hour)}, nil
+}
+func (s *fakeIAMService) Refresh(context.Context, iamservice.RefreshInput) (iamservice.TokenPair, error) {
+	return iamservice.TokenPair{}, nil
+}
+func (s *fakeIAMService) Logout(context.Context, iamservice.Principal) error { return nil }
+func (s *fakeIAMService) SwitchOrg(context.Context, iamservice.Principal, int64, string, string) (iamservice.TokenPair, error) {
+	return iamservice.TokenPair{}, nil
+}
+func (s *fakeIAMService) AuthenticateToken(context.Context, string) (iamservice.Principal, error) {
+	return iamservice.Principal{UserID: 1, OrgID: 1, SessionID: 1, Username: "admin", Email: "admin@example.com"}, nil
+}
+func (s *fakeIAMService) Authorize(context.Context, iamservice.Principal, string, string) (bool, error) {
+	return true, nil
+}
+func (s *fakeIAMService) Me(context.Context, iamservice.Principal) (*iammodel.User, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) ListMyOrganizations(context.Context, iamservice.Principal) ([]iammodel.Organization, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) ListOrganizations(context.Context, iamservice.Principal) ([]iammodel.Organization, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) CreateOrganization(context.Context, iamservice.Principal, string, string) (*iammodel.Organization, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) UpdateOrganization(context.Context, iamservice.UpdateOrganizationInput) (*iammodel.Organization, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) InviteUser(context.Context, iamservice.InviteUserInput) (iamservice.NotificationDelivery, error) {
+	return iamservice.NotificationDelivery{}, nil
+}
+func (s *fakeIAMService) ListInvitations(context.Context, iamservice.Principal) ([]iammodel.Invitation, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) RevokeInvitation(context.Context, iamservice.Principal, int64, string, string) error {
+	return nil
+}
+func (s *fakeIAMService) AcceptInvitation(context.Context, iamservice.AcceptInvitationInput) (*iamservice.Principal, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) ForgotPassword(context.Context, iamservice.ForgotPasswordInput) (iamservice.NotificationDelivery, error) {
+	return iamservice.NotificationDelivery{}, nil
+}
+func (s *fakeIAMService) ResetPassword(context.Context, iamservice.ResetPasswordInput) error {
+	return nil
+}
+func (s *fakeIAMService) SetupMFA(context.Context, iamservice.Principal) (string, string, error) {
+	return "", "", nil
+}
+func (s *fakeIAMService) VerifyMFA(context.Context, iamservice.Principal, string) error { return nil }
+func (s *fakeIAMService) ListUsers(context.Context, iamservice.Principal) ([]iamservice.OrganizationUser, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) UpdateUser(context.Context, iamservice.UpdateUserInput) (*iamservice.OrganizationUser, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) ListRoles(context.Context, iamservice.Principal) ([]iammodel.Role, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) CreateRole(context.Context, iamservice.CreateRoleInput) (*iammodel.Role, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) UpdateRole(context.Context, iamservice.UpdateRoleInput) (*iammodel.Role, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) ListPermissions(context.Context, iamservice.Principal) ([]iammodel.Permission, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) ListSessions(context.Context, iamservice.Principal, int64) ([]iammodel.Session, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) RevokeSession(context.Context, iamservice.Principal, int64) error {
+	return nil
+}
+func (s *fakeIAMService) ListAuditLogs(context.Context, iamservice.Principal, iamservice.AuditLogFilter) ([]iammodel.AuditLog, error) {
+	return nil, nil
+}
+func (s *fakeIAMService) RecordAudit(context.Context, iamservice.Principal, string, string, string, string, string, map[string]any) error {
+	return nil
+}
+func (s *fakeIAMService) LoadPolicies(context.Context) error { return nil }
 
 // TestNewRouterHealthEndpoint 固定 HTTP 路由、中间件顺序和错误响应契约，确保后续注释补全或结构调整不改变该场景。
 func TestNewRouterHealthEndpoint(t *testing.T) {
@@ -122,6 +235,94 @@ func TestNewRouterReadyEndpoint(t *testing.T) {
 			}
 			assertDataValue(t, checks, "database", tt.wantDBCheck)
 		})
+	}
+}
+
+func TestNewRouterSignupEndpointIsPublic(t *testing.T) {
+	iamSvc := &fakeIAMService{}
+	router := newTestRouter(RouterDeps{
+		IAMHandler: iamhandler.New(iamSvc, nil),
+		IAMAuth:    iamSvc,
+		IAMAuthz:   iamSvc,
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup", bytes.NewBufferString(`{"orgCode":"acme","orgName":"Acme","username":"owner","email":"owner@example.com","password":"password123"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected public signup status %d, got %d body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	if iamSvc.signupCalls != 1 {
+		t.Fatalf("expected signup call count 1, got %d", iamSvc.signupCalls)
+	}
+}
+
+func TestNewRouterSetupEndpointsArePublic(t *testing.T) {
+	iamSvc := &fakeIAMService{}
+	router := newTestRouter(RouterDeps{
+		IAMHandler: iamhandler.New(iamSvc, nil),
+		IAMAuth:    iamSvc,
+		IAMAuthz:   iamSvc,
+	})
+
+	statusRecorder := httptest.NewRecorder()
+	statusRequest := httptest.NewRequest(http.MethodGet, "/api/v1/auth/setup/status", nil)
+	router.ServeHTTP(statusRecorder, statusRequest)
+	if statusRecorder.Code != http.StatusOK {
+		t.Fatalf("expected setup status %d, got %d body %s", http.StatusOK, statusRecorder.Code, statusRecorder.Body.String())
+	}
+
+	setupRecorder := performJSONRouterRequest(router, http.MethodPost, "/api/v1/auth/setup/initial-admin", `{"orgCode":"acme","orgName":"Acme","username":"owner","email":"owner@example.com","password":"password123"}`)
+	if setupRecorder.Code != http.StatusOK {
+		t.Fatalf("expected setup initial-admin %d, got %d body %s", http.StatusOK, setupRecorder.Code, setupRecorder.Body.String())
+	}
+	if iamSvc.setupStatusCalls != 1 || iamSvc.initialSetupCalls != 1 {
+		t.Fatalf("unexpected setup call counts: status=%d initial=%d", iamSvc.setupStatusCalls, iamSvc.initialSetupCalls)
+	}
+}
+
+func TestNewRouterRateLimitsPublicAuthEndpoints(t *testing.T) {
+	iamSvc := &fakeIAMService{}
+	router := newTestRouter(RouterDeps{
+		IAMHandler: iamhandler.New(iamSvc, nil),
+		IAMAuth:    iamSvc,
+		IAMAuthz:   iamSvc,
+	})
+
+	for i := 0; i < 20; i++ {
+		recorder := performJSONRouterRequest(router, http.MethodPost, "/api/v1/auth/login", `{"identifier":"owner@example.com","password":"password123"}`)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("request %d expected status %d, got %d body %s", i+1, http.StatusOK, recorder.Code, recorder.Body.String())
+		}
+	}
+	limited := performJSONRouterRequest(router, http.MethodPost, "/api/v1/auth/login", `{"identifier":"owner@example.com","password":"password123"}`)
+	if limited.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected rate limited status %d, got %d body %s", http.StatusTooManyRequests, limited.Code, limited.Body.String())
+	}
+}
+
+func TestOpenAPICoversIAMProductRoutes(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "api", "openapi.yaml"))
+	if err != nil {
+		t.Fatalf("read openapi.yaml: %v", err)
+	}
+	spec := string(raw)
+	for _, path := range []string{
+		"/api/v1/auth/setup/status:",
+		"/api/v1/auth/setup/initial-admin:",
+		"/api/v1/auth/signup:",
+		"/api/v1/orgs/{orgId}:",
+		"/api/v1/orgs/{orgId}/users/{userId}:",
+		"/api/v1/orgs/{orgId}/invitations:",
+		"/api/v1/orgs/{orgId}/invitations/{invitationId}:",
+		"/api/v1/orgs/{orgId}/roles/{roleId}:",
+	} {
+		if !strings.Contains(spec, path) {
+			t.Fatalf("openapi.yaml missing path %s", path)
+		}
 	}
 }
 
@@ -256,6 +457,14 @@ func performRouterRequest(t *testing.T, router http.Handler, method string, path
 
 func performRawRouterRequest(router http.Handler, method string, path string) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(method, path, nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func performJSONRouterRequest(router http.Handler, method string, path string, body string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(method, path, bytes.NewBufferString(body))
+	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	return recorder

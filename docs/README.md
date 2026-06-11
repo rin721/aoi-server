@@ -123,6 +123,28 @@ curl http://127.0.0.1:9999/health
 curl http://127.0.0.1:9999/ready
 ```
 
+## Admin WebUI
+
+后台前端主线位于 `web/aoi-web`，旧 `web/admin` 仅保留为迁移回滚和对照参考。Go 服务默认在 `/admin` 托管 Nuxt 静态产物，默认目录为：
+
+```text
+web/aoi-web/.output/public
+```
+
+本地生成静态产物：
+
+```bash
+cd web/aoi-web
+pnpm install
+pnpm typecheck
+pnpm build
+pnpm generate
+```
+
+`pnpm build` 用作 Nuxt 构建检查；Go 静态托管需要 `pnpm generate` 生成的 `.output/public/index.html`。后台体验参考 Gin-Vue-Admin 的左侧菜单、顶部工具栏、访问标签、设置抽屉、筛选工具条、表格页和仪表盘布局，但不新增 Gin-Vue-Admin 的编程辅助、代码生成或插件市场能力。
+
+可见前端变更必须使用 Browser 做桌面与移动端视觉检查，至少覆盖 `1440x900` 和 `390x844`，并在交付说明中记录检查路线、视口和残余风险。
+
 ```bash
 go test ./... -count=1
 go build -trimpath -ldflags="-s -w" -o bin/go-scaffold-server ./cmd/main

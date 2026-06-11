@@ -5,15 +5,19 @@ package initapp
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rei0721/go-scaffold/internal/app/dbapp"
+	"github.com/rei0721/go-scaffold/internal/config"
 	demohandler "github.com/rei0721/go-scaffold/internal/modules/demo/handler"
 	demorepository "github.com/rei0721/go-scaffold/internal/modules/demo/repository"
 	demoservice "github.com/rei0721/go-scaffold/internal/modules/demo/service"
 	iamhandler "github.com/rei0721/go-scaffold/internal/modules/iam/handler"
 	iamrepository "github.com/rei0721/go-scaffold/internal/modules/iam/repository"
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
+	pluginhandler "github.com/rei0721/go-scaffold/internal/modules/plugins/handler"
+	pluginservice "github.com/rei0721/go-scaffold/internal/modules/plugins/service"
 	"github.com/rei0721/go-scaffold/pkg/authorization"
 	"github.com/rei0721/go-scaffold/pkg/crypto"
 	"github.com/rei0721/go-scaffold/pkg/database"
@@ -53,9 +57,15 @@ func NewModules(core Core, infra Infrastructure) (Modules, error) {
 	} else if core.Logger != nil {
 		core.Logger.Info("iam module disabled")
 	}
+
+	pluginsModule, err := NewPluginsModule(core, iamModule)
+	if err != nil {
+		return Modules{}, err
+	}
 	return Modules{
-		Demo: demoModule,
-		IAM:  iamModule,
+		Demo:    demoModule,
+		IAM:     iamModule,
+		Plugins: pluginsModule,
 	}, nil
 }
 
@@ -201,14 +211,28 @@ func NewIAMModule(core Core, infra Infrastructure) (IAMModule, error) {
 		return IAMModule{}, fmt.Errorf("initialize authorization enforcer: %w", err)
 	}
 	repo := iamrepository.New(infra.Database)
+	notifier, err := NewIAMNotifier(authCfg)
+	if err != nil {
+		return IAMModule{}, err
+	}
 	service := iamservice.New(infra.Database, repo, passwords, tokenManager, enforcer, core.IDGenerator, iamservice.Config{
-		MFAIssuer:         authCfg.MFAIssuer,
-		MFASecretKey:      authCfg.MFASecretKey,
-		LoginMaxFailures:  authCfg.LoginMaxFailures,
-		LoginLockDuration: time.Duration(authCfg.LoginLockMinutes) * time.Minute,
-		InvitationTTL:     time.Duration(authCfg.InvitationTTLSeconds) * time.Second,
-		PasswordResetTTL:  time.Duration(authCfg.PasswordResetTTLSeconds) * time.Second,
-	}, iamservice.NoopNotifier{})
+		SelfSignupEnabled:  authCfg.SelfSignupEnabled,
+		MFAIssuer:          authCfg.MFAIssuer,
+		MFASecretKey:       authCfg.MFASecretKey,
+		LoginMaxFailures:   authCfg.LoginMaxFailures,
+		LoginLockDuration:  time.Duration(authCfg.LoginLockMinutes) * time.Minute,
+		InvitationTTL:      time.Duration(authCfg.InvitationTTLSeconds) * time.Second,
+		PasswordResetTTL:   time.Duration(authCfg.PasswordResetTTLSeconds) * time.Second,
+		NotificationDriver: authCfg.NotificationDriver,
+		PublicBaseURL:      webUIPublicBaseURL(core.Config.WebUI),
+		PasswordPolicy: iamservice.PasswordPolicy{
+			MinLength:     authCfg.PasswordPolicy.MinLength,
+			RequireLower:  authCfg.PasswordPolicy.RequireLower,
+			RequireUpper:  authCfg.PasswordPolicy.RequireUpper,
+			RequireNumber: authCfg.PasswordPolicy.RequireNumber,
+			RequireSymbol: authCfg.PasswordPolicy.RequireSymbol,
+		},
+	}, notifier)
 	if err := service.LoadPolicies(context.Background()); err != nil && core.Logger != nil {
 		core.Logger.Warn("failed to load iam policies", "error", err)
 	}
@@ -217,4 +241,104 @@ func NewIAMModule(core Core, infra Infrastructure) (IAMModule, error) {
 		Service:    service,
 		Handler:    iamhandler.New(service, core.Logger),
 	}, nil
+}
+
+func NewIAMNotifier(cfg config.AuthConfig) (iamservice.Notifier, error) {
+	switch strings.ToLower(strings.TrimSpace(cfg.NotificationDriver)) {
+	case "smtp":
+		return iamservice.NewSMTPNotifier(iamservice.SMTPNotifierConfig{
+			Host:     cfg.SMTP.Host,
+			Port:     cfg.SMTP.Port,
+			Username: cfg.SMTP.Username,
+			Password: cfg.SMTP.Password,
+			From:     cfg.SMTP.From,
+			FromName: cfg.SMTP.FromName,
+			StartTLS: cfg.SMTP.StartTLS,
+		})
+	default:
+		return iamservice.NoopNotifier{}, nil
+	}
+}
+
+func NewPluginsModule(core Core, iam IAMModule) (PluginsModule, error) {
+	pluginService, err := pluginservice.New(PluginsServiceConfig(core.Config.Plugins), core.Logger)
+	if err != nil {
+		return PluginsModule{}, err
+	}
+	if !core.Config.Plugins.Enabled {
+		if core.Logger != nil {
+			core.Logger.Info("plugins module disabled")
+		}
+		return PluginsModule{Service: pluginService}, nil
+	}
+	handler := pluginhandler.New(pluginService, iam.Service, iam.Service, core.Logger)
+	return PluginsModule{
+		Service: pluginService,
+		Handler: handler,
+	}, nil
+}
+
+func PluginsServiceConfig(cfg config.PluginsConfig) pluginservice.Config {
+	cfg.ApplyDefaults()
+	out := pluginservice.Config{
+		Enabled:       cfg.Enabled,
+		ManifestPaths: append([]string(nil), cfg.Manifests...),
+		HealthTimeout: time.Duration(cfg.HealthTimeoutSeconds) * time.Second,
+		ProxyTimeout:  time.Duration(cfg.ProxyTimeoutSeconds) * time.Second,
+		Inline:        make([]pluginservice.Manifest, 0, len(cfg.Items)),
+	}
+	for _, item := range cfg.Items {
+		out.Inline = append(out.Inline, pluginservice.Manifest{
+			ID:         item.ID,
+			Name:       item.Name,
+			Version:    item.Version,
+			BaseURL:    item.BaseURL,
+			HealthPath: item.HealthPath,
+			Frontend: pluginservice.Frontend{
+				Entry: item.Frontend.Entry,
+			},
+			Menus:       pluginMenusConfig(item.Menus),
+			Permissions: pluginPermissionsConfig(item.Permissions),
+			Proxy: pluginservice.Proxy{
+				Prefixes: append([]string(nil), item.Proxy.Prefixes...),
+			},
+			SecretRef: item.SecretRef,
+		})
+	}
+	return out
+}
+
+func pluginMenusConfig(items []config.PluginMenuConfig) []pluginservice.Menu {
+	menus := make([]pluginservice.Menu, 0, len(items))
+	for _, item := range items {
+		menus = append(menus, pluginservice.Menu{
+			Code:       item.Code,
+			Label:      item.Label,
+			Icon:       item.Icon,
+			Path:       item.Path,
+			Permission: item.Permission,
+			Order:      item.Order,
+		})
+	}
+	return menus
+}
+
+func pluginPermissionsConfig(items []config.PluginPermissionConfig) []pluginservice.Permission {
+	permissions := make([]pluginservice.Permission, 0, len(items))
+	for _, item := range items {
+		permissions = append(permissions, pluginservice.Permission{
+			Code:        item.Code,
+			Name:        item.Name,
+			Description: item.Description,
+		})
+	}
+	return permissions
+}
+
+func webUIPublicBaseURL(cfg config.WebUIConfig) string {
+	cfg.ApplyDefaults()
+	if cfg.PublicBaseURL != "" {
+		return cfg.PublicBaseURL
+	}
+	return cfg.MountPath
 }

@@ -26,6 +26,19 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/admin/pnpm-lock.yaml
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install WebUI dependencies
+        run: pnpm -C web/admin install --frozen-lockfile
+
       - name: Report Go formatting drift
         run: |
           files="$(gofmt -l $(git ls-files '*.go'))"
@@ -41,6 +54,12 @@ jobs:
 
       - name: Build server
         run: go build -mod=readonly -o /tmp/go-scaffold-server ./cmd/main
+
+      - name: Typecheck WebUI
+        run: pnpm -C web/admin typecheck
+
+      - name: Generate WebUI
+        run: pnpm -C web/admin generate
 
       - name: Build Docker image
         run: docker build -t go-scaffold:ci .

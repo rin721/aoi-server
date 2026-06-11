@@ -1,0 +1,22 @@
+id: demo1
+name: Demo1 Sidecar
+version: 0.1.0
+baseURL: http://127.0.0.1:10098
+healthPath: /health
+frontend:
+  entry: /assets/remote.js
+menus:
+  - code: demo1.home
+    label: Sidecar Demo
+    icon: blocks
+    path: /
+    permission: plugin:proxy
+    order: 900
+permissions:
+  - code: demo1:read
+    name: Read Demo1
+    description: Read data exposed by the demo1 sidecar.
+proxy:
+  prefixes:
+    - /api
+secretRef: AOI_DEMO1_PLUGIN_SECRET

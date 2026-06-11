@@ -24,6 +24,8 @@ export type ReadyStatus = {
   status: "ready" | "not_ready"
 }
 
+export type ID = string
+
 export type LoginRequest = {
   identifier: string
   mfaCode?: string
@@ -31,8 +33,23 @@ export type LoginRequest = {
   password: string
 }
 
+export type SignupRequest = {
+  displayName?: string
+  email: string
+  orgCode: string
+  orgName: string
+  password: string
+  username: string
+}
+
+export type InitialAdminSetupRequest = SignupRequest
+
+export type SetupStatus = {
+  required: boolean
+}
+
 export type SwitchOrgRequest = {
-  orgId: number
+  orgId: ID
 }
 
 export type TokenPair = {
@@ -43,7 +60,7 @@ export type TokenPair = {
 }
 
 export type User = {
-  id: number
+  id: ID
   username: string
   email: string
   displayName: string
@@ -56,7 +73,7 @@ export type User = {
 }
 
 export type Organization = {
-  id: number
+  id: ID
   code: string
   name: string
   status: Status
@@ -65,23 +82,25 @@ export type Organization = {
 }
 
 export type OrganizationUser = {
+  membershipStatus: Status
   roles: string[]
   user: User
 }
 
 export type Role = {
-  id: number
-  orgId: number
+  id: ID
+  orgId: ID
   code: string
   name: string
   description: string
   system: boolean
+  permissions?: string[]
   createdAt: string
   updatedAt: string
 }
 
 export type Permission = {
-  id: number
+  id: ID
   code: string
   name: string
   description: string
@@ -90,9 +109,9 @@ export type Permission = {
 }
 
 export type Session = {
-  id: number
-  userId: number
-  orgId: number
+  id: ID
+  userId: ID
+  orgId: ID
   userAgent: string
   ipAddress: string
   expiresAt: string
@@ -103,9 +122,9 @@ export type Session = {
 }
 
 export type AuditLog = {
-  id: number
-  orgId?: number | null
-  userId?: number | null
+  id: ID
+  orgId?: ID | null
+  userId?: ID | null
   action: string
   resource: string
   resourceId: string
@@ -113,6 +132,64 @@ export type AuditLog = {
   userAgent: string
   metadata: string
   createdAt: string
+}
+
+export type Invitation = {
+  id: ID
+  orgId: ID
+  email: string
+  roleCode: string
+  status: Status
+  invitedBy: ID
+  acceptedBy?: ID | null
+  expiresAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type NotificationDelivery = {
+  token?: string
+  url?: string
+}
+
+export type PluginManifest = {
+  id: string
+  name: string
+  version: string
+  baseURL: string
+  healthPath: string
+  frontend: {
+    entry?: string
+  }
+  menus: PluginMenu[]
+  permissions: PluginPermission[]
+  proxy: {
+    prefixes: string[]
+  }
+  secretRef?: string
+}
+
+export type PluginMenu = {
+  code: string
+  label: string
+  icon?: string
+  path: string
+  permission?: string
+  order?: number
+}
+
+export type PluginPermission = {
+  code: string
+  name: string
+  description?: string
+}
+
+export type PluginHealthStatus = {
+  id: string
+  status: "ok" | "unhealthy"
+  statusCode: number
+  durationMs: number
+  error?: string
 }
 
 export type Todo = {

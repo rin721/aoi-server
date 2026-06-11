@@ -1,6 +1,20 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.24-bookworm AS build
+FROM node:24-bookworm AS web-build
+
+WORKDIR /src/web/aoi-web
+
+ARG NUXT_PUBLIC_SHOW_DEMO_TODO=false
+ENV NUXT_PUBLIC_SHOW_DEMO_TODO=${NUXT_PUBLIC_SHOW_DEMO_TODO}
+
+COPY web/aoi-web/package.json web/aoi-web/pnpm-lock.yaml ./
+RUN corepack enable \
+    && pnpm install --frozen-lockfile
+
+COPY web/aoi-web ./
+RUN pnpm generate
+
+FROM golang:1.25.7-bookworm AS build
 
 ARG GOPROXY=https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.org
@@ -32,6 +46,8 @@ COPY --from=build /out/go-scaffold-server /app/go-scaffold-server
 COPY configs/config.example.yaml /app/configs/config.example.yaml
 COPY deploy/config.production.example.yaml /app/configs/config.yaml
 COPY configs/locales /app/configs/locales
+COPY plugins/demo1/plugin.yaml /app/plugins/demo1/plugin.yaml
+COPY --from=web-build /src/web/aoi-web/.output/public /app/web/aoi-web/.output/public
 
 RUN mkdir -p /app/data /app/logs \
     && chown -R app:app /app

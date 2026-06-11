@@ -1,5 +1,5 @@
 import { defineStore } from "pinia"
-import type { Organization, TokenPair, User } from "~/types/api"
+import type { ID, InitialAdminSetupRequest, Organization, TokenPair, User } from "~/types/api"
 
 export const useAuthStore = defineStore("auth", () => {
   const api = useAdminApi()
@@ -9,7 +9,7 @@ export const useAuthStore = defineStore("auth", () => {
   const refreshExpiresAt = ref("")
   const user = ref<User | null>(null)
   const orgs = ref<Organization[]>([])
-  const currentOrgId = ref<number | null>(null)
+  const currentOrgId = ref<ID | null>(null)
   const hydrated = ref(false)
   const loading = ref(false)
 
@@ -44,6 +44,28 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
+  async function signup(payload: { displayName?: string, email: string, orgCode: string, orgName: string, password: string, username: string }) {
+    loading.value = true
+    try {
+      applyTokenPair(await api.signup(payload))
+      await loadIdentity()
+    } finally {
+      hydrated.value = true
+      loading.value = false
+    }
+  }
+
+  async function initialAdminSetup(payload: InitialAdminSetupRequest) {
+    loading.value = true
+    try {
+      applyTokenPair(await api.initialAdminSetup(payload))
+      await loadIdentity()
+    } finally {
+      hydrated.value = true
+      loading.value = false
+    }
+  }
+
   async function logout() {
     loading.value = true
     try {
@@ -57,7 +79,7 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
-  async function switchOrg(orgId: number) {
+  async function switchOrg(orgId: ID) {
     loading.value = true
     try {
       applyTokenPair(await api.switchOrg(orgId))
@@ -126,6 +148,7 @@ export const useAuthStore = defineStore("auth", () => {
     currentOrgId,
     fetchSession,
     hydrated,
+    initialAdminSetup,
     loading,
     login,
     logout,
@@ -133,6 +156,7 @@ export const useAuthStore = defineStore("auth", () => {
     refreshExpiresAt,
     refreshToken,
     refreshTokens,
+    signup,
     switchOrg,
     user
   }

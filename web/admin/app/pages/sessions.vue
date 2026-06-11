@@ -17,7 +17,7 @@ async function load() {
   loading.value = true
   error.value = ""
   try {
-    const parsedUserId = userId.value.trim() ? Number(userId.value.trim()) : null
+    const parsedUserId = userId.value.trim() || null
     sessions.value = await api.listSessions(auth.currentOrgId, parsedUserId)
   } catch (err) {
     error.value = errorMessage(err)
@@ -26,8 +26,8 @@ async function load() {
   }
 }
 
-async function revoke(sessionId: number) {
-  if (!auth.currentOrgId) {
+async function revoke(sessionId: string) {
+  if (!auth.currentOrgId || !confirm(`撤销会话 #${sessionId}？`)) {
     return
   }
 

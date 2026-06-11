@@ -1,7 +1,7 @@
 server:
   host: 127.0.0.1
   port: 9999
-  mode: release
+  mode: debug
   read_timeout: 10
   write_timeout: 10
   idle_timeout: 30
@@ -9,7 +9,8 @@ server:
 webui:
   enabled: true
   mount_path: /admin
-  dist_dir: ./web/admin/.output/public
+  dist_dir: ./web/aoi-web/.output/public
+  public_base_url: /admin
 
 rpc:
   enabled: false
@@ -18,6 +19,13 @@ rpc:
   read_timeout: 10
   write_timeout: 10
   idle_timeout: 30
+
+plugins:
+  enabled: false
+  manifests:
+    - ./plugins/demo1/plugin.yaml
+  health_timeout_seconds: 3
+  proxy_timeout_seconds: 30
 
 database:
   # 本地默认使用 SQLite。只有在目标数据库可用时才切换到 mysql/postgres。
@@ -86,6 +94,7 @@ cors:
 
 auth:
   enabled: true
+  self_signup_enabled: true
   issuer: go-scaffold
   audience:
     - go-scaffold-api
@@ -99,6 +108,21 @@ auth:
   login_lock_minutes: 15
   invitation_ttl_seconds: 86400
   password_reset_ttl_seconds: 1800
+  notification_driver: debug
+  smtp:
+    host: ${AUTH_SMTP_HOST:}
+    port: ${AUTH_SMTP_PORT:587}
+    username: ${AUTH_SMTP_USERNAME:}
+    password: ${AUTH_SMTP_PASSWORD:}
+    from: ${AUTH_SMTP_FROM:}
+    from_name: ${AUTH_SMTP_FROM_NAME:Aoi Admin}
+    starttls: true
+  password_policy:
+    min_length: 8
+    require_lower: false
+    require_upper: false
+    require_number: false
+    require_symbol: false
   casbin_reload_interval_seconds: 300
 
 migration:

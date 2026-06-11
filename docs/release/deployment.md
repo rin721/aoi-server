@@ -49,3 +49,16 @@ curl http://127.0.0.1:9999/ready
 9. 在干净环境构建 Docker 镜像。
 10. 记录回滚、备份和迁移证据。
 11. 如果属于托管任务，在对应运行时制品中记录部署证据。
+## Admin WebUI 发布说明
+
+生产镜像会从 `web/aoi-web` 构建后台静态产物，并在运行时由 Go 服务挂载到 `/admin`。生产配置应保持：
+
+```yaml
+webui:
+  enabled: true
+  mount_path: /admin
+  dist_dir: ./web/aoi-web/.output/public
+  public_base_url: ${WEBUI_PUBLIC_BASE_URL}
+```
+
+手动发布非 Docker 产物时，需要先在 `web/aoi-web` 执行 `pnpm generate`，再将 `.output/public` 随服务一起部署。`pnpm build` 只作为构建检查，不替代静态托管产物。后台 UI 参考 Gin-Vue-Admin 的布局和交互模式，但不发布其代码生成、编程辅助或插件市场能力。

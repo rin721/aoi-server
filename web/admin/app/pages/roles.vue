@@ -9,8 +9,13 @@ const code = ref("")
 const name = ref("")
 const description = ref("")
 const selectedPermissions = ref<string[]>([])
+const editRoleId = ref("")
+const editName = ref("")
+const editDescription = ref("")
+const editPermissions = ref<string[]>([])
 const loading = ref(false)
 const saving = ref(false)
+const updating = ref(false)
 const error = ref("")
 const success = ref("")
 
@@ -24,6 +29,12 @@ const groupedPermissions = computed(() => {
 
   return Array.from(groups.entries())
 })
+
+const editableRoleOptions = computed(() => roles.value
+  .filter((role) => !role.system)
+  .map((role) => ({ label: `${role.name} (${role.code})`, value: role.id })))
+
+const selectedEditRole = computed(() => roles.value.find((role) => role.id === editRoleId.value) || null)
 
 async function load() {
   if (!auth.currentOrgId) {
@@ -50,6 +61,12 @@ function togglePermission(code: string, checked: boolean) {
   selectedPermissions.value = checked
     ? Array.from(new Set([...selectedPermissions.value, code]))
     : selectedPermissions.value.filter((item) => item !== code)
+}
+
+function toggleEditPermission(code: string, checked: boolean) {
+  editPermissions.value = checked
+    ? Array.from(new Set([...editPermissions.value, code]))
+    : editPermissions.value.filter((item) => item !== code)
 }
 
 async function createRole() {
@@ -80,8 +97,36 @@ async function createRole() {
   }
 }
 
+async function updateRole() {
+  if (!auth.currentOrgId || !editRoleId.value || !editName.value.trim()) {
+    return
+  }
+
+  updating.value = true
+  error.value = ""
+  success.value = ""
+  try {
+    const role = await api.updateRole(auth.currentOrgId, editRoleId.value, {
+      description: editDescription.value.trim(),
+      name: editName.value.trim(),
+      permissions: editPermissions.value
+    })
+    success.value = `角色 ${role.name} 已更新。`
+    await load()
+  } catch (err) {
+    error.value = errorMessage(err)
+  } finally {
+    updating.value = false
+  }
+}
+
 onMounted(load)
 watch(() => auth.currentOrgId, load)
+watch(selectedEditRole, (role) => {
+  editName.value = role?.name || ""
+  editDescription.value = role?.description || ""
+  editPermissions.value = [...(role?.permissions || [])]
+}, { immediate: true })
 
 useHead({
   title: "角色权限 - Aoi Admin"
@@ -130,6 +175,41 @@ useHead({
             </tbody>
           </table>
         </div>
+      </article>
+
+      <article class="admin-card">
+        <div class="admin-card__header">
+          <h2>编辑自定义角色</h2>
+        </div>
+        <form class="admin-card__body form-grid" @submit.prevent="updateRole">
+          <AoiSelect
+            :model-value="editRoleId"
+            label="选择角色"
+            :options="editableRoleOptions"
+            @update:model-value="editRoleId = $event"
+          />
+          <AoiTextField v-model="editName" label="角色名称" icon="id-card" />
+          <AoiTextField v-model="editDescription" label="说明" type="textarea" icon="file-text" />
+
+          <div class="permission-groups">
+            <section v-for="[group, items] in groupedPermissions" :key="group" class="permission-group">
+              <h3>{{ group }}</h3>
+              <label v-for="permission in items" :key="permission.code" class="permission-option">
+                <input
+                  type="checkbox"
+                  :checked="editPermissions.includes(permission.code)"
+                  @change="toggleEditPermission(permission.code, ($event.target as HTMLInputElement).checked)"
+                >
+                <span>
+                  <strong>{{ permission.code }}</strong>
+                  <small>{{ permission.description || permission.name }}</small>
+                </span>
+              </label>
+            </section>
+          </div>
+
+          <AoiButton type="submit" icon="save" :loading="updating" :disabled="!editRoleId || !editName">保存角色</AoiButton>
+        </form>
       </article>
 
       <article class="admin-card">

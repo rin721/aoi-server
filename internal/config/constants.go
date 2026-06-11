@@ -102,4 +102,5 @@ const (
 	AppAuthName      = "auth"
 	AppMigrationName = "migration"
 	AppWebUIName     = "webui"
+	AppPluginsName   = "plugins"
 )

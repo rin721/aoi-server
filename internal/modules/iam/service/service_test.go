@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -61,11 +62,14 @@ func TestIAMLifecycle(t *testing.T) {
 		t.Fatalf("refresh rotation failed: %#v", refreshed)
 	}
 
-	inviteToken, err := svc.InviteUser(ctx, InviteUserInput{Principal: principal, Email: "member@example.com", RoleCode: model.RoleMember})
+	inviteDelivery, err := svc.InviteUser(ctx, InviteUserInput{Principal: principal, Email: "member@example.com", RoleCode: model.RoleMember})
 	if err != nil {
 		t.Fatalf("InviteUser() failed: %v", err)
 	}
-	member, err := svc.AcceptInvitation(ctx, AcceptInvitationInput{Token: inviteToken, Username: "member", Password: "password123"})
+	if inviteDelivery.Token == "" || inviteDelivery.URL == "" {
+		t.Fatalf("expected debug invitation delivery, got %#v", inviteDelivery)
+	}
+	member, err := svc.AcceptInvitation(ctx, AcceptInvitationInput{Token: inviteDelivery.Token, Username: "member", Password: "password123"})
 	if err != nil {
 		t.Fatalf("AcceptInvitation() failed: %v", err)
 	}
@@ -81,11 +85,14 @@ func TestIAMLifecycle(t *testing.T) {
 		t.Fatalf("member Login() before reset failed: %v", err)
 	}
 
-	resetToken, err := svc.ForgotPassword(ctx, ForgotPasswordInput{Email: "member@example.com"})
+	resetDelivery, err := svc.ForgotPassword(ctx, ForgotPasswordInput{Email: "member@example.com"})
 	if err != nil {
 		t.Fatalf("ForgotPassword() failed: %v", err)
 	}
-	if err := svc.ResetPassword(ctx, ResetPasswordInput{Token: resetToken, NewPassword: "newpassword123"}); err != nil {
+	if resetDelivery.Token == "" || resetDelivery.URL == "" {
+		t.Fatalf("expected debug password reset delivery, got %#v", resetDelivery)
+	}
+	if err := svc.ResetPassword(ctx, ResetPasswordInput{Token: resetDelivery.Token, NewPassword: "newpassword123"}); err != nil {
 		t.Fatalf("ResetPassword() failed: %v", err)
 	}
 	if _, err := svc.Refresh(ctx, RefreshInput{RefreshToken: memberLogin.RefreshToken}); err != ErrSessionRevoked {
@@ -93,6 +100,173 @@ func TestIAMLifecycle(t *testing.T) {
 	}
 	if _, err := svc.Login(ctx, LoginInput{Identifier: "member@example.com", Password: "newpassword123", OrgCode: "acme"}); err != nil {
 		t.Fatalf("member login after reset failed: %v", err)
+	}
+}
+
+func TestSelfSignupCreatesOwnerSession(t *testing.T) {
+	ctx := context.Background()
+	svc, cleanup := newTestService(t)
+	defer cleanup()
+
+	pair, err := svc.Signup(ctx, SignupInput{
+		OrgCode:  "acme",
+		OrgName:  "Acme",
+		Username: "owner",
+		Email:    "owner@example.com",
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("Signup() failed: %v", err)
+	}
+	principal, err := svc.AuthenticateToken(ctx, pair.AccessToken)
+	if err != nil {
+		t.Fatalf("AuthenticateToken(signup token) failed: %v", err)
+	}
+	allowed, err := svc.Authorize(ctx, principal, "audit", "read")
+	if err != nil || !allowed {
+		t.Fatalf("signup owner should read audit logs, allowed=%v err=%v", allowed, err)
+	}
+	orgs, err := svc.ListMyOrganizations(ctx, principal)
+	if err != nil || len(orgs) != 1 || orgs[0].Code != "acme" {
+		t.Fatalf("unexpected signup organizations: %#v err=%v", orgs, err)
+	}
+	if _, err := svc.CreateRole(ctx, CreateRoleInput{
+		Principal:   principal,
+		Code:        "operator",
+		Name:        "Operator",
+		Permissions: []string{"audit:read", "user:read"},
+	}); err != nil {
+		t.Fatalf("CreateRole() failed: %v", err)
+	}
+	roles, err := svc.ListRoles(ctx, principal)
+	if err != nil {
+		t.Fatalf("ListRoles() failed: %v", err)
+	}
+	var operator *model.Role
+	for i := range roles {
+		if roles[i].Code == "operator" {
+			operator = &roles[i]
+			break
+		}
+	}
+	if operator == nil || !containsString(operator.Permissions, "audit:read") || !containsString(operator.Permissions, "user:read") {
+		t.Fatalf("operator permissions not hydrated: %#v", operator)
+	}
+
+	if _, err := svc.Signup(ctx, SignupInput{OrgCode: "acme", OrgName: "Other", Username: "other", Email: "other@example.com", Password: "password123"}); !errors.Is(err, ErrDuplicate) {
+		t.Fatalf("duplicate org signup error = %v, want ErrDuplicate", err)
+	}
+	if _, err := svc.Signup(ctx, SignupInput{OrgCode: "other", OrgName: "Other", Username: "owner", Email: "other@example.com", Password: "password123"}); !errors.Is(err, ErrDuplicate) {
+		t.Fatalf("duplicate username signup error = %v, want ErrDuplicate", err)
+	}
+	if _, err := svc.Signup(ctx, SignupInput{OrgCode: "other", OrgName: "Other", Username: "other", Email: "owner@example.com", Password: "password123"}); !errors.Is(err, ErrDuplicate) {
+		t.Fatalf("duplicate email signup error = %v, want ErrDuplicate", err)
+	}
+}
+
+func TestInitialAdminSetupCreatesFirstOwnerAndClosesSetup(t *testing.T) {
+	ctx := context.Background()
+	svc, cleanup := newTestServiceWithSignup(t, false)
+	defer cleanup()
+
+	status, err := svc.SetupStatus(ctx)
+	if err != nil {
+		t.Fatalf("SetupStatus() failed: %v", err)
+	}
+	if !status.Required {
+		t.Fatal("SetupStatus().Required = false, want true for empty IAM users")
+	}
+
+	pair, err := svc.InitialAdminSetup(ctx, InitialAdminSetupInput{
+		OrgCode:  "acme",
+		OrgName:  "Acme",
+		Username: "admin",
+		Email:    "admin@example.com",
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("InitialAdminSetup() failed: %v", err)
+	}
+	principal, err := svc.AuthenticateToken(ctx, pair.AccessToken)
+	if err != nil {
+		t.Fatalf("AuthenticateToken(initial setup token) failed: %v", err)
+	}
+	for _, tc := range []struct {
+		obj string
+		act string
+	}{
+		{obj: "audit", act: "read"},
+		{obj: "session", act: "read"},
+		{obj: "org", act: "read"},
+		{obj: "user", act: "read"},
+	} {
+		allowed, err := svc.Authorize(ctx, principal, tc.obj, tc.act)
+		if err != nil || !allowed {
+			t.Fatalf("initial owner should %s:%s, allowed=%v err=%v", tc.obj, tc.act, allowed, err)
+		}
+	}
+	orgs, err := svc.ListMyOrganizations(ctx, principal)
+	if err != nil || len(orgs) != 1 || orgs[0].Code != "acme" {
+		t.Fatalf("unexpected setup organizations: %#v err=%v", orgs, err)
+	}
+	status, err = svc.SetupStatus(ctx)
+	if err != nil {
+		t.Fatalf("SetupStatus(after setup) failed: %v", err)
+	}
+	if status.Required {
+		t.Fatal("SetupStatus().Required = true after initial setup, want false")
+	}
+	if _, err := svc.InitialAdminSetup(ctx, InitialAdminSetupInput{OrgCode: "other", OrgName: "Other", Username: "other", Email: "other@example.com", Password: "password123"}); !errors.Is(err, ErrSetupCompleted) {
+		t.Fatalf("second InitialAdminSetup() error = %v, want ErrSetupCompleted", err)
+	}
+}
+
+func TestSelfSignupDisabled(t *testing.T) {
+	ctx := context.Background()
+	svc, cleanup := newTestServiceWithSignup(t, false)
+	defer cleanup()
+
+	_, err := svc.Signup(ctx, SignupInput{OrgCode: "acme", OrgName: "Acme", Username: "owner", Email: "owner@example.com", Password: "password123"})
+	if err != ErrSignupDisabled {
+		t.Fatalf("Signup() error = %v, want ErrSignupDisabled", err)
+	}
+}
+
+func TestCreateOrganizationAddsCurrentUserAsOwner(t *testing.T) {
+	ctx := context.Background()
+	svc, cleanup := newTestService(t)
+	defer cleanup()
+
+	admin, err := svc.BootstrapAdmin(ctx, BootstrapAdminInput{OrgCode: "acme", Username: "admin", Email: "admin@example.com", Password: "password123"})
+	if err != nil {
+		t.Fatalf("BootstrapAdmin() failed: %v", err)
+	}
+	login, err := svc.Login(ctx, LoginInput{Identifier: "admin@example.com", Password: "password123", OrgCode: "acme"})
+	if err != nil {
+		t.Fatalf("Login() failed: %v", err)
+	}
+	principal, err := svc.AuthenticateToken(ctx, login.AccessToken)
+	if err != nil {
+		t.Fatalf("AuthenticateToken() failed: %v", err)
+	}
+	org, err := svc.CreateOrganization(ctx, principal, "beta", "Beta")
+	if err != nil {
+		t.Fatalf("CreateOrganization() failed: %v", err)
+	}
+	switched, err := svc.SwitchOrg(ctx, principal, org.ID, "", "")
+	if err != nil {
+		t.Fatalf("SwitchOrg(created org) failed: %v", err)
+	}
+	newPrincipal, err := svc.AuthenticateToken(ctx, switched.AccessToken)
+	if err != nil {
+		t.Fatalf("AuthenticateToken(new org) failed: %v", err)
+	}
+	if newPrincipal.UserID != admin.UserID || newPrincipal.OrgID != org.ID {
+		t.Fatalf("unexpected switched principal: %#v", newPrincipal)
+	}
+	allowed, err := svc.Authorize(ctx, newPrincipal, "role", "create")
+	if err != nil || !allowed {
+		t.Fatalf("created org owner should create roles, allowed=%v err=%v", allowed, err)
 	}
 }
 
@@ -136,6 +310,10 @@ func TestMFASetupAndLogin(t *testing.T) {
 }
 
 func newTestService(t *testing.T) (Service, func()) {
+	return newTestServiceWithSignup(t, true)
+}
+
+func newTestServiceWithSignup(t *testing.T, selfSignupEnabled bool) (Service, func()) {
 	t.Helper()
 	db, err := database.New(&database.Config{Driver: database.DriverSQLite, DBName: filepath.Join(t.TempDir(), "iam.db")})
 	if err != nil {
@@ -173,12 +351,24 @@ func newTestService(t *testing.T) (Service, func()) {
 	}
 	repo := repository.New(db)
 	svc := New(db, repo, passwords, tokens, authz, ids, Config{
-		MFAIssuer:         "go-scaffold-test",
-		MFASecretKey:      "01234567890123456789012345678901",
-		LoginMaxFailures:  3,
-		LoginLockDuration: time.Minute,
-		InvitationTTL:     time.Hour,
-		PasswordResetTTL:  time.Hour,
+		SelfSignupEnabled:  selfSignupEnabled,
+		MFAIssuer:          "go-scaffold-test",
+		MFASecretKey:       "01234567890123456789012345678901",
+		LoginMaxFailures:   3,
+		LoginLockDuration:  time.Minute,
+		InvitationTTL:      time.Hour,
+		PasswordResetTTL:   time.Hour,
+		NotificationDriver: "debug",
+		PublicBaseURL:      "/admin",
 	}, NoopNotifier{})
 	return svc, func() { _ = db.Close() }
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

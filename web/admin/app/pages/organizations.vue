@@ -6,8 +6,10 @@ const auth = useAuthStore()
 const organizations = ref<Organization[]>([])
 const code = ref("")
 const name = ref("")
+const currentOrgName = ref("")
 const loading = ref(false)
 const saving = ref(false)
+const updating = ref(false)
 const error = ref("")
 const success = ref("")
 
@@ -47,7 +49,29 @@ async function createOrg() {
   }
 }
 
+async function updateCurrentOrg() {
+  if (!auth.currentOrgId || !currentOrgName.value.trim()) {
+    return
+  }
+
+  updating.value = true
+  error.value = ""
+  success.value = ""
+  try {
+    const org = await api.updateOrganization(auth.currentOrgId, { name: currentOrgName.value.trim() })
+    success.value = `组织 ${org.code} 已更新。`
+    await Promise.all([load(), auth.fetchSession()])
+  } catch (err) {
+    error.value = errorMessage(err)
+  } finally {
+    updating.value = false
+  }
+}
+
 onMounted(load)
+watch(() => auth.currentOrg?.name, (value) => {
+  currentOrgName.value = value || ""
+}, { immediate: true })
 
 useHead({
   title: "组织 - Aoi Admin"
@@ -102,6 +126,17 @@ useHead({
             </tbody>
           </table>
         </div>
+      </article>
+
+      <article class="admin-card">
+        <div class="admin-card__header">
+          <h2>当前组织</h2>
+        </div>
+        <form class="admin-card__body form-grid" @submit.prevent="updateCurrentOrg">
+          <AoiTextField :model-value="auth.currentOrg?.code || ''" label="组织 Code" icon="badge" />
+          <AoiTextField v-model="currentOrgName" label="组织名称" icon="building" placeholder="Acme Corp" />
+          <AoiButton type="submit" icon="save" :loading="updating" :disabled="!currentOrgName">保存组织</AoiButton>
+        </form>
       </article>
 
       <article class="admin-card">

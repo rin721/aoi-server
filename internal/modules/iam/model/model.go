@@ -15,7 +15,7 @@ const (
 )
 
 type Organization struct {
-	ID        int64      `gorm:"column:id;primaryKey" json:"id"`
+	ID        int64      `gorm:"column:id;primaryKey" json:"id,string"`
 	Code      string     `gorm:"column:code;size:64;not null;uniqueIndex" json:"code"`
 	Name      string     `gorm:"column:name;size:128;not null" json:"name"`
 	Status    string     `gorm:"column:status;size:32;not null" json:"status"`
@@ -27,7 +27,7 @@ type Organization struct {
 func (Organization) TableName() string { return "iam_organizations" }
 
 type User struct {
-	ID                  int64      `gorm:"column:id;primaryKey" json:"id"`
+	ID                  int64      `gorm:"column:id;primaryKey" json:"id,string"`
 	Username            string     `gorm:"column:username;size:64;not null;uniqueIndex" json:"username"`
 	Email               string     `gorm:"column:email;size:255;not null;uniqueIndex" json:"email"`
 	PasswordHash        string     `gorm:"column:password_hash;size:255;not null" json:"-"`
@@ -45,9 +45,9 @@ type User struct {
 func (User) TableName() string { return "iam_users" }
 
 type Membership struct {
-	ID        int64      `gorm:"column:id;primaryKey" json:"id"`
-	OrgID     int64      `gorm:"column:org_id;not null;uniqueIndex:uk_iam_membership_org_user" json:"orgId"`
-	UserID    int64      `gorm:"column:user_id;not null;uniqueIndex:uk_iam_membership_org_user" json:"userId"`
+	ID        int64      `gorm:"column:id;primaryKey" json:"id,string"`
+	OrgID     int64      `gorm:"column:org_id;not null;uniqueIndex:uk_iam_membership_org_user" json:"orgId,string"`
+	UserID    int64      `gorm:"column:user_id;not null;uniqueIndex:uk_iam_membership_org_user" json:"userId,string"`
 	Status    string     `gorm:"column:status;size:32;not null" json:"status"`
 	CreatedAt time.Time  `gorm:"column:created_at" json:"createdAt"`
 	UpdatedAt time.Time  `gorm:"column:updated_at" json:"updatedAt"`
@@ -57,12 +57,13 @@ type Membership struct {
 func (Membership) TableName() string { return "iam_memberships" }
 
 type Role struct {
-	ID          int64      `gorm:"column:id;primaryKey" json:"id"`
-	OrgID       int64      `gorm:"column:org_id;not null;uniqueIndex:uk_iam_role_org_code" json:"orgId"`
+	ID          int64      `gorm:"column:id;primaryKey" json:"id,string"`
+	OrgID       int64      `gorm:"column:org_id;not null;uniqueIndex:uk_iam_role_org_code" json:"orgId,string"`
 	Code        string     `gorm:"column:code;size:64;not null;uniqueIndex:uk_iam_role_org_code" json:"code"`
 	Name        string     `gorm:"column:name;size:128;not null" json:"name"`
 	Description string     `gorm:"column:description;not null" json:"description"`
 	System      bool       `gorm:"column:system;not null;default:false" json:"system"`
+	Permissions []string   `gorm:"-" json:"permissions,omitempty"`
 	CreatedAt   time.Time  `gorm:"column:created_at" json:"createdAt"`
 	UpdatedAt   time.Time  `gorm:"column:updated_at" json:"updatedAt"`
 	DeletedAt   *time.Time `gorm:"column:deleted_at" json:"-"`
@@ -71,7 +72,7 @@ type Role struct {
 func (Role) TableName() string { return "iam_roles" }
 
 type Permission struct {
-	ID          int64     `gorm:"column:id;primaryKey" json:"id"`
+	ID          int64     `gorm:"column:id;primaryKey" json:"id,string"`
 	Code        string    `gorm:"column:code;size:128;not null;uniqueIndex" json:"code"`
 	Name        string    `gorm:"column:name;size:128;not null" json:"name"`
 	Description string    `gorm:"column:description;not null" json:"description"`
@@ -82,9 +83,9 @@ type Permission struct {
 func (Permission) TableName() string { return "iam_permissions" }
 
 type Session struct {
-	ID               int64      `gorm:"column:id;primaryKey" json:"id"`
-	UserID           int64      `gorm:"column:user_id;not null" json:"userId"`
-	OrgID            int64      `gorm:"column:org_id;not null" json:"orgId"`
+	ID               int64      `gorm:"column:id;primaryKey" json:"id,string"`
+	UserID           int64      `gorm:"column:user_id;not null" json:"userId,string"`
+	OrgID            int64      `gorm:"column:org_id;not null" json:"orgId,string"`
 	RefreshTokenHash string     `gorm:"column:refresh_token_hash;size:128;not null;uniqueIndex" json:"-"`
 	UserAgent        string     `gorm:"column:user_agent;not null" json:"userAgent"`
 	IPAddress        string     `gorm:"column:ip_address;size:64;not null" json:"ipAddress"`
@@ -98,14 +99,14 @@ type Session struct {
 func (Session) TableName() string { return "iam_sessions" }
 
 type Invitation struct {
-	ID         int64     `gorm:"column:id;primaryKey" json:"id"`
-	OrgID      int64     `gorm:"column:org_id;not null" json:"orgId"`
+	ID         int64     `gorm:"column:id;primaryKey" json:"id,string"`
+	OrgID      int64     `gorm:"column:org_id;not null" json:"orgId,string"`
 	Email      string    `gorm:"column:email;size:255;not null" json:"email"`
 	RoleCode   string    `gorm:"column:role_code;size:64;not null" json:"roleCode"`
 	TokenHash  string    `gorm:"column:token_hash;size:128;not null;uniqueIndex" json:"-"`
 	Status     string    `gorm:"column:status;size:32;not null" json:"status"`
-	InvitedBy  int64     `gorm:"column:invited_by;not null" json:"invitedBy"`
-	AcceptedBy *int64    `gorm:"column:accepted_by" json:"acceptedBy,omitempty"`
+	InvitedBy  int64     `gorm:"column:invited_by;not null" json:"invitedBy,string"`
+	AcceptedBy *int64    `gorm:"column:accepted_by" json:"acceptedBy,omitempty,string"`
 	ExpiresAt  time.Time `gorm:"column:expires_at" json:"expiresAt"`
 	CreatedAt  time.Time `gorm:"column:created_at" json:"createdAt"`
 	UpdatedAt  time.Time `gorm:"column:updated_at" json:"updatedAt"`
@@ -114,8 +115,8 @@ type Invitation struct {
 func (Invitation) TableName() string { return "iam_invitations" }
 
 type PasswordReset struct {
-	ID        int64      `gorm:"column:id;primaryKey" json:"id"`
-	UserID    int64      `gorm:"column:user_id;not null" json:"userId"`
+	ID        int64      `gorm:"column:id;primaryKey" json:"id,string"`
+	UserID    int64      `gorm:"column:user_id;not null" json:"userId,string"`
 	TokenHash string     `gorm:"column:token_hash;size:128;not null;uniqueIndex" json:"-"`
 	Status    string     `gorm:"column:status;size:32;not null" json:"status"`
 	ExpiresAt time.Time  `gorm:"column:expires_at" json:"expiresAt"`
@@ -127,8 +128,8 @@ type PasswordReset struct {
 func (PasswordReset) TableName() string { return "iam_password_resets" }
 
 type MFAFactor struct {
-	ID          int64      `gorm:"column:id;primaryKey" json:"id"`
-	UserID      int64      `gorm:"column:user_id;not null" json:"userId"`
+	ID          int64      `gorm:"column:id;primaryKey" json:"id,string"`
+	UserID      int64      `gorm:"column:user_id;not null" json:"userId,string"`
 	Type        string     `gorm:"column:type;size:32;not null" json:"type"`
 	Secret      string     `gorm:"column:secret;not null" json:"-"`
 	Status      string     `gorm:"column:status;size:32;not null" json:"status"`
@@ -140,9 +141,9 @@ type MFAFactor struct {
 func (MFAFactor) TableName() string { return "iam_mfa_factors" }
 
 type AuditLog struct {
-	ID         int64     `gorm:"column:id;primaryKey" json:"id"`
-	OrgID      *int64    `gorm:"column:org_id" json:"orgId,omitempty"`
-	UserID     *int64    `gorm:"column:user_id" json:"userId,omitempty"`
+	ID         int64     `gorm:"column:id;primaryKey" json:"id,string"`
+	OrgID      *int64    `gorm:"column:org_id" json:"orgId,omitempty,string"`
+	UserID     *int64    `gorm:"column:user_id" json:"userId,omitempty,string"`
 	Action     string    `gorm:"column:action;size:128;not null" json:"action"`
 	Resource   string    `gorm:"column:resource;size:128;not null" json:"resource"`
 	ResourceID string    `gorm:"column:resource_id;size:128;not null" json:"resourceId"`
@@ -155,7 +156,7 @@ type AuditLog struct {
 func (AuditLog) TableName() string { return "iam_audit_logs" }
 
 type CasbinRule struct {
-	ID        int64     `gorm:"column:id;primaryKey" json:"id"`
+	ID        int64     `gorm:"column:id;primaryKey" json:"id,string"`
 	PType     string    `gorm:"column:ptype;size:8;not null;uniqueIndex:uk_iam_casbin_rule" json:"ptype"`
 	V0        string    `gorm:"column:v0;size:128;not null;uniqueIndex:uk_iam_casbin_rule" json:"v0"`
 	V1        string    `gorm:"column:v1;size:128;not null;uniqueIndex:uk_iam_casbin_rule" json:"v1"`

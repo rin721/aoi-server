@@ -43,8 +43,10 @@ type Router interface {
 	Use(...HandlerFunc)
 	GET(string, HandlerFunc)
 	POST(string, HandlerFunc)
+	PATCH(string, HandlerFunc)
 	PUT(string, HandlerFunc)
 	DELETE(string, HandlerFunc)
+	ANY(string, HandlerFunc)
 	Group(string) Router
 }
 
@@ -144,12 +146,20 @@ func (e *Engine) POST(path string, handler HandlerFunc) {
 	e.engine.POST(path, wrapHandler(handler))
 }
 
+func (e *Engine) PATCH(path string, handler HandlerFunc) {
+	e.engine.PATCH(path, wrapHandler(handler))
+}
+
 func (e *Engine) PUT(path string, handler HandlerFunc) {
 	e.engine.PUT(path, wrapHandler(handler))
 }
 
 func (e *Engine) DELETE(path string, handler HandlerFunc) {
 	e.engine.DELETE(path, wrapHandler(handler))
+}
+
+func (e *Engine) ANY(path string, handler HandlerFunc) {
+	e.engine.Any(path, wrapHandler(handler))
 }
 
 func (e *Engine) Group(path string) Router {
@@ -168,12 +178,20 @@ func (g *group) POST(path string, handler HandlerFunc) {
 	g.group.POST(path, wrapHandler(handler))
 }
 
+func (g *group) PATCH(path string, handler HandlerFunc) {
+	g.group.PATCH(path, wrapHandler(handler))
+}
+
 func (g *group) PUT(path string, handler HandlerFunc) {
 	g.group.PUT(path, wrapHandler(handler))
 }
 
 func (g *group) DELETE(path string, handler HandlerFunc) {
 	g.group.DELETE(path, wrapHandler(handler))
+}
+
+func (g *group) ANY(path string, handler HandlerFunc) {
+	g.group.Any(path, wrapHandler(handler))
 }
 
 func (g *group) Group(path string) Router {
@@ -286,6 +304,10 @@ func (c contextAdapter) BindJSON(dest any) error {
 
 func (c contextAdapter) JSON(status int, body any) {
 	c.ctx.JSON(status, body)
+}
+
+func (c contextAdapter) Data(status int, contentType string, data []byte) {
+	c.ctx.Data(status, contentType, data)
 }
 
 func (c contextAdapter) AbortWithStatusJSON(status int, body any) {

@@ -1,0 +1,1935 @@
+{
+  "app": {
+    "name": "Aoi"
+  },
+  "components": {
+    "colorPalette": {
+      "alpha": "Alpha",
+      "field": "Color field",
+      "hex": "HEX",
+      "hue": "Hue",
+      "mode": "Color mode",
+      "reset": "Reset"
+    }
+  },
+  "nav": {
+    "home": "Home",
+    "categories": "Categories",
+    "following": "Following",
+    "search": "Search",
+    "history": "History",
+    "collections": "Collections",
+    "docs": "Docs",
+    "upload": "Upload",
+    "settings": "Settings",
+    "login": "Log in"
+  },
+  "home": {
+    "subtitle": "A clear, fast video community frontend for creators. This Nuxt 4 prototype uses mock data for the future Go API.",
+    "latest": "Latest",
+    "gridView": "Grid view",
+    "listView": "List view",
+    "categoryTabsAria": "Content categories",
+    "brandAria": "Aoi brand area",
+    "viewMode": "View mode",
+    "loadFailedTitle": "Content failed to load",
+    "emptyCategoryTitle": "This category is empty for now",
+    "demo": {
+      "title": "Aoi md component samples",
+      "description": "A small home-page preview for button boxes, plain buttons, date and time fields, and image crop compression.",
+      "singleButtonBox": "Single-select button box",
+      "multiButtonBox": "Multi-select button box",
+      "modeAria": "Home demo mode",
+      "featureAria": "Home demo capabilities",
+      "current": "Current: {value}",
+      "selected": "Selected: {value}",
+      "plainButton": "Plain button",
+      "plainIdle": "Plain button waiting",
+      "plainTriggered": "Plain button triggered: {value}",
+      "date": "Date",
+      "time": "Time",
+      "imageAria": "Home image crop compression demo",
+      "modes": {
+        "crop": "Crop",
+        "compress": "Compress",
+        "publish": "Publish"
+      },
+      "features": {
+        "paste": "Paste",
+        "keyboard": "Keyboard"
+      }
+    }
+  },
+  "category": {
+    "childrenTitle": "Subcategories",
+    "childrenDescription": "Browse a narrower branch. Parent categories aggregate everything below them.",
+    "indexTitle": "Categories",
+    "indexDescription": "Browse the Aoi community mock feed by content type.",
+    "loadFailedTitle": "Categories failed to load",
+    "loadFailedDescription": "The mock API returned an error. Please try again.",
+    "notFoundTitle": "Category not found",
+    "notFoundDescription": "No category was found for \"{slug}\".",
+    "backToCategories": "Back to categories",
+    "allCategories": "All categories",
+    "emptyTitle": "This category is empty for now",
+    "emptyDescription": "More content can be loaded from the real Go API later."
+  },
+  "docs": {
+    "eyebrow": "Aoi Docs",
+    "title": "Project System and Component Library",
+    "description": "Static Markdown documentation for the Nuxt architecture, repository boundaries, and every Aoi wrapper API.",
+    "actions": {
+      "project": "Project system",
+      "components": "Component library"
+    },
+    "stats": {
+      "pages": "Pages",
+      "components": "Components",
+      "locales": "Locales"
+    },
+    "nav": {
+      "open": "Contents",
+      "label": "Documentation contents",
+      "close": "Close"
+    },
+    "navGroups": {
+      "docs": "Docs",
+      "project": "Project",
+      "components": "Components"
+    },
+    "search": {
+      "label": "Search docs",
+      "placeholder": "Search titles, descriptions, or sections"
+    },
+    "notFound": {
+      "title": "Document not found",
+      "description": "This page does not exist in the current documentation set.",
+      "action": "Back to docs"
+    },
+    "pager": {
+      "label": "Document pager",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "toc": {
+      "label": "On this page"
+    },
+    "liveDemo": {
+      "preview": "Live preview",
+      "source": "Source",
+      "clientFallback": "Loading client preview...",
+      "empty": "No live example source was provided.",
+      "error": "Live example could not be rendered."
+    },
+    "componentApi": {
+      "usage": "Usage",
+      "props": "Props",
+      "events": "Events",
+      "slots": "Slots",
+      "name": "Name",
+      "type": "Type",
+      "default": "Default",
+      "description": "Description",
+      "payload": "Payload",
+      "none": "None"
+    }
+  },
+  "settings": {
+    "shell": {
+      "title": "Settings",
+      "description": "Adjust Aoi appearance, preferences, local data, and diagnostics.",
+      "searchLabel": "Search settings",
+      "searchPlaceholder": "Theme, background, player...",
+      "emptyText": "No matching settings.",
+      "groups": {
+        "app": "App settings",
+        "project": "Project"
+      },
+      "depth": {
+        "label": "Settings display depth",
+        "basic": {
+          "label": "Basic",
+          "description": "Common settings"
+        },
+        "all": {
+          "label": "All",
+          "description": "Includes advanced"
+        }
+      },
+      "categoryAria": "Settings categories",
+      "pagesAria": "Settings pages"
+    },
+    "resetPage": {
+      "action": "Reset page",
+      "cancel": "Cancel",
+      "confirm": "Reset",
+      "appearance": {
+        "title": "Reset Appearance Settings",
+        "description": "Restore appearance, palette, background parameters, and size units from the current active build configuration. The browser-saved background image will be cleared."
+      },
+      "preference": {
+        "title": "Reset Preference Settings",
+        "description": "Restore data mode, browsing, route progress, reveal motion, scrolling, privacy, and focus settings from the current active build configuration."
+      },
+      "language": {
+        "title": "Reset Language Settings",
+        "description": "Restore the interface language from the current active build configuration and apply it immediately."
+      }
+    },
+    "derivation": {
+      "presetTitle": "App-wide derivation preset",
+      "presetDescription": "Use soft, balanced, or vivid to sync every derivation group. Manually tuning any group switches to custom.",
+      "themeTitle": "Theme and semantic color strength",
+      "themeDescription": "Controls how strongly the accent derives auxiliary colors, surfaces, states, navigation, Material controls, and shadows.",
+      "specTitle": "Spec strength",
+      "specDescription": "Controls how type, spacing, radius, controls, content width, media grids, and settings layout derive from the base units.",
+      "valueDescription": "Current {value}%. {description}",
+      "presets": {
+        "soft": {
+          "label": "Soft",
+          "description": "More restrained and gentle, with softer color, layout, and motion."
+        },
+        "balanced": {
+          "label": "Balanced",
+          "description": "Default strength for the existing Aoi visual and interaction rhythm."
+        },
+        "vivid": {
+          "label": "Vivid",
+          "description": "Brighter and more layered, with stronger color, spec, and motion feedback."
+        },
+        "custom": {
+          "label": "Custom",
+          "description": "Keeps the manually tuned strength for each derivation group."
+        }
+      },
+      "controls": {
+        "auxiliaryPalette": {
+          "title": "Auxiliary palette",
+          "label": "Auxiliary color strength",
+          "description": "Affects secondary, sakura, sun, and other accent-derived auxiliary colors."
+        },
+        "surfaceTint": {
+          "title": "Surface tint",
+          "label": "Surface tint strength",
+          "description": "Affects how much accent color enters page backgrounds, cards, borders, and text layers."
+        },
+        "stateLayer": {
+          "title": "State layer",
+          "label": "State layer strength",
+          "description": "Affects hover, pressed, selected, and focus state colors and opacity."
+        },
+        "navigationColor": {
+          "title": "Navigation tint",
+          "label": "Navigation color strength",
+          "description": "Affects accent response in the rail, mobile navigation, and selected item backgrounds."
+        },
+        "materialColor": {
+          "title": "Material controls",
+          "label": "Material color strength",
+          "description": "Affects Material Web primary, secondary, surface, and related tokens."
+        },
+        "shadowDepth": {
+          "title": "Shadow depth",
+          "label": "Shadow strength",
+          "description": "Affects shadow opacity and perceived elevation depth."
+        },
+        "typography": {
+          "title": "Typography scale",
+          "label": "Typography derivation strength",
+          "description": "Affects how strongly headings, body text, and small text expand or contract from the base font size."
+        },
+        "spacing": {
+          "title": "Spacing rhythm",
+          "label": "Spacing derivation strength",
+          "description": "Affects page padding, grid gaps, and compact gaps derived from the base spacing unit."
+        },
+        "radius": {
+          "title": "Radius layers",
+          "label": "Radius derivation strength",
+          "description": "Affects the difference between card, panel, control, and choice corner radii."
+        },
+        "controls": {
+          "title": "Control spec",
+          "label": "Control derivation strength",
+          "description": "Affects buttons, fields, icon buttons, and navigation action sizes."
+        },
+        "contentWidth": {
+          "title": "Content width",
+          "label": "Content width strength",
+          "description": "Affects how normal and wide content containers expand or contract from the base width."
+        },
+        "mediaGrid": {
+          "title": "Media grid",
+          "label": "Media grid strength",
+          "description": "Affects video card column width and media list density."
+        },
+        "settingsLayout": {
+          "title": "Settings layout",
+          "label": "Settings layout strength",
+          "description": "Affects settings card and control column width rhythm."
+        },
+        "revealMotion": {
+          "title": "Reveal motion",
+          "label": "Reveal motion strength",
+          "description": "Affects reveal animation distance, duration, stagger, and maximum delay."
+        },
+        "routeProgress": {
+          "title": "Route progress",
+          "label": "Route progress strength",
+          "description": "Affects the top progress bar height, initial value, speed, and trickle rhythm."
+        },
+        "smoothScroll": {
+          "title": "Smooth scroll",
+          "label": "Smooth scroll strength",
+          "description": "Affects global smooth scroll duration."
+        },
+        "scrollSnap": {
+          "title": "Scroll snap",
+          "label": "Scroll snap strength",
+          "description": "Affects how strongly scroll scenes snap to anchors."
+        },
+        "scrollHijack": {
+          "title": "Scroll takeover",
+          "label": "Scroll takeover strength",
+          "description": "Affects the wheel-input threshold for scroll scene takeover."
+        },
+        "rubberBand": {
+          "title": "Rubber band",
+          "label": "Rubber band strength",
+          "description": "Affects boundary bounce distance and damping feel."
+        },
+        "danmaku": {
+          "title": "Danmaku visual and motion",
+          "label": "Danmaku derivation strength",
+          "description": "Affects danmaku font size, opacity, speed, and visible area."
+        }
+      }
+    },
+    "appearance": {
+      "form": {
+        "title": "Form",
+        "description": "Tune density, size, corners, contrast, and navigation emphasis across Aoi.",
+        "densityTitle": "Density",
+        "densityDescription": "Controls page spacing and settings row rhythm.",
+        "sizeTitle": "Size",
+        "sizeDescription": "Adjusts base type, control height, and navigation icon scale.",
+        "shapeTitle": "Corners",
+        "shapeDescription": "Layers corner radius across controls, choices, and content surfaces.",
+        "contrastTitle": "Contrast",
+        "contrastDescription": "Raises legibility for text, borders, and selected states.",
+        "colorfulNavTitle": "Colorful navigation",
+        "colorfulNavDescription": "Lightly tints side and mobile navigation with the current accent color."
+      },
+      "specUnits": {
+        "title": "Primary size units",
+        "description": "Manage the source dimensions used to derive spacing, controls, navigation, grids, and rounded corners.",
+        "jump": "Adjust primary units",
+        "reset": "Reset units",
+        "widthMode": {
+          "px": "px",
+          "percent": "%"
+        },
+        "baseFont": {
+          "title": "Base type",
+          "description": "Feeds body text and heading scale.",
+          "label": "Base font size"
+        },
+        "space": {
+          "title": "Spacing unit",
+          "description": "Feeds page padding, panel rhythm, and compact gaps.",
+          "label": "Base spacing"
+        },
+        "radius": {
+          "title": "Corner unit",
+          "description": "Feeds surface, card, control, and choice radii.",
+          "label": "Base corner radius"
+        },
+        "controlHeight": {
+          "title": "Control height",
+          "description": "Feeds buttons, fields, icon buttons, and navigation actions.",
+          "label": "Base control height"
+        },
+        "contentMaxWidth": {
+          "title": "Content width",
+          "description": "Sets normal page width with either a fluid percentage or a fixed pixel cap.",
+          "label": "Content width"
+        },
+        "contentWideMaxWidth": {
+          "title": "Wide content width",
+          "description": "Sets settings and workspace page width with either a fluid percentage or a fixed pixel cap.",
+          "label": "Wide content width"
+        },
+        "railWidth": {
+          "title": "Desktop rail",
+          "description": "Sets the fixed side navigation width.",
+          "label": "Desktop rail width"
+        },
+        "mobileNavHeight": {
+          "title": "Mobile navigation",
+          "description": "Sets mobile header, bottom navigation, and safe page padding.",
+          "label": "Mobile nav height"
+        },
+        "videoGridMinCardWidth": {
+          "title": "Video grid card",
+          "description": "Sets the minimum card column width on desktop grids.",
+          "label": "Video card min width"
+        },
+        "settingsCardMinWidth": {
+          "title": "Settings card",
+          "description": "Sets the minimum settings card and control column width.",
+          "label": "Settings card min width"
+        }
+      },
+      "palette": {
+        "title": "Accent color",
+        "description": "Choose a preset palette or switch to a custom color.",
+        "customTitle": "Color palette",
+        "persona": {
+          "customTitle": "Custom",
+          "customSubtitle": "Make It Yours",
+          "customCaption": "Custom",
+          "backgroundTitle": "Background",
+          "backgroundSubtitle": "Follow the background",
+          "backgroundCaption": "Background",
+          "backgroundDescription": "The background image is stored only in this browser and is not uploaded.",
+          "backgroundUpload": "Choose file",
+          "backgroundClear": "Clear",
+          "backgroundEmpty": "No background uploaded",
+          "backgroundDefault": "Using the default gradient background",
+          "backgroundOpacity": "Background strength",
+          "backgroundBlur": "Background blur",
+          "backgroundDim": "Overlay strength"
+        },
+        "derivation": {
+          "title": "Derived strength",
+          "description": "Tune how soft or vivid each light accent token feels.",
+          "preview": "Current derived accent scale preview",
+          "reset": "Reset derivation",
+          "toneDescription": "Current {value}%. Lower is softer, higher is more vivid.",
+          "tones": {
+            "accent10": {
+              "title": "Accent 10",
+              "label": "Accent 10 strength",
+              "affected": "May affect: soft state backgrounds, active navigation backgrounds, tag/notice/empty-state surfaces, Material primary containers, and progress tracks."
+            },
+            "accent20": {
+              "title": "Accent 20",
+              "label": "Accent 20 strength",
+              "affected": "May affect: custom palette slider tracks, Material secondary containers, and light gradients on About and Experimental pages."
+            },
+            "accent40": {
+              "title": "Accent 40",
+              "label": "Accent 40 strength",
+              "affected": "May affect: dark-mode active color, dark focus/hover/pressed/border states, dark navigation selection, and card/upload/skeleton accents."
+            },
+            "accent50": {
+              "title": "Accent 50",
+              "label": "Accent 50 strength",
+              "affected": "May affect: active progress color, page-edge hint gradients, brand/auth/profile decorative gradients, rich-text quote borders, and skeleton accents."
+            }
+          }
+        },
+        "cards": {
+          "editAria": "Edit {title} card background",
+          "dialogTitle": "Edit accent color card",
+          "titleLabel": "Card title",
+          "subtitleLabel": "Card subtitle",
+          "descriptionLabel": "Supporting copy",
+          "imagePathLabel": "Public asset image path",
+          "imagePathPlaceholder": "theme-card-backgrounds/example.webp",
+          "assetsTitle": "Public asset images",
+          "parent": "Parent",
+          "refresh": "Refresh",
+          "upload": "Upload image",
+          "clearImage": "Clear image",
+          "emptyAssets": "No selectable images in this folder.",
+          "cancel": "Cancel",
+          "save": "Save to build config",
+          "confirmTitle": "Write accent card config",
+          "confirmDescription": "This writes the current active build profile, only updating accent card assets and leaving the original backup unchanged.",
+          "before": "Before",
+          "after": "After",
+          "confirmSave": "Confirm write",
+          "saved": "Accent card config was written to the current active build profile.",
+          "errors": {
+            "imageOnly": "Choose an image file.",
+            "loadAssets": "Could not read public assets. Try again later.",
+            "profile": "Could not read build profiles, so the card config cannot be written.",
+            "save": "Could not write the build profile. Check that developer mode is still available.",
+            "upload": "Image upload failed. Try another image or retry later."
+          },
+          "noChanges": "No card changes to write.",
+          "retry": "Retry"
+        }
+      },
+      "density": {
+        "comfortable": {
+          "label": "Comfortable",
+          "description": "Open spacing"
+        },
+        "compact": {
+          "label": "Compact",
+          "description": "Higher density"
+        }
+      },
+      "size": {
+        "small": {
+          "label": "Small",
+          "description": "Smaller scale"
+        },
+        "default": {
+          "label": "Default",
+          "description": "Balanced scale"
+        },
+        "large": {
+          "label": "Large",
+          "description": "Larger scale"
+        }
+      },
+      "shape": {
+        "square": {
+          "label": "Square",
+          "description": "2px corners"
+        },
+        "soft": {
+          "label": "Soft",
+          "description": "Aoi default"
+        },
+        "pill": {
+          "label": "Rounded",
+          "description": "Pill controls, structured surfaces"
+        }
+      },
+      "contrast": {
+        "normal": {
+          "label": "Normal",
+          "description": "Standard layers"
+        },
+        "high": {
+          "label": "High contrast",
+          "description": "Sharper states"
+        }
+      }
+    },
+    "preference": {
+      "routeProgress": {
+        "title": "Route progress bar",
+        "description": "Use NProgress for route navigation feedback while keeping Nuxt's built-in loading lifecycle.",
+        "enabledTitle": "Enable route progress",
+        "enabledDescription": "Show a slim loading bar during page navigation.",
+        "trickleTitle": "Automatic trickle",
+        "trickleDescription": "Let NProgress slowly advance while the next page is still loading.",
+        "spinnerTitle": "Show spinner",
+        "spinnerDescription": "Display the optional NProgress spinner in the top-right corner.",
+        "easingTitle": "Easing",
+        "easingDescription": "Choose the transition curve used by the progress bar.",
+        "easingLabel": "Progress easing",
+        "easing": {
+          "linear": "Linear",
+          "ease": "Ease",
+          "easeIn": "Ease in",
+          "easeOut": "Ease out",
+          "easeInOut": "Ease in-out"
+        },
+        "minimumTitle": "Initial progress",
+        "minimumLabel": "Initial progress",
+        "delayTitle": "Display delay",
+        "delayLabel": "Display delay",
+        "speedTitle": "Animation speed",
+        "speedLabel": "Animation speed",
+        "trickleSpeedTitle": "Trickle interval",
+        "trickleSpeedLabel": "Trickle interval",
+        "heightTitle": "Bar height",
+        "heightLabel": "Bar height"
+      },
+      "reveal": {
+        "title": "Reveal motion",
+        "description": "Tune how content panels, cards, and lists pop into view while browsing.",
+        "enabledTitle": "Enable reveal motion",
+        "enabledDescription": "Turn off to keep reveal-enabled content immediately visible.",
+        "effectTitle": "Effect",
+        "effectDescription": "Choose whether each module keeps its local effect or uses one global style.",
+        "effectLabel": "Reveal effect",
+        "effect": {
+          "contextual": "Contextual",
+          "pop": "Pop",
+          "rise": "Rise",
+          "fade": "Fade",
+          "slideLeft": "Slide left",
+          "slideRight": "Slide right"
+        },
+        "replayTitle": "Replay",
+        "replayDescription": "Control whether reveal motion repeats when content re-enters the viewport.",
+        "replay": {
+          "repeat": {
+            "label": "Repeat",
+            "description": "Replay on re-entry"
+          },
+          "once": {
+            "label": "Once",
+            "description": "Keep visible after first entry"
+          }
+        },
+        "durationTitle": "Duration",
+        "durationLabel": "Duration",
+        "distanceTitle": "Distance",
+        "distanceLabel": "Distance",
+        "staggerTitle": "List stagger",
+        "staggerLabel": "Stagger",
+        "maxDelayTitle": "Max delay",
+        "maxDelayLabel": "Max delay"
+      },
+      "scroll": {
+        "title": "Scroll experience",
+        "description": "Control global smooth scrolling, magnetic snapping, opt-in scroll scenes, and edge damping.",
+        "scrollbar": {
+          "strategyTitle": "Page scrollbar",
+          "strategyDescription": "Choose whether the page reserves scrollbar space to prevent Windows-style layout shifts.",
+          "strategy": {
+            "auto": {
+              "label": "System default",
+              "description": "Follow browser"
+            },
+            "stable": {
+              "label": "Stable gutter",
+              "description": "Reserve right side"
+            },
+            "stableBothEdges": {
+              "label": "Both edges",
+              "description": "Keep centered"
+            },
+            "hidden": {
+              "label": "Hidden",
+              "description": "Keep scrolling"
+            }
+          }
+        },
+        "smooth": {
+          "enabledTitle": "Smooth inertial scrolling",
+          "enabledDescription": "Use Lenis to soften wheel-driven page scrolling while preserving native touch inertia.",
+          "durationTitle": "Scroll duration",
+          "durationLabel": "Scroll duration",
+          "dampingTitle": "Damping",
+          "dampingLabel": "Damping"
+        },
+        "snap": {
+          "enabledTitle": "Scroll snap and magnetism",
+          "enabledDescription": "Allow Aoi scroll areas and scenes to settle on nearby items or sections.",
+          "modeTitle": "Snap mode",
+          "modeDescription": "Choose a softer proximity snap or a stricter mandatory snap.",
+          "mode": {
+            "proximity": {
+              "label": "Proximity",
+              "description": "Settle near targets"
+            },
+            "mandatory": {
+              "label": "Mandatory",
+              "description": "Always lock to targets"
+            }
+          },
+          "strengthTitle": "Magnet strength",
+          "strengthLabel": "Magnet strength"
+        },
+        "hijack": {
+          "enabledTitle": "Scroll scene hijacking",
+          "enabledDescription": "Let explicit Aoi scroll scenes capture large wheel or keyboard steps and jump section by section.",
+          "modeTitle": "Scene strategy",
+          "modeDescription": "Choose whether a scene follows its current section or recalculates the nearest section before moving.",
+          "mode": {
+            "section": {
+              "label": "Section",
+              "description": "Use active section"
+            },
+            "nearest": {
+              "label": "Nearest",
+              "description": "Recheck position"
+            }
+          },
+          "thresholdTitle": "Wheel threshold",
+          "thresholdLabel": "Wheel threshold"
+        },
+        "rubberBand": {
+          "enabledTitle": "Edge damping",
+          "enabledDescription": "Show a small rubber-band response at page and scroll-area edges.",
+          "strengthTitle": "Damping strength",
+          "strengthLabel": "Damping strength",
+          "maxOffsetTitle": "Max offset",
+          "maxOffsetLabel": "Max offset"
+        }
+      }
+    },
+    "about": {
+      "developerUnlock": {
+        "hint": "Click the Aoi mark 4 times to enable Developer Mode.",
+        "remaining": "{count} more clicks to enter Developer Mode.",
+        "enabled": "Developer Mode is enabled. The Developer page is now available in Settings.",
+        "logoLabel": "Aoi product mark, click four times to enable Developer Mode"
+      },
+      "title": "About",
+      "description": "Aoi is a frontend-first video community prototype that keeps the future Go API contract direction.",
+      "heroDescription": "A Nuxt 4 prototype for shaping video community information architecture, playback, upload drafts, and local interactions.",
+      "techTitle": "Tech stack",
+      "techDescription": "Dependencies stay lightweight, and Material Web is exposed through Aoi wrappers."
+    },
+    "developer": {
+      "title": "Developer",
+      "description": "Generate build-time default app settings and write the controlled source config in local development.",
+      "locked": {
+        "title": "Developer Mode is locked",
+        "description": "Open the About page and use the hidden Aoi mark interaction to enable Developer Mode.",
+        "action": "Open About"
+      },
+      "status": {
+        "title": "Build defaults",
+        "description": "This page only writes the active default config. The original backup config is never modified.",
+        "runtimeMode": "Runtime mode",
+        "development": "Local development",
+        "production": "Production build",
+        "activePath": "Active config",
+        "originalPath": "Original backup",
+        "generatedSize": "Generated size",
+        "updatedAt": "Last write: {time}"
+      },
+      "generated": {
+        "title": "Generated preview",
+        "description": "Generate TypeScript config from the current app settings. Developer Mode, background files, and local content data are excluded."
+      },
+      "source": {
+        "title": "Source config actions",
+        "description": "Write overwrites the active default config. Restore regenerates it from the original backup.",
+        "devNote": "The write API is available only on the local dev server and accepts only a fixed allowlist settings object.",
+        "productionNote": "This is not the local dev server, so source writes and restores are disabled."
+      },
+      "actions": {
+        "refresh": "Refresh",
+        "copy": "Copy",
+        "download": "Download",
+        "write": "Write source config",
+        "restore": "Restore original defaults",
+        "disable": "Disable Developer Mode"
+      },
+      "messages": {
+        "refreshed": "Preview regenerated from the current app settings.",
+        "copied": "TypeScript config copied.",
+        "downloaded": "TypeScript config downloaded.",
+        "written": "Active build defaults were written.",
+        "restored": "Active defaults were restored from the original backup.",
+        "buildRefreshed": "Build profiles refreshed.",
+        "buildCreated": "Build profile created.",
+        "buildCopied": "Build profile copied.",
+        "buildUpdated": "Build profile info updated.",
+        "buildWritten": "Current settings were written to the build profile.",
+        "buildRestored": "Build profile restored from original backup.",
+        "activeChanged": "Active build profile switched.",
+        "buildDeleted": "Build profile deleted.",
+        "runtimeSaved": "Runtime profiles saved.",
+        "runtimeCreated": "Runtime profile created.",
+        "runtimeCopied": "Runtime profile copied.",
+        "runtimeUpdated": "Runtime profile info updated.",
+        "runtimeUpdatedFromCurrent": "Runtime profile updated from current settings.",
+        "runtimeApplied": "Runtime profile applied.",
+        "runtimeAppliedMissingBackground": "Runtime profile applied. Its background reference has no local image bytes on this device, so the default background was restored.",
+        "runtimeDeleted": "Runtime profile deleted.",
+        "runtimeImported": "Imported {count} runtime profile(s).",
+        "jsonCopied": "Configuration JSON copied.",
+        "jsonDownloaded": "Configuration JSON downloaded."
+      },
+      "errors": {
+        "copy": "Copy failed. Select the preview text directly instead.",
+        "download": "Download failed. Try copying instead.",
+        "write": "Write failed. Make sure this is the local dev server.",
+        "restore": "Restore failed. Make sure this is the local dev server.",
+        "loadBuild": "Failed to load build profiles",
+        "buildAction": "Build profile action failed",
+        "runtimeSave": "Runtime profiles could not be saved. Browser local storage may be unavailable.",
+        "noFields": "Select at least one settings field.",
+        "noCopyConfig": "There is no configuration to copy.",
+        "copyJson": "Copy failed. Select the preview content directly instead.",
+        "noDownloadConfig": "There is no configuration to download.",
+        "downloadJson": "Download failed. Use copy instead.",
+        "selectBuild": "Select a build profile first.",
+        "noOriginal": "The original backup for this build profile was not found.",
+        "deleteDefaultBuild": "Default or built-in build profiles cannot be deleted.",
+        "selectRuntime": "Select a runtime profile first.",
+        "runtimeImport": "Import failed. Make sure the file is an Aoi runtime profile JSON."
+      },
+      "profiles": {
+        "buildTitle": "Build preset profiles",
+        "runtimeTitle": "Runtime setting profiles",
+        "fieldPicker": "Field picker",
+        "diffPreview": "Diff preview",
+        "confirmBeforeApply": "Profile writes and applies must show a diff preview and confirmation.",
+        "buildDescription": "Build presets use one JSON file per profile and keep a matching original backup.",
+        "runtimeDescription": "Runtime profiles are stored only in the current browser and can be imported or exported.",
+        "backgroundReferenceNote": "Background profiles save references only, never image bytes.",
+        "actions": {
+          "create": "Create",
+          "copy": "Copy",
+          "rename": "Rename",
+          "delete": "Delete",
+          "setActive": "Set active",
+          "writeCurrent": "Write current settings",
+          "restoreOriginal": "Restore original",
+          "apply": "Preview and apply",
+          "updateFromCurrent": "Update from current",
+          "import": "Import",
+          "export": "Export",
+          "selectAll": "Select all",
+          "clear": "Clear"
+        }
+      },
+      "assets": {
+        "title": "Public Assets",
+        "description": "Manage build-bound files in public, app/assets, and i18n/locales from the local dev server.",
+        "unavailable": {
+          "title": "Public asset management is available only in local dev",
+          "description": "Production builds and preview do not expose source-file write APIs. Use this panel under pnpm dev."
+        },
+        "rootLabel": "Asset root",
+        "searchLabel": "Search current directory",
+        "viewModeLabel": "Asset view mode",
+        "sortLabel": "Sort",
+        "breadcrumbLabel": "Asset path",
+        "itemCount": "{count} items",
+        "empty": "No assets are available in this directory.",
+        "emptySearch": "No assets match the current search.",
+        "lastUpdated": "Last refresh/write: {time}",
+        "noSelection": "Select a file or directory.",
+        "previewUnavailable": "This file type cannot be previewed inline. Download or replace it instead.",
+        "previewDirectory": "Double-click a directory to open it. File previews appear here.",
+        "workspace": {
+          "label": "Asset workspace",
+          "browser": "Browse",
+          "preview": "Preview",
+          "editor": "Text editor"
+        },
+        "explorer": {
+          "title": "Explorer",
+          "loading": "Loading",
+          "expand": "Expand directory",
+          "collapse": "Collapse directory"
+        },
+        "views": {
+          "list": "List view",
+          "grid": "Grid view"
+        },
+        "sort": {
+          "nameAsc": "Name A-Z",
+          "nameDesc": "Name Z-A",
+          "modifiedDesc": "Newest first",
+          "modifiedAsc": "Oldest first",
+          "sizeDesc": "Largest first",
+          "sizeAsc": "Smallest first",
+          "kindAsc": "Type"
+        },
+        "detail": {
+          "title": "Details"
+        },
+        "preview": {
+          "title": "Preview"
+        },
+        "kinds": {
+          "directory": "Directory",
+          "file": "File"
+        },
+        "stats": {
+          "root": "Root",
+          "path": "Path",
+          "items": "Items",
+          "type": "Type",
+          "size": "Size",
+          "mode": "Mode",
+          "modified": "Modified"
+        },
+        "table": {
+          "name": "Name",
+          "type": "Type",
+          "size": "Size",
+          "mode": "Mode",
+          "modified": "Modified",
+          "actions": "Actions"
+        },
+        "actions": {
+          "refresh": "Refresh",
+          "newFile": "New file",
+          "newDirectory": "New folder",
+          "upload": "Upload",
+          "open": "Open",
+          "download": "Download",
+          "more": "More",
+          "rename": "Rename",
+          "copy": "Copy",
+          "move": "Move",
+          "chmod": "chmod",
+          "delete": "Delete",
+          "copyPublicUrl": "Copy public URL",
+          "loadText": "Load text",
+          "saveText": "Save text",
+          "create": "Create",
+          "cancel": "Cancel",
+          "overwriteUpload": "Overwrite upload"
+        },
+        "dialogs": {
+          "createFileTitle": "Create file",
+          "createFileDescription": "Create an empty text file in the current directory.",
+          "createDirectoryTitle": "Create folder",
+          "createDirectoryDescription": "Create a folder in the current directory.",
+          "renameTitle": "Rename asset",
+          "renameDescription": "Rename {name}.",
+          "copyTitle": "Copy asset",
+          "copyDescription": "Copy {name} to a relative target path. If the target is a directory, the original name is kept.",
+          "moveTitle": "Move asset",
+          "moveDescription": "Move {name} to a relative target path. This changes the source directory structure.",
+          "chmodTitle": "Change permissions",
+          "chmodDescription": "Set a 3- or 4-digit octal mode for {name}, such as 644, 755, or 7777.",
+          "deleteTitle": "Delete asset",
+          "deleteDescription": "Delete {name}. Directories are deleted recursively and are not moved to trash.",
+          "nameLabel": "Name",
+          "destinationLabel": "Target relative path",
+          "modeLabel": "Permission mode",
+          "overwriteLabel": "Allow overwriting existing target",
+          "uploadOverwriteTitle": "Overwrite existing files?",
+          "uploadOverwriteDescription": "One or more uploaded files already exist in the target directory. Confirm to overwrite them."
+        },
+        "editor": {
+          "title": "Text editor",
+          "placeholder": "Load text before editing here.",
+          "unavailable": "Only text assets up to 1 MiB can be edited inline."
+        },
+        "messages": {
+          "refreshed": "Public assets refreshed.",
+          "textLoaded": "Text content loaded.",
+          "textSaved": "Text content saved.",
+          "chmodded": "Asset permissions updated.",
+          "copied": "Asset copied.",
+          "createdDirectory": "Folder created.",
+          "createdFile": "File created.",
+          "deleted": "Asset deleted.",
+          "moved": "Asset moved.",
+          "renamed": "Asset renamed.",
+          "uploaded": "Uploaded {count} files.",
+          "publicUrlCopied": "Public URL copied."
+        },
+        "errors": {
+          "action": "Public asset action failed",
+          "upload": "Upload failed",
+          "copyUrl": "Could not copy the public URL."
+        }
+      },
+      "profileDescription": "Manage build-time default settings and browser-local runtime profiles. Every profile uses a fixed field allowlist and shows a diff before write or apply.",
+      "multiStatusTitle": "Profile status",
+      "multiStatusDescription": "Build profiles write source JSON; runtime profiles stay in browser localStorage. Production builds do not expose write APIs.",
+      "tabsAria": "Developer configuration management",
+      "buildListLabel": "Build profile list",
+      "runtimeListLabel": "Runtime profile list",
+      "runtimePanelDescription": "Runtime profiles live only in this browser localStorage and can be imported or exported. Backgrounds save references only, not image bytes.",
+      "noBuildProfile": "No build profile selected",
+      "noRuntimeProfile": "No runtime profile selected",
+      "noRuntimeProfiles": "No runtime profiles yet. Create the first one from current settings.",
+      "buildPreviewNote": "{count} field(s) will change in the current write preview. Writing only updates the active profile JSON and leaves the original backup untouched.",
+      "runtimeApplyNote": "Applying this profile will change {count} field(s). If the background reference has no IndexedDB image bytes on this device, it will be reported and reset to the default background.",
+      "copyPreview": "Copy preview",
+      "downloadPreview": "Download preview",
+      "copyJson": "Copy JSON",
+      "write": "Write",
+      "restore": "Restore",
+      "update": "Update",
+      "tabs": {
+        "build": "Build profiles",
+        "runtime": "Runtime profiles",
+        "assets": "Public assets"
+      },
+      "fields": {
+        "currentBuildName": "Current preset name",
+        "currentBuildDescription": "Current preset description",
+        "currentRuntimeName": "Current profile name",
+        "currentRuntimeDescription": "Current profile description",
+        "newProfileId": "New profile ID (slug, optional)",
+        "newBuildName": "New preset name",
+        "newBuildDescription": "New preset description",
+        "newRuntimeName": "New profile name",
+        "newRuntimeDescription": "New profile description"
+      },
+      "confirms": {
+        "createBuildTitle": "Create build profile",
+        "createBuildDescription": "Create build profile {name} from the current app settings.",
+        "copyBuildTitle": "Copy build profile",
+        "copyBuildDescription": "Copy {source} to {name}. This also creates an original backup for the new profile.",
+        "writeBuildTitle": "Write current settings",
+        "writeBuildDescription": "Write current app settings to {name}, saving only selected fields. The original backup will not be changed.",
+        "restoreBuildTitle": "Restore original backup",
+        "restoreBuildDescription": "Restore {name} from its original backup.",
+        "setActiveTitle": "Switch active profile",
+        "setActiveDescription": "The build facade will use {name} as the default app settings source.",
+        "deleteBuildTitle": "Delete build profile",
+        "deleteBuildDescription": "Delete {name} and its original backup.",
+        "createRuntimeTitle": "Create runtime profile",
+        "createRuntimeDescription": "Create runtime profile {name} from the current app settings. Backgrounds save references only, not image bytes.",
+        "updateRuntimeTitle": "Update runtime profile",
+        "updateRuntimeDescription": "Update {name} with current app settings, saving only selected fields.",
+        "applyRuntimeTitle": "Apply runtime profile",
+        "applyRuntimeDescription": "Apply {name} to this browser's settings. This does not write source files.",
+        "deleteRuntimeTitle": "Delete runtime profile",
+        "deleteRuntimeDescription": "Delete browser-local runtime profile {name}."
+      }
+    },
+    "components": {
+      "title": "Components",
+      "eyebrow": "Developer components",
+      "description": "A developer-mode lab for Aoi components, business components, and local interaction states.",
+      "catalogDescription": "Component lab, control states, and business component examples.",
+      "loadingTitle": "Reading Developer Mode",
+      "loadingDescription": "The component lab will continue once local settings have been restored.",
+      "keywords": "components showcase developer aoi controls lab demo"
+    },
+    "experimental": {
+      "title": "Experiments",
+      "description": "Try reusable interface patterns before they move into product flows.",
+      "lightbox": {
+        "title": "Lightbox gallery",
+        "description": "Preview the reusable Aoi lightbox with images, video controls, thumbnails, keyboard navigation, and touch gestures.",
+        "items": {
+          "sunflower": {
+            "title": "Sunflower interface study",
+            "description": "A warm image placeholder for checking zoom, pan, captions, and thumbnail focus.",
+            "alt": "Sunflower-toned abstract image"
+          },
+          "sakura": {
+            "title": "Sakura accent frame",
+            "description": "A softer image item for testing color balance inside the dark lightbox surface.",
+            "alt": "Sakura-toned abstract image"
+          },
+          "video": {
+            "title": "Local video preview",
+            "description": "The bundled sample video exercises custom playback, seek, volume, mute, and fullscreen controls.",
+            "alt": "Local sample video"
+          },
+          "night": {
+            "title": "Night mode contrast",
+            "description": "A darker image placeholder for checking caption contrast and reduced-motion behavior.",
+            "alt": "Dark abstract image"
+          }
+        }
+      },
+      "scrollDemo": {
+        "title": "Scroll system demo",
+        "description": "A compact scene for checking smooth scrolling, magnetic snapping, scroll hijacking, and edge damping together.",
+        "ariaLabel": "Scroll system demonstration",
+        "items": {
+          "smooth": {
+            "title": "Inertial page motion",
+            "description": "Wheel input eases into place through the global Lenis runtime when smooth scrolling is enabled."
+          },
+          "snap": {
+            "title": "Magnetic sections",
+            "description": "Each panel is a snap target, so the scene can settle on the nearest useful reading position."
+          },
+          "hijack": {
+            "title": "Opt-in scene control",
+            "description": "When scene hijacking is enabled, large wheel and keyboard steps move one panel at a time."
+          }
+        }
+      },
+      "richText": {
+        "title": "Rich text editor",
+        "description": "Draft Markdown-first rich content while preserving the full Tiptap document as a fallback contract.",
+        "editorLabel": "Rich text draft",
+        "placeholder": "Write a creator note, release plan, or formatted description...",
+        "supportingText": "Markdown is the primary text output; JSON preserves styles Markdown cannot express.",
+        "sample": "# Aoi rich text draft\n\nUse **Markdown** shortcuts or the toolbar to shape content.\n\n- Keep the Markdown output readable\n- Preserve colors, tables, alignment, and other rich details in JSON\n- Reject unsafe links and image URLs\n\n> This panel is an isolated experiment and does not change upload drafts or comments yet.",
+        "preview": {
+          "title": "Output preview",
+          "ariaLabel": "Rich text output format",
+          "markdown": "Markdown",
+          "text": "Text",
+          "json": "JSON",
+          "meta": "{chars} chars · {words} words"
+        }
+      }
+    },
+    "language": {
+      "title": "Language",
+      "description": "The project currently supports three interface languages. More locales can open once their files are complete.",
+      "panelTitle": "Interface language",
+      "panelDescription": "Changes apply immediately and are saved in this browser.",
+      "options": {
+        "zh": {
+          "label": "Simplified Chinese",
+          "nativeName": "简体中文",
+          "description": "Default language for current content and design copy."
+        },
+        "en": {
+          "label": "English",
+          "nativeName": "English",
+          "description": "Switch to English UI copy where available."
+        },
+        "ja": {
+          "label": "Japanese",
+          "nativeName": "日本語",
+          "description": "Switch to Japanese UI copy where available."
+        }
+      }
+    },
+    "playerPage": {
+      "title": "Player",
+      "description": "These options are saved in this browser and used immediately by the video player.",
+      "controlsTitle": "Playback controls",
+      "controlsDescription": "Adjust default volume, mute, and playback speed.",
+      "reset": "Reset player",
+      "volume": "Volume",
+      "volumeCurrent": "Current volume {value}%",
+      "muted": "Muted",
+      "mutedDescription": "When enabled, the player stays muted and unmutes automatically when volume is raised.",
+      "playbackRate": "Default speed",
+      "playbackRateDescription": "New videos keep this playback speed.",
+      "rateLabel": "Speed",
+      "theater": "Theater mode",
+      "theaterDescription": "Keep a more immersive watch layout when the player opens.",
+      "statusTitle": "Current state",
+      "statusDescription": "Use this to confirm persistent settings have restored.",
+      "stats": {
+        "volume": "Volume",
+        "muted": "Muted",
+        "rate": "Speed",
+        "theater": "Theater mode"
+      }
+    },
+    "danmakuPage": {
+      "title": "Danmaku",
+      "description": "Adjust player danmaku display, motion, modes, and blocked words. Settings are saved in this browser and apply immediately.",
+      "modeTitle": "Display and modes",
+      "modeDescription": "Control the main danmaku switch plus scrolling, top, and bottom modes.",
+      "reset": "Reset danmaku",
+      "enabledTitle": "Enable danmaku",
+      "enabledDescription": "When off, the player will not show danmaku or allow new sends.",
+      "scrollTitle": "Scrolling danmaku",
+      "scrollDescription": "Allow danmaku to move from right to left across the video.",
+      "topTitle": "Top danmaku",
+      "topDescription": "Allow fixed danmaku at the top of the video.",
+      "bottomTitle": "Bottom danmaku",
+      "bottomDescription": "Allow fixed danmaku at the bottom of the video.",
+      "visualTitle": "Visuals and motion",
+      "visualDescription": "Adjust opacity, font size, speed, and how much of the video area danmaku may occupy.",
+      "opacity": "Opacity",
+      "currentPercent": "Current {value}%",
+      "fontScale": "Font scale",
+      "speed": "Speed scale",
+      "visibleArea": "Visible area",
+      "visibleAreaDescription": "Danmaku may occupy up to the top {value}% of the video",
+      "blocklistTitle": "Blocked words",
+      "blocklistDescription": "Use one word per line or separate with commas. Matches are hidden from the layer and list.",
+      "blocklistLabel": "Blocked words",
+      "blocklistPlaceholder": "Example: spoilers\nspam",
+      "localTitle": "Local danmaku state",
+      "localDescription": "Shows danmaku sent in this browser, excluding initial mock API danmaku.",
+      "stats": {
+        "local": "Local danmaku",
+        "opacity": "Opacity",
+        "fontSize": "Font size",
+        "speed": "Speed"
+      }
+    },
+    "preferencePage": {
+      "title": "Preferences",
+      "description": "Manage local browsing, privacy, and search preferences.",
+      "dataModeTitle": "Data mode",
+      "dataModeDescription": "Saved locally for now; real pagination and preloading strategies can consume it later.",
+      "browseTitle": "Browsing",
+      "browseDescription": "These settings affect current video cards and metadata.",
+      "openNewTabTitle": "Open videos in a new tab",
+      "openNewTabDescription": "Video cards from home, search, and history open in a new tab.",
+      "relativeDatesTitle": "Use relative dates",
+      "relativeDatesDescription": "Published times display as relative text such as “just now” or “x days ago”.",
+      "privacyTitle": "Privacy",
+      "privacyDescription": "Only affects local behavior and storage in this browser.",
+      "disableHistoryTitle": "Disable watch history",
+      "disableHistoryDescription": "When enabled, video pages stop writing history and playback progress.",
+      "hideSearchTitle": "Hide recent searches",
+      "hideSearchDescription": "Recent searches are not saved yet; this becomes the future default privacy preference.",
+      "focusTitle": "Focus",
+      "focusDescription": "Saved locally for future recommendation modules.",
+      "noSearchTitle": "Disable search suggestions",
+      "noSearchDescription": "Future search suggestions will be hidden by default.",
+      "noRelatedTitle": "Disable related videos",
+      "noRelatedDescription": "Future related-video modules will be hidden by default.",
+      "dataModes": {
+        "economy": {
+          "label": "Data saver",
+          "description": "Reduce nonessential loading for mobile and weak networks."
+        },
+        "standard": {
+          "label": "Standard",
+          "description": "Balance loading speed and information completeness."
+        },
+        "turbo": {
+          "label": "Turbo",
+          "description": "Show more content sooner on stable networks."
+        }
+      }
+    },
+    "advanced": {
+      "title": "Advanced",
+      "description": "Keeps API diagnostics, local cache stats, and reset actions from the original settings page.",
+      "defaultCommentAuthor": "Aoi Guest",
+      "dataSourceTitle": "Data source",
+      "dataSourceDescription": "Current runtime config is displayed read-only.",
+      "apiStatusTitle": "API status",
+      "apiStatusDescription": "Confirms the mock contract before the future Go API is connected.",
+      "apiUnavailableTitle": "API status unavailable",
+      "apiUnavailableDescription": "The current API status probe failed.",
+      "endpointsAria": "Implemented mock endpoints",
+      "recentErrorsTitle": "Recent API errors",
+      "recentErrorsDescription": "The latest 8 page request failures are retained for debugging.",
+      "noErrors": "No error records.",
+      "localDataTitle": "Local data",
+      "localDataDescription": "This data is written only to this browser and is not sent to the mock API.",
+      "playerPrefs": "Player preferences",
+      "playerPrefsDescription": "{volume}% · {rate}x · {mode}",
+      "theater": "Theater",
+      "standard": "Standard",
+      "localActions": "Local interactions",
+      "localActionsDescription": "History {history} · Favorites {favorites} · Watch later {watchLater} · Likes {liked}",
+      "localComments": "Local comments",
+      "localCommentsDescription": "Comments {total} · Videos {videos} · Author {author}",
+      "uploadDrafts": "Upload drafts",
+      "uploadDraftsDescription": "Drafts {drafts} · Ready {ready} · Queued {queued}",
+      "localFollowing": "Local following",
+      "localFollowingDescription": "Creators {creators} · Updates {videos}",
+      "appSettings": "App settings",
+      "appSettingsDescription": "Reset theme, palette, background, and preferences.",
+      "confirm": {
+        "resetPlayerTitle": "Reset player preferences",
+        "resetPlayerDescription": "Restore default volume, mute, speed, and theater mode.",
+        "resetLibraryTitle": "Reset local interaction data",
+        "resetLibraryDescription": "Clear history, favorites, watch later, and likes.",
+        "resetCommentsTitle": "Reset local comment data",
+        "resetCommentsDescription": "Clear local comments and restore the default comment author.",
+        "clearDraftsTitle": "Clear upload drafts",
+        "clearDraftsDescription": "Delete upload draft metadata in this browser. Real files are not saved or deleted.",
+        "clearFollowingTitle": "Clear local following",
+        "clearFollowingDescription": "Delete followed creator cache in this browser.",
+        "resetAppTitle": "Reset app settings",
+        "resetAppDescription": "Restore default appearance, background, language, and preferences without clearing interactions, comments, uploads, or following data."
+      },
+      "stats": {
+        "mockApi": "Mock API",
+        "mode": "Mode",
+        "updatedAt": "Updated"
+      }
+    },
+    "acknowledgement": {
+      "title": "Acknowledgements",
+      "description": "Thanks to these tools, design references, and open-source ecosystems for speeding up the Aoi prototype.",
+      "linksTitle": "Friendly links",
+      "linksDescription": "These links open in a new tab."
+    },
+    "appearancePage": {
+      "title": "Appearance",
+      "description": "Tune Aoi with theme, accent colors, and a local background image.",
+      "themeTitle": "Theme",
+      "themeDescription": "Switch between light, dark, or system theme.",
+      "notUploaded": "Not uploaded",
+      "themeOptions": {
+        "light": "Light theme",
+        "dark": "Dark theme",
+        "system": "Follow system"
+      },
+      "backgroundErrors": {
+        "read": "Background image read failed. Default background restored.",
+        "type": "Choose a PNG, JPG, or WebP image.",
+        "size": "Background image cannot exceed 8 MB.",
+        "save": "Background image save failed. Try a smaller image.",
+        "clear": "Background cleanup failed, but the page has restored the default background."
+      }
+    },
+    "index": {
+      "itemTitle": "{label} - Settings - Aoi",
+      "title": "Settings - Aoi",
+      "items": {
+        "appearance": {
+          "label": "Appearance",
+          "description": "Theme, palette, background, and spec units.",
+          "keywords": "theme palette background DIY custom spec size unit spacing radius navigation width card width derivation strength"
+        },
+        "player": {
+          "label": "Player",
+          "description": "Volume, mute, speed, and theater mode.",
+          "keywords": "volume mute speed theater"
+        },
+        "danmaku": {
+          "label": "Danmaku",
+          "description": "Danmaku display, motion, modes, and blocked words.",
+          "keywords": "danmaku placeholder block speed font size opacity"
+        },
+        "preference": {
+          "label": "Preferences",
+          "description": "Browsing, privacy, motion, scroll, and search preferences.",
+          "keywords": "data saver privacy new tab dates search progress NProgress loading reveal scroll snap"
+        },
+        "language": {
+          "label": "Language",
+          "description": "Interface language and localization.",
+          "keywords": "Chinese English Japanese i18n"
+        },
+        "experimental": {
+          "label": "Experiments",
+          "description": "Feature previews and interaction experiments.",
+          "keywords": "experiment feature preview rich text lightbox scroll scene"
+        },
+        "shortcutKey": {
+          "label": "Shortcuts",
+          "description": "Reserved keyboard actions.",
+          "keywords": "keyboard playback comments"
+        },
+        "about": {
+          "label": "About",
+          "description": "Version, tech stack, and project notes.",
+          "keywords": "version tech stack repository"
+        },
+        "acknowledgement": {
+          "label": "Acknowledgements",
+          "description": "Links, friendly links, and thanks.",
+          "keywords": "links friendly links thanks"
+        },
+        "advanced": {
+          "label": "Advanced",
+          "description": "API diagnostics, local cache, and resets.",
+          "keywords": "API mock error local cache reset data"
+        },
+        "developer": {
+          "label": "Developer",
+          "description": "Build defaults, runtime profiles, and public assets.",
+          "keywords": "developer defaults build config restore profiles runtime profile assets public i18n fields"
+        }
+      }
+    },
+    "profile": {
+      "fieldSelector": "Field selector",
+      "selectedSummary": "{count} items · {summary}",
+      "selectAll": "Select all",
+      "clear": "Clear",
+      "depthBasic": "Basic",
+      "depthAll": "All",
+      "noFieldSelection": "No fields selected",
+      "noConcreteDiff": "This action does not change specific setting fields, but it may change profile metadata or availability.",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "unset": "Unset",
+      "other": "Other"
+    },
+    "shortcut": {
+      "title": "Shortcuts",
+      "description": "Keyboard actions that are available now or reserved for the project.",
+      "groups": {
+        "player": "Watch page",
+        "comments": "Comments"
+      },
+      "items": {
+        "playPause": "Play / pause",
+        "exitFullscreen": "Exit fullscreen",
+        "fullscreen": "Fullscreen",
+        "mute": "Mute",
+        "volume": "Volume",
+        "seek": "Rewind / fast-forward",
+        "sendComment": "Send comment",
+        "bold": "Bold",
+        "italic": "Italic",
+        "underline": "Underline"
+      }
+    }
+  },
+  "player": {
+    "ariaLabel": "{title} player",
+    "contextDanmaku": "Danmaku",
+    "contextDisplay": "Display modes",
+    "contextHelp": "Help",
+    "contextMedia": "Video / subtitles",
+    "contextMenu": "Player context menu",
+    "contextPlayback": "Playback",
+    "controls": "Player controls",
+    "copyCurrentTime": "Copy current time",
+    "exitFullscreen": "Exit fullscreen",
+    "exitWebFullscreen": "Exit web fullscreen",
+    "fullscreen": "Fullscreen",
+    "hideDanmaku": "Hide danmaku",
+    "hidePanel": "Collapse danmaku list",
+    "loading": "Loading video",
+    "mute": "Mute",
+    "pause": "Pause video",
+    "play": "Play video",
+    "rate": "Playback speed",
+    "rateShort": "Speed",
+    "subtitle": "Subtitles",
+    "subtitleUnavailable": "No subtitles available",
+    "retry": "Retry",
+    "showDanmaku": "Show danmaku",
+    "showPanel": "Expand danmaku list",
+    "source": "Video source",
+    "sourceDefault": "Auto",
+    "sourceUnavailable": "No source",
+    "playerSettings": "Player settings",
+    "playerSettingsUnavailable": "No additional player settings yet",
+    "keyboardShortcuts": "Keyboard shortcuts",
+    "shortcutCompose": "Focus danmaku input",
+    "shortcutDanmaku": "Toggle danmaku",
+    "shortcutFullscreen": "Browser fullscreen",
+    "shortcutPlayPause": "Play / pause",
+    "shortcutSeek": "Seek 5 seconds",
+    "shortcutWebFullscreen": "Web fullscreen",
+    "theater": "Theater mode",
+    "unmute": "Unmute",
+    "volume": "Volume",
+    "webFullscreen": "Web fullscreen",
+    "upNext": "Up next",
+    "relatedVideos": "Related videos",
+    "notFoundTitle": "Video not found",
+    "notFoundDescription": "No video matched {id}.",
+    "backHome": "Back home",
+    "loadInterruptedTitle": "Video loading stopped",
+    "loadInterruptedDescription": "The video payload could not be loaded.",
+    "like": "Like",
+    "unlike": "Unlike",
+    "favorite": "Favorite",
+    "unfavorite": "Remove favorite",
+    "favorited": "Favorited",
+    "watchLater": "Watch later",
+    "removeWatchLater": "Remove from watch later",
+    "watchLaterAdded": "Added to watch later",
+    "report": "Report",
+    "descriptionTitle": "Description",
+    "tags": "Tags",
+    "localActions": "Local actions",
+    "localComments": "Local comments",
+    "danmaku": "Danmaku",
+    "danmakuColor": "Danmaku color",
+    "danmakuColorPick": "Choose color {color}",
+    "danmakuContent": "Content",
+    "danmakuCount": "{count} items",
+    "danmakuEmpty": "No visible danmaku.",
+    "danmakuList": "Danmaku list",
+    "danmakuListAria": "Danmaku list",
+    "danmakuListCount": "{count} synced danmaku",
+    "danmakuMode": "Danmaku mode",
+    "danmakuOff": "Danmaku off",
+    "danmakuOn": "Danmaku on",
+    "danmakuPlaceholder": "Send a friendly danmaku for this moment",
+    "danmakuScroll": "Scroll",
+    "danmakuSend": "Send",
+    "danmakuSentAt": "Sent",
+    "danmakuSettings": "Danmaku settings",
+    "danmakuSort": "Switch danmaku sort",
+    "danmakuTime": "Time",
+    "danmakuTop": "Top",
+    "danmakuBottom": "Bottom",
+    "danmakuUnavailable": "Danmaku unavailable",
+    "errors": {
+      "dash": "The DASH stream failed to load.",
+      "hls": "The HLS stream failed to load.",
+      "load": "Video failed to load.",
+      "noSource": "No playable video source is available.",
+      "sourceInit": "Video source initialization failed.",
+      "unsupportedFormat": "This video format is not supported by the current browser.",
+      "unsupportedHls": "HLS playback is not supported by the current browser."
+    }
+  },
+  "lightbox": {
+    "close": "Close",
+    "counter": "{current} / {total}",
+    "empty": "No media available.",
+    "first": "First item",
+    "fullscreen": "Fullscreen",
+    "imageError": "Image failed to load.",
+    "last": "Last item",
+    "loading": "Loading media",
+    "media": "Gallery media",
+    "mute": "Mute",
+    "next": "Next item",
+    "pause": "Pause",
+    "play": "Play",
+    "previous": "Previous item",
+    "resetZoom": "Reset zoom",
+    "unmute": "Unmute",
+    "videoError": "Video failed to load.",
+    "volume": "Volume",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
+  },
+  "common": {
+    "actions": {
+      "add": "Add",
+      "apply": "Apply",
+      "backHome": "Back home",
+      "cancel": "Cancel",
+      "clear": "Clear",
+      "close": "Close",
+      "confirm": "Confirm",
+      "copy": "Copy",
+      "create": "Create",
+      "delete": "Delete",
+      "download": "Download",
+      "edit": "Edit",
+      "refresh": "Refresh",
+      "replaceFile": "Replace file",
+      "retry": "Retry",
+      "reset": "Reset",
+      "save": "Save",
+      "search": "Search",
+      "upload": "Upload"
+    },
+    "states": {
+      "autosaved": "Draft autosaved",
+      "draft": "Draft",
+      "enabled": "On",
+      "none": "None",
+      "notSelected": "Not selected",
+      "off": "Off",
+      "on": "On",
+      "private": "Private draft",
+      "public": "Public",
+      "queuedLocal": "Queued locally",
+      "unlisted": "Unlisted link",
+      "unset": "Unset",
+      "unnamedDraft": "Untitled draft"
+    },
+    "counts": {
+      "comments": "{count} local comments",
+      "items": "{count} items",
+      "tags": "{count} tags"
+    },
+    "dates": {
+      "justNow": "Just now",
+      "minutesAgo": "{count} min ago",
+      "hoursAgo": "{count} hr ago",
+      "daysAgo": "{count} days ago",
+      "monthsAgo": "{count} months ago",
+      "yearsAgo": "{count} years ago"
+    },
+    "validation": {
+      "ready": "Ready to queue",
+      "incomplete": "Incomplete"
+    },
+    "errors": {
+      "requestFailed": "The request failed for now. Please try again later."
+    }
+  },
+  "auth": {
+    "loginMetaTitle": "Log in - Aoi",
+    "registerMetaTitle": "Register - Aoi",
+    "login": {
+      "title": "Log in to Aoi",
+      "description": "This is a frontend-only demo login. It does not call a backend or store account data.",
+      "submit": "Log in",
+      "success": "Demo login state entered. Replace this with real auth when the Go API is connected.",
+      "email": "Email",
+      "password": "Password",
+      "passwordHelp": "At least 6 characters to trigger the demo state",
+      "sampleAddress": "Example address",
+      "noAccount": "No account yet?",
+      "registerLink": "Create one"
+    },
+    "register": {
+      "title": "Create account",
+      "description": "A lightweight registration entry for previewing the future account flow and transitions.",
+      "submit": "Register",
+      "success": "Demo account created. Real registration can be added after the auth API lands.",
+      "nickname": "Nickname",
+      "nicknameHelp": "At least 2 characters",
+      "email": "Email",
+      "password": "Password",
+      "passwordHelp": "At least 6 characters to trigger the demo state",
+      "hasAccount": "Already have an account?",
+      "loginLink": "Log in"
+    }
+  },
+  "upload": {
+    "title": "Upload workspace",
+    "description": "Drafts are saved only in this browser for now, so the frontend can rehearse the creator flow before real upload, review, and transcoding move to the future Go backend.",
+    "createDraft": "New draft",
+    "noDraft": "No draft",
+    "emptyTitle": "No upload drafts yet",
+    "emptyDescription": "Create a local draft to organize the title, category, tags, and visibility first.",
+    "sourceTitle": "Video source",
+    "sourceEmptyTitle": "Choose a video file",
+    "sourceEmptyDescription": "Only the file name, size, and MIME type are read here. File contents are not uploaded.",
+    "chooseFile": "Choose file",
+    "replaceFile": "Replace file",
+    "basicTitle": "Basic info",
+    "autosave": "Autosave · {time}",
+    "titleLabel": "Title",
+    "titlePlaceholder": "Enter a video title",
+    "titleHelp": "At least 4 characters",
+    "categoryLabel": "Category",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Describe what this video covers, its highlights, and who it is for",
+    "descriptionHelp": "Saved only as a local draft in this phase",
+    "visibilityLabel": "Visibility",
+    "allowComments": "Allow comments",
+    "sensitive": "Mark as sensitive content",
+    "tagsLabel": "Tags",
+    "tagsPlaceholder": "Press Enter after typing",
+    "tagsHelp": "Save up to 8 tags",
+    "draftTagsAria": "Draft tags",
+    "removeTag": "Remove tag {tag}",
+    "draftActionsAria": "Upload draft actions",
+    "queuePreview": "Preview local queue",
+    "deleteCurrentDraft": "Delete current draft",
+    "draftsTitle": "Drafts",
+    "reviewTitle": "Publish check",
+    "missingFallback": "Create a draft",
+    "reviewFallbackDescription": "The description will appear here so you can check the first impression of the content card.",
+    "requiredDone": "Required items are complete.",
+    "validation": {
+      "title": "Title must be at least 4 characters",
+      "file": "Choose a video file",
+      "category": "Choose a content category",
+      "description": "Consider adding a 20+ character description for future search and recommendations",
+      "tags": "Consider adding at least 2 tags"
+    }
+  },
+  "searchPage": {
+    "title": "Search",
+    "description": "Search videos, creators, tags, or categories. Results currently come from the Nuxt mock API.",
+    "label": "Search keyword",
+    "placeholder": "For example: Aoi, design, Go API",
+    "startTitle": "Enter a keyword to start exploring",
+    "startDescription": "Try searching for Aoi, design, mobile, or Go API.",
+    "errorTitle": "Search failed",
+    "errorDescription": "The mock API returned an error. Please retry.",
+    "emptyTitle": "No results found",
+    "emptyDescription": "No content matched “{query}”.",
+    "resultsTitle": "Search results",
+    "typeAria": "Search result type",
+    "filters": {
+      "all": "All {count}",
+      "videos": "Videos {count}",
+      "creators": "Creators {count}",
+      "categories": "Categories {count}"
+    },
+    "sections": {
+      "videos": "Videos",
+      "creators": "Creators",
+      "categories": "Categories"
+    }
+  },
+  "library": {
+    "title": "Collections",
+    "description": "Favorites and watch later are stored locally for now, and can later sync to Go backend user profiles.",
+    "tabs": {
+      "favorites": "Favorites",
+      "watchLater": "Watch later"
+    },
+    "clearFavorites": "Clear favorites",
+    "clearWatchLater": "Clear watch later",
+    "emptyFavoritesTitle": "No favorites yet",
+    "emptyWatchLaterTitle": "Watch later is empty",
+    "emptyFavoritesDescription": "Videos you favorite from cards or detail pages will appear here.",
+    "emptyWatchLaterDescription": "Add videos you cannot watch now to find them again here.",
+    "categoryAria": "Collection category",
+    "searchAction": "Go search"
+  },
+  "historyPage": {
+    "title": "History",
+    "description": "Videos opened and watched in this browser are recorded here, including local playback progress.",
+    "clear": "Clear history",
+    "recentAria": "Recently watched",
+    "progressAria": "Watch progress",
+    "complete": "Finished",
+    "justOpened": "Just opened",
+    "continueWatching": "Continue at {time}",
+    "emptyTitle": "No history yet",
+    "emptyDescription": "Open any video detail page and recent watches plus progress will be recorded here."
+  },
+  "comments": {
+    "authorLabel": "Display name",
+    "bodyLabel": "Share your thoughts",
+    "placeholder": "Keep it friendly. Viewing notes are welcome too.",
+    "tooLong": "Comment is too long",
+    "localOnly": "Local comments are saved only in this browser.",
+    "publish": "Post comment",
+    "edited": "Edited",
+    "edit": "Edit",
+    "delete": "Delete",
+    "editLabel": "Edit comment",
+    "save": "Save",
+    "title": "Discussion",
+    "sortLabel": "Sort",
+    "newest": "Newest first",
+    "oldest": "Oldest first",
+    "emptyTitle": "No local comments yet",
+    "emptyDescription": "Write the first comment. It will remain in this browser after refresh."
+  },
+  "imageTools": {
+    "clipboardUnsupported": "This browser cannot copy images to the clipboard",
+    "clipboardPermission": "Copy failed. Keep the page focused and allow clipboard permission.",
+    "freeRatio": "Free",
+    "label": "Image crop and compression",
+    "empty": "Choose, drop, or paste an image here",
+    "workbenchNotReady": "The crop workbench is not ready yet. Try again shortly.",
+    "loaded": "Image loaded and crop workbench opened",
+    "imageOnly": "Choose an image file",
+    "chooseFirst": "Choose an image first",
+    "exportFailed": "WebP export failed",
+    "copied": "Image copied",
+    "copyFailed": "Copy image failed",
+    "downloaded": "Image downloaded",
+    "downloadFailed": "Download image failed",
+    "resetCrop": "Crop reset",
+    "generated": "WebP generated",
+    "singleOnly": "Only one image can be cropped at a time. The first image was loaded.",
+    "chooseImage": "Choose image",
+    "openCropper": "Open cropper",
+    "replaceImage": "Replace image",
+    "chooseOrDrop": "Choose or drop an image",
+    "pasteHint": "You can also paste a screenshot or image file into this area",
+    "resultAlt": "Cropped WebP preview",
+    "source": "Source: {name}",
+    "recrop": "Crop again",
+    "clearImage": "Clear image",
+    "exportStay": "Export WebP",
+    "exportUse": "Export and use",
+    "loading": "Loading image...",
+    "exporting": "Exporting WebP...",
+    "dirtySummary": "Result needs update · {summary}",
+    "ratioDirty": "Ratio changed; result needs update",
+    "exportDirty": "Export settings changed; result needs update",
+    "cropDirty": "Crop area changed; result needs update",
+    "timeout": "Cropper load timed out. Choose the image again.",
+    "ready": "Cropper ready",
+    "dirty": "Result needs update",
+    "reset": "Reset",
+    "rotated": "Image rotated; result needs update",
+    "flipped": "Image flipped; result needs update",
+    "unsupported": "This browser does not support WebP export",
+    "loadFirst": "Load an image first",
+    "readFailed": "Image read failed",
+    "cropperNotReady": "Cropper is not ready yet",
+    "cropExportFailed": "Crop export failed",
+    "exported": "WebP exported",
+    "readRetry": "Image read failed. Choose it again.",
+    "ratio": "Ratio",
+    "cropRatio": "Crop ratio",
+    "quality": "WebP quality",
+    "maxWidth": "Max width",
+    "maxHeight": "Max height",
+    "transform": "Crop transform",
+    "rotateLeft": "Rotate left",
+    "rotateRight": "Rotate right",
+    "flipHorizontal": "Flip horizontally",
+    "flipVertical": "Flip vertically",
+    "previewAlt": "Crop result preview",
+    "previewWebp": "Preview WebP"
+  },
+  "profileFields": {
+    "groups": {
+      "themeColor": "Theme and colors",
+      "preferences": "Preferences",
+      "derivation": "Derivation strength",
+      "appearance": "Appearance form",
+      "background": "Background",
+      "danmaku": "Danmaku",
+      "spec": "Spec units",
+      "motion": "Motion and scroll",
+      "routeProgress": "Route progress",
+      "other": "Other"
+    },
+    "pages": {
+      "acknowledgement": "Acknowledgements",
+      "advanced": "Advanced",
+      "appearance": "Appearance",
+      "danmaku": "Danmaku",
+      "developer": "Developer",
+      "experimental": "Experiments",
+      "language": "Language",
+      "player": "Player",
+      "preference": "Preferences",
+      "shortcutKey": "Shortcuts",
+      "about": "About"
+    },
+    "fields": {
+      "preferredTheme": "Preferred Theme",
+      "settingsDisplayDepth": "Settings Display Depth",
+      "locale": "Locale",
+      "accentMode": "Accent Mode",
+      "accentPreset": "Accent Preset",
+      "accentPresetCards": "Accent Preset Cards",
+      "customAccent": "Custom Accent",
+      "derivationPreset": "Derivation Preset",
+      "accentDerivation_accent10": "Accent Derivation Accent10",
+      "accentDerivation_accent20": "Accent Derivation Accent20",
+      "accentDerivation_accent40": "Accent Derivation Accent40",
+      "accentDerivation_accent50": "Accent Derivation Accent50",
+      "derivation_auxiliaryPalette": "Derivation Auxiliary Palette",
+      "derivation_surfaceTint": "Derivation Surface Tint",
+      "derivation_stateLayer": "Derivation State Layer",
+      "derivation_navigationColor": "Derivation Navigation Color",
+      "derivation_materialColor": "Derivation Material Color",
+      "derivation_shadowDepth": "Derivation Shadow Depth",
+      "derivation_typography": "Derivation Typography",
+      "derivation_spacing": "Derivation Spacing",
+      "derivation_radius": "Derivation Radius",
+      "derivation_controls": "Derivation Controls",
+      "derivation_contentWidth": "Derivation Content Width",
+      "derivation_mediaGrid": "Derivation Media Grid",
+      "derivation_settingsLayout": "Derivation Settings Layout",
+      "derivation_revealMotion": "Derivation Reveal Motion",
+      "derivation_routeProgress": "Derivation Route Progress",
+      "derivation_smoothScroll": "Derivation Smooth Scroll",
+      "derivation_scrollSnap": "Derivation Scroll Snap",
+      "derivation_scrollHijack": "Derivation Scroll Hijack",
+      "derivation_rubberBand": "Derivation Rubber Band",
+      "derivation_danmaku": "Derivation Danmaku",
+      "appearanceDensity": "Appearance Density",
+      "appearanceSize": "Appearance Size",
+      "appearanceShape": "Appearance Shape",
+      "appearanceContrast": "Appearance Contrast",
+      "colorfulNavigation": "Colorful Navigation",
+      "backgroundOpacity": "Background Opacity",
+      "backgroundBlur": "Background Blur",
+      "backgroundDim": "Background Dim",
+      "backgroundImageId": "Background Image Id",
+      "backgroundFileName": "Background File Name",
+      "backgroundFileSize": "Background File Size",
+      "danmakuEnabled": "Danmaku Enabled",
+      "danmakuScrollModeEnabled": "Danmaku Scroll Mode Enabled",
+      "danmakuTopModeEnabled": "Danmaku Top Mode Enabled",
+      "danmakuBottomModeEnabled": "Danmaku Bottom Mode Enabled",
+      "danmakuOpacity": "Danmaku Opacity",
+      "danmakuFontScale": "Danmaku Font Scale",
+      "danmakuSpeed": "Danmaku Speed",
+      "danmakuVisibleArea": "Danmaku Visible Area",
+      "danmakuBlocklist": "Danmaku Blocklist",
+      "spec_baseFontPx": "Spec Base Font Px",
+      "spec_spaceUnitPx": "Spec Space Unit Px",
+      "spec_radiusUnitPx": "Spec Radius Unit Px",
+      "spec_controlHeightPx": "Spec Control Height Px",
+      "spec_contentWidthMode": "Spec Content Width Mode",
+      "spec_contentWidthPercent": "Spec Content Width Percent",
+      "spec_contentMaxWidthPx": "Spec Content Max Width Px",
+      "spec_contentWideWidthMode": "Spec Content Wide Width Mode",
+      "spec_contentWideWidthPercent": "Spec Content Wide Width Percent",
+      "spec_contentWideMaxWidthPx": "Spec Content Wide Max Width Px",
+      "spec_railWidthPx": "Spec Rail Width Px",
+      "spec_mobileNavHeightPx": "Spec Mobile Nav Height Px",
+      "spec_videoGridMinCardWidthPx": "Spec Video Grid Min Card Width Px",
+      "spec_settingsCardMinWidthPx": "Spec Settings Card Min Width Px",
+      "dataMode": "Data Mode",
+      "openVideosInNewTab": "Open Videos In New Tab",
+      "useRelativeDates": "Use Relative Dates",
+      "hideRecentSearches": "Hide Recent Searches",
+      "disableWatchHistory": "Disable Watch History",
+      "noSearchRecommendations": "No Search Recommendations",
+      "noRelatedVideos": "No Related Videos",
+      "pageScrollbarStrategy": "Page Scrollbar Strategy",
+      "revealMotionEnabled": "Reveal Motion Enabled",
+      "revealMotionEffect": "Reveal Motion Effect",
+      "revealMotionReplay": "Reveal Motion Replay",
+      "revealMotionDurationMs": "Reveal Motion Duration Ms",
+      "revealMotionDistancePx": "Reveal Motion Distance Px",
+      "revealMotionStaggerMs": "Reveal Motion Stagger Ms",
+      "revealMotionMaxDelayMs": "Reveal Motion Max Delay Ms",
+      "smoothScrollEnabled": "Smooth Scroll Enabled",
+      "smoothScrollDurationMs": "Smooth Scroll Duration Ms",
+      "smoothScrollDamping": "Smooth Scroll Damping",
+      "scrollSnapEnabled": "Scroll Snap Enabled",
+      "scrollSnapMode": "Scroll Snap Mode",
+      "scrollSnapStrength": "Scroll Snap Strength",
+      "scrollHijackEnabled": "Scroll Hijack Enabled",
+      "scrollHijackMode": "Scroll Hijack Mode",
+      "scrollHijackThresholdPx": "Scroll Hijack Threshold Px",
+      "rubberBandEnabled": "Rubber Band Enabled",
+      "rubberBandStrength": "Rubber Band Strength",
+      "rubberBandMaxOffsetPx": "Rubber Band Max Offset Px",
+      "routeProgressEnabled": "Route Progress Enabled",
+      "routeProgressMinimum": "Route Progress Minimum",
+      "routeProgressTrickle": "Route Progress Trickle",
+      "routeProgressTrickleSpeedMs": "Route Progress Trickle Speed Ms",
+      "routeProgressSpeedMs": "Route Progress Speed Ms",
+      "routeProgressDelayMs": "Route Progress Delay Ms",
+      "routeProgressHeightPx": "Route Progress Height Px",
+      "routeProgressShowSpinner": "Route Progress Show Spinner",
+      "routeProgressEasing": "Route Progress Easing"
+    }
+  },
+  "accentPresets": {
+    "sunflowerOrange": {
+      "label": "Sunflower orange",
+      "subtitle": "Sunflower Orange"
+    },
+    "cocoaPink": {
+      "label": "Cocoa pink",
+      "subtitle": "Cocoa Rose"
+    },
+    "chinoBlue": {
+      "label": "Chino blue",
+      "subtitle": "Chino Clear"
+    },
+    "rizePurple": {
+      "label": "Rize purple",
+      "subtitle": "Rize Violet"
+    },
+    "chiyaGreen": {
+      "label": "Chiya green",
+      "subtitle": "Chiya Matcha"
+    },
+    "syaroYellow": {
+      "label": "Syaro yellow",
+      "subtitle": "Syaro Honey"
+    },
+    "mayaCyan": {
+      "label": "Maya cyan",
+      "subtitle": "Maya Aqua"
+    },
+    "megumiRed": {
+      "label": "Megu red",
+      "subtitle": "Megu Berry"
+    }
+  },
+  "navigation": {
+    "desktopAria": "Desktop primary navigation",
+    "mobileAria": "Mobile primary navigation"
+  },
+  "following": {
+    "title": "Following",
+    "description": "Once login and the Go backend are connected, this feed will show updates from creators you follow. For now it uses a mock preview.",
+    "loadFailedTitle": "Following feed failed to load",
+    "loadFailedDescription": "The mock API did not return following data.",
+    "unauthenticatedTitle": "Following is not signed in yet",
+    "unauthenticatedDescription": "After authentication is connected, updates from followed creators will appear here. You can preview it with local follows for now.",
+    "searchFirst": "Search first",
+    "localTitle": "Local follows",
+    "localDescription": "Saved in this browser and ready to migrate to a future Go relationship API.",
+    "manageCache": "Manage cache",
+    "localUpdatesTitle": "Local follow updates",
+    "recommendedCreatorsTitle": "Recommended creators",
+    "recommendedCreatorsDescription": "These recommendations come from the mock API and can be followed locally.",
+    "exploreMore": "Explore more",
+    "recommendedUpdatesTitle": "Recommended updates",
+    "emptyTitle": "No following content yet",
+    "emptyDescription": "No following-feed preview data was returned."
+  },
+  "creator": {
+    "stats": {
+      "followers": "Followers",
+      "videos": "Videos",
+      "joinedAt": "Joined"
+    },
+    "actions": {
+      "follow": "Follow",
+      "following": "Following",
+      "unfollow": "Unfollow",
+      "followAria": "Follow {name}",
+      "unfollowAria": "Unfollow {name}"
+    },
+    "notFoundTitle": "Creator not found",
+    "notFoundDescription": "No creator was found for {handle}.",
+    "searchAction": "Search",
+    "noBio": "This creator has not added a bio yet.",
+    "searchWorks": "Search videos",
+    "commonCategoriesAria": "Common sections",
+    "latestVideosTitle": "Latest uploads",
+    "noVideosTitle": "No uploads yet",
+    "noVideosDescription": "This creator has no videos to show yet.",
+    "interruptedTitle": "Creator loading stopped",
+    "interruptedDescription": "Creator details were not returned."
+  }
+}

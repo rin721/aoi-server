@@ -473,7 +473,7 @@ func testCompleteConfig() *Config {
 		WebUI: WebUIConfig{
 			Enabled:   boolPtr(true),
 			MountPath: "/admin",
-			DistDir:   "./web/admin/.output/public",
+			DistDir:   "./web/aoi-web/.output/public",
 		},
 	}
 }

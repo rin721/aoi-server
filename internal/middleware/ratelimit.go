@@ -1,0 +1,68 @@
+package middleware
+
+import (
+	"net/http"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/rei0721/go-scaffold/pkg/web"
+	apperrors "github.com/rei0721/go-scaffold/types/errors"
+	"github.com/rei0721/go-scaffold/types/result"
+)
+
+// RateLimitConfig 控制进程内固定窗口限流，适合保护公开认证入口。
+type RateLimitConfig struct {
+	Enabled bool
+	Limit   int
+	Window  time.Duration
+}
+
+type rateLimitWindow struct {
+	Count   int
+	ResetAt time.Time
+}
+
+// RateLimit 使用客户端 IP、方法和路径作为限流键。
+func RateLimit(cfg RateLimitConfig) web.HandlerFunc {
+	if !cfg.Enabled {
+		return func(c web.Context) {
+			c.Next()
+		}
+	}
+	if cfg.Limit <= 0 {
+		cfg.Limit = 20
+	}
+	if cfg.Window <= 0 {
+		cfg.Window = time.Minute
+	}
+
+	var mu sync.Mutex
+	windows := map[string]rateLimitWindow{}
+
+	return func(c web.Context) {
+		now := time.Now()
+		key := c.ClientIP() + "|" + c.Method() + "|" + c.Path()
+
+		mu.Lock()
+		window := windows[key]
+		if window.ResetAt.IsZero() || now.After(window.ResetAt) {
+			window = rateLimitWindow{ResetAt: now.Add(cfg.Window)}
+		}
+		window.Count++
+		windows[key] = window
+		allowed := window.Count <= cfg.Limit
+		retryAfter := int(time.Until(window.ResetAt).Seconds())
+		if retryAfter < 1 {
+			retryAfter = 1
+		}
+		mu.Unlock()
+
+		if !allowed {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, result.ErrorWithTrace(apperrors.ErrBusinessLogic, "rate limit exceeded", GetTraceID(c)))
+			return
+		}
+		c.Next()
+	}
+}

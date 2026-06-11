@@ -5,6 +5,7 @@ definePageMeta({
 })
 
 const api = useAdminApi()
+const route = useRoute()
 const token = ref("")
 const newPassword = ref("")
 const loading = ref(false)
@@ -31,6 +32,10 @@ async function submit() {
     loading.value = false
   }
 }
+
+onMounted(() => {
+  token.value = String(route.query.token || token.value || "")
+})
 
 useHead({
   title: "重置密码 - Aoi Admin"

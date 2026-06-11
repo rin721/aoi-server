@@ -43,9 +43,9 @@ type Subject struct {
 }
 
 type Claims struct {
-	UserID    int64  `json:"userId"`
-	OrgID     int64  `json:"orgId"`
-	SessionID int64  `json:"sessionId"`
+	UserID    int64  `json:"userId,string"`
+	OrgID     int64  `json:"orgId,string"`
+	SessionID int64  `json:"sessionId,string"`
 	TokenType string `json:"tokenType"`
 	jwt.RegisteredClaims
 }
