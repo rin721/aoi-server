@@ -1,4 +1,4 @@
-# 项目代号 ｢<ruby>Aoi<rp>（</rp><rt>[Aoi Admin]</rt><rp>）</rp></ruby>｣
+# 项目代号 ｢<ruby>Aoi<rp>（</rp><rt>[葵]</rt><rp>）</rp></ruby>｣
 
 [![CI](https://github.com/rin721/go-scaffold/actions/workflows/ci.yml/badge.svg)](https://github.com/rin721/go-scaffold/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25.7-00ADD8?logo=go)](https://go.dev/)
