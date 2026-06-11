@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import type { Permission, Role } from "~/types/api"
+﻿<script setup lang="ts">
+import type { Permission, Role } from "~/types/admin"
 
 const api = useAdminApi()
 const auth = useAuthStore()
@@ -286,3 +286,7 @@ useHead({
   margin-top: 2px;
 }
 </style>
+
+
+
+

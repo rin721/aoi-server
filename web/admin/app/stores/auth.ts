@@ -1,5 +1,5 @@
-import { defineStore } from "pinia"
-import type { ID, InitialAdminSetupRequest, Organization, TokenPair, User } from "~/types/api"
+﻿import { defineStore } from "pinia"
+import type { ID, InitialAdminSetupRequest, Organization, TokenPair, User } from "~/types/admin"
 
 export const useAuthStore = defineStore("auth", () => {
   const api = useAdminApi()
@@ -161,3 +161,7 @@ export const useAuthStore = defineStore("auth", () => {
     user
   }
 })
+
+
+
+

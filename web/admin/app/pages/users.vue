@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import type { Invitation, OrganizationUser, Role } from "~/types/api"
+﻿<script setup lang="ts">
+import type { Invitation, OrganizationUser, Role } from "~/types/admin"
 
 const api = useAdminApi()
 const auth = useAuthStore()
@@ -252,3 +252,7 @@ useHead({
     </section>
   </div>
 </template>
+
+
+
+

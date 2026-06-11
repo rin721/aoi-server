@@ -7,7 +7,7 @@ import (
 
 const (
 	DefaultWebUIMountPath = "/admin"
-	DefaultWebUIDistDir   = "./web/aoi-web/.output/public"
+	DefaultWebUIDistDir   = "./web/admin/.output/public"
 )
 
 // WebUIConfig 控制内置管理台静态产物的托管行为。

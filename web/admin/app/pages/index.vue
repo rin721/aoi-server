@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import type { AuditLog, HealthStatus, ReadyStatus, Session } from "~/types/api"
+﻿<script setup lang="ts">
+import type { AuditLog, HealthStatus, ReadyStatus, Session } from "~/types/admin"
 
 const api = useAdminApi()
 const auth = useAuthStore()
@@ -124,3 +124,7 @@ useHead({
     </section>
   </div>
 </template>
+
+
+
+

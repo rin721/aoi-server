@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import type { Session } from "~/types/api"
+﻿<script setup lang="ts">
+import type { Session } from "~/types/admin"
 
 const api = useAdminApi()
 const auth = useAuthStore()
@@ -109,3 +109,7 @@ useHead({
     </article>
   </div>
 </template>
+
+
+
+

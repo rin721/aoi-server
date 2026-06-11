@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import type { AuditLog } from "~/types/api"
+﻿<script setup lang="ts">
+import type { AuditLog } from "~/types/admin"
 
 const api = useAdminApi()
 const auth = useAuthStore()
@@ -69,15 +69,15 @@ useHead({
     <article class="admin-card">
       <div class="admin-card__header">
         <h2>日志</h2>
-        <div class="toolbar-row">
-          <AoiTextField v-model="action" label="Action" icon="activity" placeholder="auth.login" @enter="load" />
-          <AoiTextField v-model="userId" label="User ID" icon="user" @enter="load" />
-          <AoiTextField v-model="from" label="From" type="datetime-local" icon="calendar" @enter="load" />
-          <AoiTextField v-model="to" label="To" type="datetime-local" icon="calendar" @enter="load" />
-          <AoiTextField v-model="cursor" label="Cursor" icon="chevrons-down" @enter="load" />
-          <AoiTextField v-model="limit" label="Limit" type="number" icon="list-filter" @enter="load" />
-          <AoiButton appearance="soft" icon="search" @click="load">查询</AoiButton>
-        </div>
+      </div>
+      <div class="admin-filter-toolbar">
+        <AoiTextField v-model="action" label="Action" icon="activity" placeholder="auth.login" @enter="load" />
+        <AoiTextField v-model="userId" label="User ID" icon="user" @enter="load" />
+        <AoiTextField v-model="from" label="From" type="datetime-local" icon="calendar" @enter="load" />
+        <AoiTextField v-model="to" label="To" type="datetime-local" icon="calendar" @enter="load" />
+        <AoiTextField v-model="cursor" label="Cursor" icon="chevrons-down" @enter="load" />
+        <AoiTextField v-model="limit" label="Limit" type="number" icon="list-filter" @enter="load" />
+        <AoiButton appearance="soft" icon="search" @click="load">查询</AoiButton>
       </div>
       <div class="data-table-wrap">
         <table class="data-table">
@@ -111,3 +111,7 @@ useHead({
     </article>
   </div>
 </template>
+
+
+
+

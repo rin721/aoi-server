@@ -2,16 +2,16 @@
 
 FROM node:24-bookworm AS web-build
 
-WORKDIR /src/web/aoi-web
+WORKDIR /src/web/admin
 
 ARG NUXT_PUBLIC_SHOW_DEMO_TODO=false
 ENV NUXT_PUBLIC_SHOW_DEMO_TODO=${NUXT_PUBLIC_SHOW_DEMO_TODO}
 
-COPY web/aoi-web/package.json web/aoi-web/pnpm-lock.yaml ./
+COPY web/admin/package.json web/admin/pnpm-lock.yaml ./
 RUN corepack enable \
     && pnpm install --frozen-lockfile
 
-COPY web/aoi-web ./
+COPY web/admin ./
 RUN pnpm generate
 
 FROM golang:1.25.7-bookworm AS build
@@ -47,7 +47,7 @@ COPY configs/config.example.yaml /app/configs/config.example.yaml
 COPY deploy/config.production.example.yaml /app/configs/config.yaml
 COPY configs/locales /app/configs/locales
 COPY plugins/demo1/plugin.yaml /app/plugins/demo1/plugin.yaml
-COPY --from=web-build /src/web/aoi-web/.output/public /app/web/aoi-web/.output/public
+COPY --from=web-build /src/web/admin/.output/public /app/web/admin/.output/public
 
 RUN mkdir -p /app/data /app/logs \
     && chown -R app:app /app

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 definePageMeta({
   layout: "auth",
   public: true
@@ -64,3 +64,7 @@ h2 {
   font-size: 24px;
 }
 </style>
+
+
+
+

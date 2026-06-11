@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import type { Todo } from "~/types/api"
+﻿<script setup lang="ts">
+import type { Todo } from "~/types/admin"
 
 const api = useAdminApi()
 const todos = ref<Todo[]>([])
@@ -136,3 +136,7 @@ useHead({
     </section>
   </div>
 </template>
+
+
+
+

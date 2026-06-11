@@ -1,4 +1,4 @@
-export default defineNuxtRouteMiddleware(async (to) => {
+﻿export default defineNuxtRouteMiddleware(async (to) => {
   const auth = useAuthStore()
   const isPublic = Boolean(to.meta.public)
 
@@ -38,3 +38,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo("/")
   }
 })
+
+
+
+

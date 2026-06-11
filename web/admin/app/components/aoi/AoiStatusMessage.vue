@@ -1,48 +1,70 @@
-<script setup lang="ts">
-withDefaults(defineProps<{
-  message?: string | null
-  tone?: "danger" | "info" | "success" | "warning"
+﻿<script setup lang="ts">
+import type { AoiIntent } from "~/types/ui"
+
+const props = withDefaults(defineProps<{
+  as?: string
+  icon?: string
+  message?: string
+  intent?: Extract<AoiIntent, "danger" | "info" | "success" | "warning">
+  tone?: Extract<AoiIntent, "danger" | "info" | "success" | "warning">
 }>(), {
+  as: "p",
+  icon: undefined,
   message: undefined,
-  tone: "info"
+  intent: "info",
+  tone: undefined
 })
+
+const resolvedIntent = computed(() => props.tone || props.intent)
 </script>
 
 <template>
-  <div v-if="message" class="aoi-status" :class="`aoi-status--${tone}`">
-    <AoiIcon :name="tone === 'danger' ? 'circle-alert' : tone === 'success' ? 'circle-check' : 'info'" decorative />
-    <span>{{ message }}</span>
-  </div>
+  <component
+    :is="props.as"
+    v-if="props.message || $slots.default"
+    class="aoi-status-message"
+    :class="`aoi-status-message--${resolvedIntent}`"
+  >
+    <AoiIcon v-if="props.icon" :name="props.icon" :size="15" decorative />
+    <slot>{{ props.message }}</slot>
+  </component>
 </template>
 
 <style scoped>
-.aoi-status {
+.aoi-status-message {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
+  margin: 0;
   border: 1px solid var(--aoi-border);
-  border-radius: var(--aoi-radius-control);
-  line-height: 1.6;
+  border-radius: var(--aoi-radius-card);
+  line-height: 1.7;
   padding: 10px 12px;
 }
 
-.aoi-status--info {
-  background: color-mix(in srgb, var(--aoi-info) 8%, white);
-  color: var(--aoi-info);
+.aoi-status-message--success {
+  border-color: var(--aoi-intent-success-border);
+  background: var(--aoi-intent-success-soft-bg);
+  color: var(--aoi-intent-success-color);
 }
 
-.aoi-status--success {
-  background: color-mix(in srgb, var(--aoi-success) 10%, white);
-  color: var(--aoi-success);
+.aoi-status-message--danger {
+  border-color: var(--aoi-intent-danger-border);
+  background: var(--aoi-intent-danger-soft-bg);
+  color: var(--aoi-intent-danger-color);
 }
 
-.aoi-status--warning {
-  background: color-mix(in srgb, var(--aoi-sun-50) 16%, white);
-  color: var(--aoi-warning);
+.aoi-status-message--warning {
+  border-color: var(--aoi-intent-warning-border);
+  background: var(--aoi-intent-warning-soft-bg);
+  color: var(--aoi-intent-warning-color);
 }
 
-.aoi-status--danger {
-  background: color-mix(in srgb, var(--aoi-danger) 8%, white);
-  color: var(--aoi-danger);
+.aoi-status-message--info {
+  border-color: var(--aoi-intent-info-border);
+  background: var(--aoi-intent-info-soft-bg);
+  color: var(--aoi-intent-info-color);
 }
 </style>
+
+

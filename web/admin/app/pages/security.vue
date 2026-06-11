@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 const api = useAdminApi()
 const auth = useAuthStore()
 const secret = ref("")
@@ -100,3 +100,7 @@ useHead({
     </section>
   </div>
 </template>
+
+
+
+

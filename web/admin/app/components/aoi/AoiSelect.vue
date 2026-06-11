@@ -1,61 +1,75 @@
-<script setup lang="ts">
-defineProps<{
+﻿<script setup lang="ts">
+import type { AoiFieldAppearance } from "~/types/ui"
+
+export interface AoiSelectOption {
+  value: string
   label: string
-  modelValue?: string | number | null
-  options: Array<{ label: string, value: string | number }>
-}>()
+  disabled?: boolean
+}
+
+type AoiSelectMenuPositioning = "absolute" | "fixed" | "popover"
+
+const props = withDefaults(defineProps<{
+  modelValue?: string
+  options?: AoiSelectOption[]
+  label?: string
+  appearance?: AoiFieldAppearance
+  disabled?: boolean
+  menuPositioning?: AoiSelectMenuPositioning
+}>(), {
+  modelValue: "",
+  options: () => [],
+  label: undefined,
+  appearance: "filled",
+  disabled: false,
+  menuPositioning: "popover"
+})
 
 const emit = defineEmits<{
   "update:modelValue": [value: string]
 }>()
+
+const tagName = computed(() => props.appearance === "outlined" ? "md-outlined-select" : "md-filled-select")
+const menuOpen = ref(false)
+const layer = useAoiLayer("menu", menuOpen)
+
+function onChange(event: Event) {
+  emit("update:modelValue", (event.target as HTMLSelectElement).value)
+}
+
+function onOpening() {
+  menuOpen.value = true
+}
+
+function onClosed() {
+  menuOpen.value = false
+}
 </script>
 
 <template>
-  <label class="aoi-select">
-    <span class="aoi-select__label">{{ label }}</span>
-    <span class="aoi-select__control">
-      <select :value="modelValue ?? ''" @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)">
-        <option value="">请选择</option>
-        <option v-for="option in options" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </option>
-      </select>
-      <AoiIcon name="chevron-down" decorative />
-    </span>
-  </label>
+  <component
+    :is="tagName"
+    class="aoi-text-field"
+    :value="modelValue"
+    :label="label"
+    :disabled="disabled || undefined"
+    :menu-positioning="menuPositioning"
+    :style="layer.style.value"
+    @change="onChange"
+    @opening="onOpening"
+    @opened="onOpening"
+    @closed="onClosed"
+    @closing="onClosed"
+  >
+    <md-select-option
+      v-for="option in options"
+      :key="option.value"
+      :value="option.value"
+      :disabled="option.disabled || undefined"
+    >
+      <div slot="headline">{{ option.label }}</div>
+    </md-select-option>
+  </component>
 </template>
 
-<style scoped>
-.aoi-select {
-  display: grid;
-  gap: 6px;
-}
 
-.aoi-select__label {
-  color: var(--aoi-text-muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.aoi-select__control {
-  display: flex;
-  min-height: 38px;
-  align-items: center;
-  border: 1px solid var(--aoi-border);
-  border-radius: var(--aoi-radius-control);
-  background: rgba(255, 255, 255, .78);
-  color: var(--aoi-icon);
-  padding: 0 10px;
-}
-
-select {
-  width: 100%;
-  min-width: 0;
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--aoi-text);
-  outline: 0;
-  padding: 9px 0;
-}
-</style>

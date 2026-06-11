@@ -1,22 +1,25 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 withDefaults(defineProps<{
-  description?: string
-  icon?: string
+  eyebrow?: string
   title: string
+  description?: string | null
+  icon?: string
 }>(), {
   description: undefined,
+  eyebrow: undefined,
   icon: undefined
 })
 </script>
 
 <template>
-  <header class="page-header">
+  <header v-aoi-reveal="'rise'" class="page-header">
     <div v-if="icon" class="page-header__icon" aria-hidden="true">
-      <AoiIcon :name="icon" decorative />
+      <AoiIcon :name="icon" :size="22" decorative />
     </div>
     <div class="page-header__copy">
-      <h1>{{ title }}</h1>
-      <p v-if="description">{{ description }}</p>
+      <p v-if="eyebrow" class="page-header__eyebrow">{{ eyebrow }}</p>
+      <h1 class="page-header__title">{{ title }}</h1>
+      <p v-if="description" class="page-header__description">{{ description }}</p>
     </div>
     <div v-if="$slots.actions" class="page-header__actions">
       <slot name="actions" />
@@ -28,20 +31,20 @@ withDefaults(defineProps<{
 .page-header {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 14px;
+  margin: 0 0 18px;
 }
 
 .page-header__icon {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   place-items: center;
   border: 1px solid var(--aoi-border);
-  border-radius: var(--aoi-radius-control);
+  border-radius: var(--aoi-radius-sm);
   background: var(--aoi-accent-10);
   color: var(--aoi-accent-60);
-  font-size: 22px;
+  flex: 0 0 auto;
 }
 
 .page-header__copy {
@@ -49,33 +52,48 @@ withDefaults(defineProps<{
   flex: 1;
 }
 
-h1 {
+.page-header__eyebrow {
+  margin: 0 0 4px;
+  color: var(--aoi-active-color);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.page-header__title {
   margin: 0;
-  font-size: 26px;
+  color: var(--aoi-text);
+  font-size: 28px;
   line-height: 1.2;
 }
 
-p {
-  max-width: 760px;
-  margin: 7px 0 0;
+.page-header__description {
+  max-width: 720px;
+  margin: 8px 0 0;
   color: var(--aoi-text-muted);
   line-height: 1.7;
 }
 
 .page-header__actions {
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
 }
 
-@media (max-width: 720px) {
-  h1 {
+@media (max-width: 639px) {
+  .page-header {
+    gap: 10px;
+  }
+
+  .page-header__title {
     font-size: 22px;
   }
 
-  .page-header {
-    flex-wrap: wrap;
+  .page-header__actions {
+    display: none;
   }
 }
 </style>
+
+

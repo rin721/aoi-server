@@ -94,7 +94,7 @@ DB_HOST
 
 ## Admin WebUI 配置
 
-`web/aoi-web` 是当前后台前端主线；`web/admin` 仅作为旧实现和回滚参考保留。Go 后端默认在 `webui.mount_path=/admin` 挂载静态产物，默认产物目录为 `webui.dist_dir=./web/aoi-web/.output/public`，公开后台地址由 `webui.public_base_url=/admin` 描述。
+`web/admin` 是当前后台前端主线。Go 后端默认在 `webui.mount_path=/admin` 挂载静态产物，默认产物目录为 `webui.dist_dir=./web/admin/.output/public`，公开后台地址由 `webui.public_base_url=/admin` 描述。
 
 Nuxt 侧运行时配置保持最小化：
 
@@ -104,4 +104,4 @@ Nuxt 侧运行时配置保持最小化：
 | `NUXT_PUBLIC_API_BASE_URL` | 空字符串 | API 前缀；空值表示同源调用 Go API。 |
 | `NUXT_PUBLIC_SHOW_DEMO_TODO` | `false` | 是否在后台导航中显示 Demo Todo。 |
 
-用于 Go 静态托管时，先在 `web/aoi-web` 执行 `pnpm generate`，确保 `.output/public/index.html` 存在。`pnpm build` 保留为构建检查，不替代静态产物生成。
+用于 Go 静态托管时，先在 `web/admin` 执行 `pnpm generate`，确保 `.output/public/index.html` 存在。`pnpm build` 保留为构建检查，不替代静态产物生成。

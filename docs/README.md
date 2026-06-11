@@ -125,16 +125,16 @@ curl http://127.0.0.1:9999/ready
 
 ## Admin WebUI
 
-后台前端主线位于 `web/aoi-web`，旧 `web/admin` 仅保留为迁移回滚和对照参考。Go 服务默认在 `/admin` 托管 Nuxt 静态产物，默认目录为：
+后台前端主线位于 `web/admin`。Go 服务默认在 `/admin` 托管 Nuxt 静态产物，默认目录为：
 
 ```text
-web/aoi-web/.output/public
+web/admin/.output/public
 ```
 
 本地生成静态产物：
 
 ```bash
-cd web/aoi-web
+cd web/admin
 pnpm install
 pnpm typecheck
 pnpm build

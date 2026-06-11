@@ -50,7 +50,7 @@ storage:
 webui:
   enabled: true
   mount_path: /admin
-  dist_dir: ./web/aoi-web/.output/public
+  dist_dir: ./web/admin/.output/public
   public_base_url: ${WEBUI_PUBLIC_BASE_URL}
 
 plugins:
