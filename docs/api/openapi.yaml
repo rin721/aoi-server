@@ -1,0 +1,1250 @@
+openapi: 3.0.3
+info:
+  title: go-scaffold API
+  version: "1.0.0"
+  description: >
+    当前 go-scaffold HTTP 路由重新生成的 API 契约。本文件基于当前有效的
+    路由注册以及 handler、service、model 类型，不基于历史遗留路由记录。
+servers:
+  - url: http://127.0.0.1:9999
+    description: 默认本地服务
+tags:
+  - name: 探针
+  - name: 演示 Todo
+  - name: IAM 认证
+  - name: IAM 账号
+  - name: IAM 组织
+  - name: IAM 会话
+  - name: IAM 审计
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [探针]
+      summary: 存活探针
+      security: []
+      responses:
+        "200":
+          description: 进程存活。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/HealthStatus"
+  /ready:
+    get:
+      tags: [探针]
+      summary: 就绪探针
+      security: []
+      responses:
+        "200":
+          description: 服务依赖已就绪。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadyStatus"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/demo/todos:
+    post:
+      tags: [演示 Todo]
+      summary: 创建演示 Todo
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTodoRequest"
+      responses:
+        "201":
+          description: 演示 Todo 已创建。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Todo"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags: [演示 Todo]
+      summary: 查询演示 Todo 列表
+      security: []
+      responses:
+        "200":
+          description: 演示 Todo 列表。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Todo"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/demo/todos/{id}:
+    parameters:
+      - $ref: "#/components/parameters/TodoID"
+    get:
+      tags: [演示 Todo]
+      summary: 查询单个演示 Todo
+      security: []
+      responses:
+        "200":
+          description: 演示 Todo 已找到。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Todo"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      tags: [演示 Todo]
+      summary: 更新演示 Todo
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTodoRequest"
+      responses:
+        "200":
+          description: 演示 Todo 已更新。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Todo"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [演示 Todo]
+      summary: 删除演示 Todo
+      security: []
+      responses:
+        "200":
+          description: 演示 Todo 已删除。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [deleted]
+                        properties:
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/login:
+    post:
+      tags: [IAM 认证]
+      summary: 登录并签发令牌
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TokenPair"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/refresh:
+    post:
+      tags: [IAM 认证]
+      summary: 刷新 access token 和 refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TokenPair"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/logout:
+    post:
+      tags: [IAM 认证]
+      summary: 撤销当前会话
+      responses:
+        "200":
+          description: 会话已撤销。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [loggedOut]
+                        properties:
+                          loggedOut:
+                            type: boolean
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/switch-org:
+    post:
+      tags: [IAM 认证]
+      summary: 切换当前组织并签发新令牌
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwitchOrgRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TokenPair"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/password/forgot:
+    post:
+      tags: [IAM 认证]
+      summary: 创建密码重置令牌
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: 重置令牌已生成。当前 no-op 通知器会在响应中返回该令牌。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [token]
+                        properties:
+                          token:
+                            type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/password/reset:
+    post:
+      tags: [IAM 认证]
+      summary: 使用重置令牌重置密码
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: 密码已重置。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [reset]
+                        properties:
+                          reset:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/mfa/setup:
+    post:
+      tags: [IAM 账号]
+      summary: 创建或轮换 TOTP MFA 密钥
+      responses:
+        "200":
+          description: MFA 密钥和 otpauth URL。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MFASetup"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/mfa/verify:
+    post:
+      tags: [IAM 账号]
+      summary: 验证并启用 TOTP MFA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyMFARequest"
+      responses:
+        "200":
+          description: MFA 已启用。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [verified]
+                        properties:
+                          verified:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/invitations/{token}/accept:
+    post:
+      tags: [IAM 认证]
+      summary: 接受组织邀请
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptInvitationRequest"
+      responses:
+        "201":
+          description: 邀请已接受。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Principal"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/me:
+    get:
+      tags: [IAM 账号]
+      summary: 获取当前用户资料
+      responses:
+        "200":
+          description: 当前用户。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/me/orgs:
+    get:
+      tags: [IAM 账号]
+      summary: 查询当前用户所属组织
+      responses:
+        "200":
+          description: 当前用户所属组织。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Organization"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs:
+    get:
+      tags: [IAM 组织]
+      summary: 查询组织列表
+      responses:
+        "200":
+          description: 组织列表。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Organization"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags: [IAM 组织]
+      summary: 创建组织
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrgRequest"
+      responses:
+        "201":
+          description: 组织已创建。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Organization"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/users:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+    get:
+      tags: [IAM 组织]
+      summary: 查询当前组织用户
+      responses:
+        "200":
+          description: 组织用户及角色。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/OrganizationUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/users/invitations:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+    post:
+      tags: [IAM 组织]
+      summary: 邀请用户加入当前组织
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteUserRequest"
+      responses:
+        "201":
+          description: 邀请令牌已生成。当前 no-op 通知器会在响应中返回该令牌。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [token]
+                        properties:
+                          token:
+                            type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/roles:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+    get:
+      tags: [IAM 组织]
+      summary: 查询当前组织角色
+      responses:
+        "200":
+          description: 角色列表。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Role"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags: [IAM 组织]
+      summary: 在当前组织创建角色
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleRequest"
+      responses:
+        "201":
+          description: 角色已创建。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/permissions:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+    get:
+      tags: [IAM 组织]
+      summary: 查询可用权限
+      responses:
+        "200":
+          description: 权限列表。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Permission"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/sessions:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+    get:
+      tags: [IAM 会话]
+      summary: 查询当前用户或指定用户的会话
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 会话列表。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/sessions/{sessionId}:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    delete:
+      tags: [IAM 会话]
+      summary: 撤销当前组织中的会话
+      responses:
+        "200":
+          description: 会话已撤销。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [revoked]
+                        properties:
+                          revoked:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/audit-logs:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+    get:
+      tags: [IAM 审计]
+      summary: 查询当前组织审计日志
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+      responses:
+        "200":
+          description: 审计日志列表。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AuditLog"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TodoID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: uint64
+        minimum: 1
+    OrgID:
+      name: orgId
+      in: path
+      required: true
+      description: 必须与 access token 中的组织 ID 一致。
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+  responses:
+    TokenPair:
+      description: 令牌对。
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/Result"
+              - type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TokenPair"
+    BadRequest:
+      description: 请求输入无效。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResult"
+    Unauthorized:
+      description: 认证失败或令牌无效。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResult"
+    Forbidden:
+      description: 已认证主体权限不足。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResult"
+    NotFound:
+      description: 资源不存在。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResult"
+    ServiceUnavailable:
+      description: 服务未就绪。
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/ErrorResult"
+              - type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ReadyStatus"
+    InternalServerError:
+      description: 服务端内部错误。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResult"
+  schemas:
+    Result:
+      type: object
+      required: [code, message, serverTime]
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: success
+        data:
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+        serverTime:
+          type: integer
+          format: int64
+          description: Unix 秒级时间戳。
+    ErrorResult:
+      type: object
+      required: [code, message, serverTime]
+      properties:
+        code:
+          type: integer
+          description: 来自 types/errors 的错误码。
+          example: 1000
+        message:
+          type: string
+        traceId:
+          type: string
+          nullable: true
+        serverTime:
+          type: integer
+          format: int64
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+    ReadyStatus:
+      type: object
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            database: ok
+    Todo:
+      type: object
+      required: [id, title, completed, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: uint64
+        title:
+          type: string
+        description:
+          type: string
+        completed:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateTodoRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        completed:
+          type: boolean
+          default: false
+    UpdateTodoRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        completed:
+          type: boolean
+    LoginRequest:
+      type: object
+      required: [identifier, password]
+      properties:
+        identifier:
+          type: string
+          description: 用户名或邮箱。
+        password:
+          type: string
+          format: password
+        orgCode:
+          type: string
+        mfaCode:
+          type: string
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+    SwitchOrgRequest:
+      type: object
+      required: [orgId]
+      properties:
+        orgId:
+          type: integer
+          format: int64
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+          format: password
+    VerifyMFARequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+    AcceptInvitationRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        password:
+          type: string
+          format: password
+    CreateOrgRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+    InviteUserRequest:
+      type: object
+      required: [email, roleCode]
+      properties:
+        email:
+          type: string
+          format: email
+        roleCode:
+          type: string
+    CreateRoleRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+            example: user:read
+    TokenPair:
+      type: object
+      required: [accessToken, accessExpiresAt, refreshToken, refreshExpiresAt]
+      properties:
+        accessToken:
+          type: string
+        accessExpiresAt:
+          type: string
+          format: date-time
+        refreshToken:
+          type: string
+        refreshExpiresAt:
+          type: string
+          format: date-time
+    Principal:
+      type: object
+      required: [userId, orgId, sessionId, username, email]
+      properties:
+        userId:
+          type: integer
+          format: int64
+        orgId:
+          type: integer
+          format: int64
+        sessionId:
+          type: integer
+          format: int64
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+    MFASetup:
+      type: object
+      required: [secret, otpauthUrl]
+      properties:
+        secret:
+          type: string
+        otpauthUrl:
+          type: string
+    Organization:
+      type: object
+      required: [id, code, name, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled, pending, used, revoked]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    User:
+      type: object
+      required: [id, username, email, displayName, status, mfaEnabled, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled, pending, used, revoked]
+        mfaEnabled:
+          type: boolean
+        lockedUntil:
+          type: string
+          format: date-time
+          nullable: true
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    OrganizationUser:
+      type: object
+      required: [user, roles]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        roles:
+          type: array
+          items:
+            type: string
+    Role:
+      type: object
+      required: [id, orgId, code, name, description, system, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        orgId:
+          type: integer
+          format: int64
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        system:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Permission:
+      type: object
+      required: [id, code, name, description, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Session:
+      type: object
+      required: [id, userId, orgId, userAgent, ipAddress, expiresAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        orgId:
+          type: integer
+          format: int64
+        userAgent:
+          type: string
+        ipAddress:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AuditLog:
+      type: object
+      required: [id, action, resource, resourceId, ipAddress, userAgent, metadata, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        orgId:
+          type: integer
+          format: int64
+          nullable: true
+        userId:
+          type: integer
+          format: int64
+          nullable: true
+        action:
+          type: string
+        resource:
+          type: string
+        resourceId:
+          type: string
+        ipAddress:
+          type: string
+        userAgent:
+          type: string
+        metadata:
+          type: string
+          description: 审计服务持久化的 JSON 字符串。
+        createdAt:
+          type: string
+          format: date-time

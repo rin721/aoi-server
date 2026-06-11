@@ -1,0 +1,6 @@
+# `.` 涔嬪墠鏄灦鏋勭洰褰曪紝涔嬪悗浣跨敤 `_` 杩炴帴鏄〃杈捐鍋氱殑浜嬫儏
+
+# app logger message
+internal.app.logger_debug_init_config_path: 搴旂敤鍒濆鍖栭厤缃矾寰?
+internal.app.logger_debug_init_mode: 搴旂敤鍒濆鍖栨ā寮?
+internal.app.logger_debug_executor_injected: 鎵ц鍣ㄦ敞鍏ユ棩蹇楄褰曞櫒
