@@ -24,7 +24,7 @@ usage() {
   bash deploy.sh --docker y --image go-scaffold:local --confirm
 
 直接安装:
-  curl -fsSL -o deploy.sh https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-scaffold/main/script/install.sh
+  curl -fsSL -o deploy.sh https://raw.githubusercontent.com/rin721/go-scaffold/main/deploy.sh
   bash deploy.sh --docker y --image go-scaffold:local --confirm
 
 部署选项:
@@ -68,6 +68,15 @@ usage() {
   --server-mode <value>
   --server-read-timeout <value>
   --server-write-timeout <value>
+  --webui-enabled <value>
+  --webui-mount-path <value>
+  --webui-dist-dir <value>
+  --webui-public-base-url <value>
+  --webui-build-base-url <path>      Nuxt 构建 baseURL，默认跟随 WebUI mount_path。
+  --webui-api-base-url <url-or-path> Nuxt public API baseURL，默认同源。
+  --webui-show-demo-todo <value>     是否构建 Demo Todo 兜底入口，默认 false。
+  --webui-check <y|n>                部署后是否检查 WebUI 静态路由，默认 y。
+  --webui-check-path <path>          部署后检查路径，默认 <mount_path>/server-info。
   --log-level <value>
   --log-format <value>
   --log-output <value>
@@ -108,6 +117,36 @@ normalize_yn() {
 	n | no | false | 0) printf 'n' ;;
 	*) die "expected y or n, got: $1" ;;
 	esac
+}
+
+normalize_bool_string() {
+	local value="${1,,}"
+	case "$value" in
+	y | yes | true | 1) printf 'true' ;;
+	n | no | false | 0) printf 'false' ;;
+	*) die "expected boolean value, got: $1" ;;
+	esac
+}
+
+normalize_webui_base_path() {
+	local value="$1"
+	[ -n "$value" ] || die "webui base path cannot be empty"
+	[[ "$value" == /* ]] || die "webui base path must start with /"
+	case "$value" in
+	*/) printf '%s' "$value" ;;
+	*) printf '%s/' "$value" ;;
+	esac
+}
+
+normalize_webui_mount_path() {
+	local value="$1"
+	[ -n "$value" ] || die "webui mount path cannot be empty"
+	[[ "$value" == /* ]] || die "webui mount path must start with /"
+	if [ "$value" = "/" ]; then
+		printf '/'
+	else
+		printf '%s' "${value%/}"
+	fi
 }
 
 validate_value() {
@@ -155,6 +194,12 @@ REGISTRY_HOST="ghcr.io"
 REGISTRY_USERNAME=""
 REGISTRY_TOKEN=""
 APP_ENV_PREFIX="${APP_ENV_PREFIX:-RIN_APP}"
+WEBUI_BUILD_BASE_URL="${WEBUI_BUILD_BASE_URL:-}"
+WEBUI_API_BASE_URL="${WEBUI_API_BASE_URL:-}"
+WEBUI_SHOW_DEMO_TODO="${WEBUI_SHOW_DEMO_TODO:-false}"
+WEBUI_CHECK="${WEBUI_CHECK:-y}"
+WEBUI_CHECK_SET="n"
+WEBUI_CHECK_PATH="${WEBUI_CHECK_PATH:-}"
 
 declare -A APP_ENV=()
 
@@ -352,6 +397,52 @@ while [ "$#" -gt 0 ]; do
 		set_app_env SERVER_WRITE_TIMEOUT "$2"
 		shift 2
 		;;
+	--webui-enabled)
+		require_arg "$1" "${2:-}"
+		set_app_env WEBUI_ENABLED "$2"
+		shift 2
+		;;
+	--webui-mount-path)
+		require_arg "$1" "${2:-}"
+		set_app_env WEBUI_MOUNT_PATH "$(normalize_webui_mount_path "$2")"
+		shift 2
+		;;
+	--webui-dist-dir)
+		require_arg "$1" "${2:-}"
+		set_app_env WEBUI_DIST_DIR "$2"
+		shift 2
+		;;
+	--webui-public-base-url)
+		require_arg "$1" "${2:-}"
+		set_app_env WEBUI_PUBLIC_BASE_URL "$2"
+		shift 2
+		;;
+	--webui-build-base-url)
+		require_arg "$1" "${2:-}"
+		WEBUI_BUILD_BASE_URL="$(normalize_webui_base_path "$2")"
+		shift 2
+		;;
+	--webui-api-base-url)
+		require_arg "$1" "${2:-}"
+		WEBUI_API_BASE_URL="$2"
+		shift 2
+		;;
+	--webui-show-demo-todo)
+		require_arg "$1" "${2:-}"
+		WEBUI_SHOW_DEMO_TODO="$(normalize_bool_string "$2")"
+		shift 2
+		;;
+	--webui-check)
+		require_arg "$1" "${2:-}"
+		WEBUI_CHECK="$(normalize_yn "$2")"
+		WEBUI_CHECK_SET="y"
+		shift 2
+		;;
+	--webui-check-path)
+		require_arg "$1" "${2:-}"
+		WEBUI_CHECK_PATH="$2"
+		shift 2
+		;;
 	--log-level)
 		require_arg "$1" "${2:-}"
 		set_app_env LOG_LEVEL "$2"
@@ -477,6 +568,38 @@ validate_value SOURCE_DIR "$SOURCE_DIR"
 validate_value REGISTRY_HOST "$REGISTRY_HOST"
 validate_value REGISTRY_USERNAME "$REGISTRY_USERNAME"
 validate_value REGISTRY_TOKEN "$REGISTRY_TOKEN"
+validate_value WEBUI_BUILD_BASE_URL "$WEBUI_BUILD_BASE_URL"
+validate_value WEBUI_API_BASE_URL "$WEBUI_API_BASE_URL"
+validate_value WEBUI_SHOW_DEMO_TODO "$WEBUI_SHOW_DEMO_TODO"
+validate_value WEBUI_CHECK_PATH "$WEBUI_CHECK_PATH"
+
+WEBUI_SHOW_DEMO_TODO="$(normalize_bool_string "$WEBUI_SHOW_DEMO_TODO")"
+webui_mount_env_key="${APP_ENV_PREFIX}_WEBUI_MOUNT_PATH"
+webui_enabled_env_key="${APP_ENV_PREFIX}_WEBUI_ENABLED"
+webui_mount_path="${APP_ENV[$webui_mount_env_key]:-/admin}"
+webui_mount_path="$(normalize_webui_mount_path "$webui_mount_path")"
+webui_enabled="${APP_ENV[$webui_enabled_env_key]:-true}"
+case "${webui_enabled,,}" in
+false | n | no | 0)
+	if [ "$WEBUI_CHECK_SET" = "n" ]; then
+		WEBUI_CHECK="n"
+	fi
+	;;
+esac
+
+if [ -z "$WEBUI_BUILD_BASE_URL" ]; then
+	WEBUI_BUILD_BASE_URL="$(normalize_webui_base_path "$webui_mount_path")"
+fi
+
+if [ -z "$WEBUI_CHECK_PATH" ]; then
+	if [ "$webui_mount_path" = "/" ]; then
+		WEBUI_CHECK_PATH="/server-info"
+	else
+		WEBUI_CHECK_PATH="${webui_mount_path}/server-info"
+	fi
+else
+	[[ "$WEBUI_CHECK_PATH" == /* ]] || die "--webui-check-path must start with /"
+fi
 
 if [ "$DEPLOY_PULL" = "y" ] && [ "$DEPLOY_BUILD_SET" = "n" ]; then
 	DEPLOY_BUILD="n"
@@ -553,6 +676,15 @@ log "source: $SOURCE_DIR"
 log "target: $DEPLOY_PATH"
 log "environment: $DEPLOY_ENV"
 log "image: $DEPLOY_IMAGE"
+log "webui build base url: $WEBUI_BUILD_BASE_URL"
+if [ -n "$WEBUI_API_BASE_URL" ]; then
+	log "webui api base url: $WEBUI_API_BASE_URL"
+else
+	log "webui api base url: same-origin"
+fi
+if [ "$WEBUI_CHECK" = "y" ]; then
+	log "webui check path: $WEBUI_CHECK_PATH"
+fi
 if [ "${#APP_ENV[@]}" -gt 0 ]; then
 	keys=("${!APP_ENV[@]}")
 	IFS=,
@@ -562,7 +694,11 @@ fi
 
 if [ "$DEPLOY_BUILD" = "y" ]; then
 	log "building image"
-	docker build -t "$DEPLOY_IMAGE" "$SOURCE_DIR"
+	docker build \
+		--build-arg "NUXT_APP_BASE_URL=$WEBUI_BUILD_BASE_URL" \
+		--build-arg "NUXT_PUBLIC_API_BASE_URL=$WEBUI_API_BASE_URL" \
+		--build-arg "NUXT_PUBLIC_SHOW_DEMO_TODO=$WEBUI_SHOW_DEMO_TODO" \
+		-t "$DEPLOY_IMAGE" "$SOURCE_DIR"
 fi
 
 cd "$DEPLOY_PATH"
@@ -593,8 +729,11 @@ if command -v curl >/dev/null 2>&1; then
 
 	check_url health "$HEALTH_URL"
 	check_url ready "$READY_URL"
+	if [ "$WEBUI_CHECK" = "y" ]; then
+		check_url webui "http://127.0.0.1:${APP_PORT}${WEBUI_CHECK_PATH}"
+	fi
 else
-	log "warning: curl not found on host; skipped health/ready checks"
+	log "warning: curl not found on host; skipped health/ready/webui checks"
 fi
 
 log "deployment finished"

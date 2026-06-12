@@ -4,15 +4,20 @@ FROM node:24-bookworm AS web-build
 
 WORKDIR /src/web/admin
 
+ARG NUXT_APP_BASE_URL=/admin/
+ARG NUXT_PUBLIC_API_BASE_URL=
 ARG NUXT_PUBLIC_SHOW_DEMO_TODO=false
-ENV NUXT_PUBLIC_SHOW_DEMO_TODO=${NUXT_PUBLIC_SHOW_DEMO_TODO}
+ENV NUXT_APP_BASE_URL=${NUXT_APP_BASE_URL} \
+    NUXT_PUBLIC_API_BASE_URL=${NUXT_PUBLIC_API_BASE_URL} \
+    NUXT_PUBLIC_SHOW_DEMO_TODO=${NUXT_PUBLIC_SHOW_DEMO_TODO}
 
 COPY web/admin/package.json web/admin/pnpm-lock.yaml ./
 RUN corepack enable \
     && pnpm install --frozen-lockfile
 
 COPY web/admin ./
-RUN pnpm generate
+RUN pnpm generate \
+    && test -f .output/public/index.html
 
 FROM golang:1.25.7-bookworm AS build
 

@@ -143,7 +143,9 @@ pnpm build
 pnpm generate
 ```
 
-`pnpm build` 用作 Nuxt 构建检查；Go 静态托管需要 `pnpm generate` 生成的 `.output/public/index.html`。后台体验采用左侧菜单、顶部工具栏、访问标签、设置抽屉、筛选工具条、表格页和仪表盘布局；当前不发布编程辅助、代码生成或插件市场能力。
+`pnpm build` 用作 Nuxt 构建检查；Go 静态托管需要 `pnpm generate` 生成的 `.output/public/index.html`。Dockerfile 会在镜像构建期执行 `pnpm generate` 并检查该文件。后台体验采用左侧菜单、顶部工具栏、访问标签、设置抽屉、筛选工具条、表格页和仪表盘布局；当前不发布编程辅助、代码生成或插件市场能力。
+
+部署时需要让 Nuxt 构建 baseURL 与 Go `webui.mount_path` 对齐。默认路径是 `/admin/`；如果改成其他路径，需要通过 Docker build arg `NUXT_APP_BASE_URL` 或 `deploy.sh --webui-build-base-url` 重新构建静态产物。
 
 可见前端变更必须使用 Browser 做桌面与移动端视觉检查，至少覆盖 `1440x900` 和 `390x844`，并在交付说明中记录检查路线、视口和残余风险。
 
@@ -165,7 +167,7 @@ docker build -t go-scaffold:local .
 | IAM 模块 | `internal/modules/iam` |
 | 基础设施包 | `pkg/database`, `pkg/web`, `pkg/configloader`, `pkg/cache`, `pkg/logger`, `pkg/httpserver`, `pkg/storage`, `pkg/sqlgen`, `pkg/token`, `pkg/authorization`, `pkg/mfa`, `pkg/migrator` |
 | 共享响应和错误类型 | `types` |
-| Docker 和部署 | `Dockerfile`, `deploy`, `deploy.sh`, `script/install.sh` |
+| Docker 和部署 | `Dockerfile`, `deploy`, `deploy.sh`, `script/install.sh`, `.github/workflows/deploy-remote.yml` |
 | 工程文档 | `docs/README.md`, `docs` |
 
 ## 工程文档索引

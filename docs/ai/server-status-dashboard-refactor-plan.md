@@ -35,13 +35,13 @@
 
 ## 当前任务
 
-- 本次目标：修复 PC 端 Server Status rows 键值列表的值列收缩问题，避免日期、Go 版本、构建版本等内容竖向逐字显示。
-- 是否需要先分析研究：DONE。已定位到 `AoiKeyValueList` rows 模式中 `dd` 右对齐 flex 与 `inline-flex` value 共同导致值容器按 min-content 收缩。
-- 计划修改范围：本任务书、`web/admin/app/components/aoi/AoiKeyValueList.vue`，必要时补充后台 CSS token。
-- 不修改范围：不改 Go API、DTO、数据库迁移、认证逻辑、真实账号信息、生产配置或数据目录；不新增 GPU、CI/CD、服务明细伪数据。
-- 风险：RISK rows 模式是后台复用组件，修复必须保持 cards 模式和移动端行为稳定。
-- 验证方式：运行 `pnpm typecheck`；通过 Browser 检查 `/admin/server-info` PC 宽度下 rows 值列宽度、无竖排文本、无横向溢出、无 `undefined/null/NaN`。
-- Git 分支计划：在 `codex/server-status-pc-value-layout` 完成本次修复提交，再 fast-forward 合并回 main。
+- 本次目标：更新 Docker、部署脚本、远程部署入口和文档，使 Admin WebUI 静态构建与 Go 静态托管链路在部署阶段可配置、可验证、可维护。
+- 是否需要先分析研究：DONE。已确认 Dockerfile 包含 `web-build` 阶段，但 deploy 脚本缺少 WebUI 构建参数和 `/admin` 静态托管检查；`script/install.sh` 存在但示例下载地址需要修正。
+- 计划修改范围：本任务书、`.env.example`、`Dockerfile`、`deploy.sh`、`script/install.sh`、`deploy/docker-compose.production.example.yml`、`deploy/config.production.example.yaml`、`.github/workflows/deploy-remote.yml`、`docs/build/docker-and-ci.md`、`docs/release/deployment.md`、`docs/environment/configuration.md`、`docs/README.md`。
+- 不修改范围：不改 Go API、DTO、数据库迁移、认证逻辑、真实账号信息、生产配置密钥或数据目录。
+- 风险：RISK Nuxt `NUXT_APP_BASE_URL` 是构建期配置，镜像拉取部署时不能通过容器运行时修正 base path；必须在脚本和文档中明确。
+- 验证方式：运行 shell 语法检查、前端静态生成、Dockerfile 关键产物校验检查；不启动真实生产部署。
+- Git 分支计划：在 `codex/docker-deploy-webui-docs` 完成本次修复提交，再 fast-forward 合并回 main。
 
 ## 任务状态表
 
@@ -63,6 +63,7 @@
 | 更新文档与示例配置 | DONE | 更新开发、维护、使用、新手、环境配置和示例配置文档。 |
 | 静态托管与浏览器验证 | DONE | `pnpm generate` 后通过 Go 服务访问 `/admin/login` 与 `/admin/server-info`。 |
 | 修复 PC rows 值列收缩 | DONE | 已在 Aoi wrapper 层修复，PC 桌面宽度不再出现 34px/53px 的竖排值列。 |
+| 更新 Docker 与部署脚本 | DONE | 补齐 WebUI 构建参数、运行配置、静态托管检查和部署文档。 |
 
 ## 变更记录
 
@@ -95,3 +96,13 @@
 - commit hash：`1b89831`
 - 是否已合并 main：是，fast-forward 合并到 main；本次核心提交为 `1b89831` 与 `6afb8de`。
 - 下一步建议：继续观察 PC 宽屏瀑布流高度分布，后续可按配置将构建信息从 rows 改为更适合长字段的代码/表格视图。
+
+### 2026-06-13 Docker 与部署脚本更新
+
+- 状态：DONE
+- 修改文件：`.env.example`、`.github/workflows/deploy-remote.yml`、`Dockerfile`、`deploy.sh`、`deploy/config.production.example.yaml`、`deploy/docker-compose.production.example.yml`、`script/install.sh`、`docs/README.md`、`docs/ai/server-status-dashboard-refactor-plan.md`、`docs/build/docker-and-ci.md`、`docs/environment/configuration.md`、`docs/release/deployment.md`。
+- 修改摘要：补齐 Admin WebUI 的 Docker 构建参数、Nuxt baseURL 构建配置、API baseURL 构建配置、Demo Todo 构建开关、部署后 WebUI 静态路由检查、远程部署 workflow 变量透传、生产 compose/config 示例和 Docker/部署文档。
+- 验证结果：`go test ./... -count=1 -mod=readonly`、`go build -mod=readonly -o ./tmp/go-scaffold-server ./cmd/main`、`pnpm typecheck`、`pnpm generate`、`git diff --check` 通过，且 `web/admin/.output/public/index.html` 存在；敏感账号搜索无命中；`bash -n` 与 Docker build/compose 检查因当前环境缺少 `bash` 与 Docker CLI 标记为 BLOCKED。
+- commit hash：PENDING
+- 是否已合并 main：PENDING
+- 下一步建议：在具备 Docker 与 Bash 的部署环境中补跑 `bash -n deploy.sh script/install.sh`、`docker build` 和 `docker compose config`，并访问 `/admin/server-info` 验证静态托管链路。

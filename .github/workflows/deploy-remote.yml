@@ -45,6 +45,15 @@ jobs:
       APP_PORT: ${{ vars.APP_PORT }}
       DEPLOY_CONTAINER_NAME: ${{ vars.DEPLOY_CONTAINER_NAME }}
       REGISTRY_HOST: ${{ vars.REGISTRY_HOST }}
+      WEBUI_ENABLED: ${{ vars.WEBUI_ENABLED }}
+      WEBUI_MOUNT_PATH: ${{ vars.WEBUI_MOUNT_PATH }}
+      WEBUI_DIST_DIR: ${{ vars.WEBUI_DIST_DIR }}
+      WEBUI_PUBLIC_BASE_URL: ${{ vars.WEBUI_PUBLIC_BASE_URL }}
+      WEBUI_BUILD_BASE_URL: ${{ vars.WEBUI_BUILD_BASE_URL }}
+      WEBUI_API_BASE_URL: ${{ vars.WEBUI_API_BASE_URL }}
+      WEBUI_SHOW_DEMO_TODO: ${{ vars.WEBUI_SHOW_DEMO_TODO }}
+      WEBUI_CHECK: ${{ vars.WEBUI_CHECK }}
+      WEBUI_CHECK_PATH: ${{ vars.WEBUI_CHECK_PATH }}
 
       DB_DRIVER: ${{ vars.DB_DRIVER }}
       DB_HOST: ${{ vars.DB_HOST }}
@@ -174,6 +183,8 @@ jobs:
 
           for key in \
             DEPLOY_REPO DEPLOY_REF DEPLOY_IMAGE DEPLOY_CONTAINER_NAME REGISTRY_HOST \
+            WEBUI_ENABLED WEBUI_MOUNT_PATH WEBUI_DIST_DIR WEBUI_PUBLIC_BASE_URL WEBUI_BUILD_BASE_URL WEBUI_API_BASE_URL \
+            WEBUI_SHOW_DEMO_TODO WEBUI_CHECK WEBUI_CHECK_PATH \
             DB_DRIVER DB_HOST DB_PORT DB_USER DB_PASSWORD DB_NAME DB_MAX_OPEN_CONNS DB_MAX_IDLE_CONNS \
             REDIS_ENABLED REDIS_HOST REDIS_PORT REDIS_PASSWORD REDIS_DB REDIS_POOL_SIZE REDIS_MIN_IDLE_CONNS REDIS_MAX_RETRIES \
             REDIS_DIAL_TIMEOUT REDIS_READ_TIMEOUT REDIS_WRITE_TIMEOUT SERVER_MODE SERVER_READ_TIMEOUT SERVER_WRITE_TIMEOUT \
@@ -271,6 +282,15 @@ jobs:
 
           add_arg --registry-username "${GHCR_USERNAME:-}"
           add_arg --registry-token "${GHCR_TOKEN:-}"
+          add_arg --webui-enabled "${WEBUI_ENABLED:-}"
+          add_arg --webui-mount-path "${WEBUI_MOUNT_PATH:-}"
+          add_arg --webui-dist-dir "${WEBUI_DIST_DIR:-}"
+          add_arg --webui-public-base-url "${WEBUI_PUBLIC_BASE_URL:-}"
+          add_arg --webui-build-base-url "${WEBUI_BUILD_BASE_URL:-}"
+          add_arg --webui-api-base-url "${WEBUI_API_BASE_URL:-}"
+          add_arg --webui-show-demo-todo "${WEBUI_SHOW_DEMO_TODO:-}"
+          add_arg --webui-check "${WEBUI_CHECK:-}"
+          add_arg --webui-check-path "${WEBUI_CHECK_PATH:-}"
           add_arg --db-driver "${DB_DRIVER:-}"
           add_arg --db-host "${DB_HOST:-}"
           add_arg --db-port "${DB_PORT:-}"

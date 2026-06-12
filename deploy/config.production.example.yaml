@@ -51,7 +51,7 @@ webui:
   enabled: true
   mount_path: /admin
   dist_dir: ./web/admin/.output/public
-  public_base_url: ${WEBUI_PUBLIC_BASE_URL}
+  public_base_url: ${WEBUI_PUBLIC_BASE_URL:/admin}
 
 plugins:
   enabled: ${PLUGINS_ENABLED:false}
