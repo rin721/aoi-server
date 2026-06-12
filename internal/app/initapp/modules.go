@@ -292,6 +292,9 @@ func NewSystemModule(core Core, infra Infrastructure, iam IAMModule) SystemModul
 	if infra.Database != nil {
 		options = append(options, systemservice.WithRepository(systemrepository.New(infra.Database)))
 	}
+	if infra.Storage != nil {
+		options = append(options, systemservice.WithStorage(infra.Storage))
+	}
 	if iam.Repository != nil {
 		options = append(options, systemservice.WithPermissionStore(newSystemPermissionStore(iam.Repository, core.IDGenerator)))
 	}

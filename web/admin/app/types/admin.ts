@@ -295,6 +295,121 @@ export type SystemParameterPage = {
   total: number
 }
 
+export type SystemVersionRecord = {
+  id: ID
+  apiCount: number
+  createdAt: string
+  createdBy: ID
+  createdByUsername: string
+  description: string
+  dictionaryCount: number
+  menuCount: number
+  source: "export" | "import"
+  updatedAt: string
+  versionCode: string
+  versionName: string
+}
+
+export type SystemVersionPage = {
+  items: SystemVersionRecord[]
+  page: number
+  pageSize: number
+  storageStatus: string
+  total: number
+}
+
+export type SystemVersionPackageInfo = {
+  code: string
+  description: string
+  exportTime: string
+  name: string
+}
+
+export type SystemVersionPackage = {
+  apis: SystemAPIEntry[]
+  dictionaries: SystemDictionary[]
+  menus: SystemMenuGroup[]
+  version: SystemVersionPackageInfo
+}
+
+export type SystemVersionDetail = {
+  item: SystemVersionRecord
+  package: SystemVersionPackage
+}
+
+export type SystemVersionSourceCatalog = {
+  apiCount: number
+  apis: SystemAPIGroup[]
+  dictionaries: SystemDictionary[]
+  dictionaryCount: number
+  menuCount: number
+  menus: SystemMenuGroup[]
+  storageStatus: string
+}
+
+export type SystemVersionImportResult = {
+  apisSkipped: number
+  dictionariesCreated: number
+  dictionariesSkipped: number
+  dictionaryItemsCreated: number
+  importedAt: string
+  item: SystemVersionRecord
+  menusSkipped: number
+  storageStatus: string
+}
+
+export type SystemMediaCategory = {
+  id: ID
+  parentId: ID
+  name: string
+  sort: number
+  children?: SystemMediaCategory[]
+  createdAt: string
+  updatedAt: string
+}
+
+export type SystemMediaCategoryCatalog = {
+  items: SystemMediaCategory[]
+  storageStatus: string
+  total: number
+}
+
+export type SystemMediaAsset = {
+  id: ID
+  categoryId: ID
+  displayName: string
+  originalName: string
+  storageKey: string
+  url: string
+  mimeType: string
+  extension: string
+  sizeBytes: number
+  source: "upload" | "url"
+  external: boolean
+  uploadedBy: ID
+  uploadedByUsername: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type SystemMediaAssetPage = {
+  items: SystemMediaAsset[]
+  objectStorage: string
+  page: number
+  pageSize: number
+  storageStatus: string
+  total: number
+  uploadMaxBytes: number
+  uploadMaxMb: number
+  uploadUnavailable: boolean
+}
+
+export type SystemMediaURLImportResult = {
+  imported: number
+  items: SystemMediaAsset[]
+  storageStatus: string
+}
+
 export type SwitchOrgRequest = {
   orgId: ID
 }
@@ -366,6 +481,39 @@ export type Session = {
   lastUsedAt?: string | null
   createdAt: string
   updatedAt: string
+}
+
+export type APIToken = {
+  id: ID
+  orgId: ID
+  userId: ID
+  username: string
+  userDisplayName: string
+  roleCode: string
+  tokenPrefix: string
+  status: Status
+  expiresAt?: string | null
+  lastUsedAt?: string | null
+  lastUsedIpAddress: string
+  revokedAt?: string | null
+  revokedBy?: ID | null
+  remark: string
+  createdBy: ID
+  createdAt: string
+  updatedAt: string
+}
+
+export type APITokenPage = {
+  items: APIToken[]
+  page: number
+  pageSize: number
+  storageStatus: string
+  total: number
+}
+
+export type CreateAPITokenResult = {
+  item: APIToken
+  token: string
 }
 
 export type AuditLog = {
@@ -453,7 +601,7 @@ export type MFASetupPayload = {
   secret: string
 }
 
-export type Status = "active" | "disabled" | "pending" | "used" | "revoked"
+export type Status = "active" | "disabled" | "expired" | "pending" | "used" | "revoked"
 
 
 

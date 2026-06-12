@@ -12,17 +12,27 @@ const displayName = ref("")
 const email = ref("")
 const password = ref("")
 const error = ref("")
+const passwordMinLength = 8
+const passwordError = computed(() =>
+  password.value && password.value.length < passwordMinLength
+    ? `密码至少需要 ${passwordMinLength} 位。`
+    : undefined
+)
 
-const canSubmit = computed(() =>
+const canSubmit = computed(() => Boolean(
   orgCode.value.trim()
   && orgName.value.trim()
   && username.value.trim()
   && email.value.trim()
   && password.value
-)
+  && !passwordError.value
+))
 
 async function submit() {
   if (!canSubmit.value) {
+    if (passwordError.value) {
+      error.value = passwordError.value
+    }
     return
   }
 
@@ -60,7 +70,16 @@ useHead({
     <AoiTextField v-model="username" label="用户名" icon="user" autocomplete="username" @enter="submit" />
     <AoiTextField v-model="displayName" label="显示名称" icon="id-card" @enter="submit" />
     <AoiTextField v-model="email" label="邮箱" type="email" icon="mail" autocomplete="email" placeholder="owner@example.com" @enter="submit" />
-    <AoiTextField v-model="password" label="密码" icon="key-round" type="password" autocomplete="new-password" @enter="submit" />
+    <AoiTextField
+      v-model="password"
+      label="密码"
+      icon="key-round"
+      type="password"
+      autocomplete="new-password"
+      :supporting-text="`至少 ${passwordMinLength} 位`"
+      :error-text="passwordError"
+      @enter="submit"
+    />
 
     <AoiButton type="submit" icon="rocket" :disabled="!canSubmit" :loading="auth.loading">
       创建并进入

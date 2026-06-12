@@ -36,13 +36,9 @@
 
 ## 本地跑起来
 
-首次使用 IAM 前，先执行迁移：
+本地默认配置会在服务启动时自动应用 goose 迁移。启动后打开 `http://127.0.0.1:9999/admin`，如果 IAM 还没有任何用户，后台会进入首次初始化页面。
 
-```powershell
-go run ./cmd/main db migrate up --config=configs/config.yaml
-```
-
-创建初始管理员：
+如果需要通过 CLI 初始化管理员，也可以直接运行：
 
 ```powershell
 "change-this-local-password" | go run ./cmd/main iam bootstrap-admin --config=configs/config.yaml --org-code=acme --org-name="Acme Corp" --username=admin --email=admin@example.com --password-stdin
@@ -63,7 +59,32 @@ curl http://127.0.0.1:9999/health
 curl http://127.0.0.1:9999/ready
 ```
 
-本地默认使用 SQLite `./data/app.db`。Demo Todo 模块默认启用，且 `demo.apply_schema_on_start=true`，所以 Demo 表结构会在服务启动时自动应用。IAM 表结构默认不会随服务启动自动迁移，需要显式执行 `db migrate up`。
+本地默认使用 SQLite `./data/app.db`。Demo Todo 模块默认启用，且 `demo.apply_schema_on_start=true`，所以 Demo 表结构会在服务启动时自动应用。IAM 表结构由 goose 管理，默认 `migration.auto_apply=true`，会随服务启动自动应用；生产或发布窗口仍建议显式执行 `db migrate status` 和 `db migrate up`。
+
+## 在后台试一次 API Token
+
+登录 `http://127.0.0.1:9999/admin` 后，进入左侧菜单的 `API Token`。先确认当前用户已经在组织里拥有一个角色，然后点击 `签发`，选择用户、角色和有效期。创建成功后完整 token 只显示一次，复制后可以这样测试：
+
+```powershell
+curl -H "Authorization: Bearer <api-token>" http://127.0.0.1:9999/api/v1/me
+```
+
+如果页面提示 `iam_api_tokens` 表不可用，说明数据库迁移还没有应用；本地通常重启服务即可自动应用，生产环境应显式执行 `go run ./cmd/main db migrate up --config=configs/config.yaml`。
+
+## 在后台试一次媒体库
+
+登录 `http://127.0.0.1:9999/admin` 后，进入左侧菜单的 `媒体库`。如果只想体验外链导入，可以点击 `导入URL`，输入 `我的图片|https://example.com/a.png` 这样的多行文本；系统只保存链接，不会下载远程文件。
+
+如果要体验普通上传，请在示例配置或本地配置中启用：
+
+```yaml
+storage:
+  enabled: true
+  fs_type: basepath
+  base_path: ./data
+```
+
+重启服务并应用迁移后，上传文件会写入 `data/media/...`。如果页面提示 `system_media_assets` 表不可用，先执行数据库迁移；如果提示对象存储不可用，检查 `storage.enabled`。
 
 ## 一条请求怎么走
 
@@ -131,3 +152,5 @@ go build -mod=readonly -o ./tmp/go-scaffold-server ./cmd/main
 ```
 
 如果只改文档，可以不跑完整测试，但要检查链接路径、命令和事实是否仍然准确。
+- 版本管理发布包：后台 `版本管理` 页面可以把菜单、API 和字典打成 JSON 发布包。它不是 Go 构建版本，也不是 goose 迁移版本；导入时当前只会幂等补齐字典，菜单和 API 会保留在包记录中并报告跳过。页面提示 `system_versions` 表不可用时，先执行数据库迁移。
+- 媒体库：后台 `媒体库` 页面可以管理分类、上传本地文件、导入外链、重命名、下载和删除。普通上传依赖 storage，外链导入不依赖对象存储。

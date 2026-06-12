@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -510,6 +513,214 @@ func TestParameterManagementCreatesFiltersUpdatesFindsAndDeletes(t *testing.T) {
 	}
 }
 
+func TestVersionManagementExportsAndImportsReleasePackages(t *testing.T) {
+	now := time.Date(2026, 6, 12, 15, 0, 0, 0, time.UTC)
+	repo := newMemoryAPIRepo(nil)
+	svc := New(Config{Now: func() time.Time { return now }},
+		WithRepository(repo),
+		WithIDGenerator(&sequenceIDGenerator{next: 600}),
+	)
+	svc.RegisterAPIs([]model.APIEntry{
+		{Code: "get /api/v1/system/menus", Group: "system", Method: "GET", Path: "/api/v1/system/menus", Description: "menus", Order: 10},
+		{Code: "get /api/v1/system/apis", Group: "system", Method: "GET", Path: "/api/v1/system/apis", Description: "apis", Permission: "permission:read", Order: 20},
+	})
+	dictionary, err := svc.CreateDictionary(context.Background(), CreateDictionaryInput{
+		Code: "release.status",
+		Name: "Release Status",
+	})
+	if err != nil {
+		t.Fatalf("CreateDictionary() error = %v", err)
+	}
+	if _, err := svc.CreateDictionaryItem(context.Background(), dictionary.ID, CreateDictionaryItemInput{
+		Label: "Ready",
+		Value: "ready",
+	}); err != nil {
+		t.Fatalf("CreateDictionaryItem() error = %v", err)
+	}
+
+	detail, err := svc.ExportVersion(context.Background(), ExportVersionInput{
+		APICodes:        []string{"get /api/v1/system/menus"},
+		CreatedBy:       1,
+		CreatorUsername: "admin",
+		Description:     "Release package",
+		DictionaryCodes: []string{"release.status"},
+		MenuCodes:       []string{"system:menus"},
+		VersionCode:     "v2026.06.12",
+		VersionName:     "June Release",
+	})
+	if err != nil {
+		t.Fatalf("ExportVersion() error = %v", err)
+	}
+	if detail.Item.ID != 602 || detail.Item.Source != model.VersionSourceExport || detail.Item.MenuCount != 1 || detail.Item.APICount != 1 || detail.Item.DictionaryCount != 1 {
+		t.Fatalf("unexpected exported version detail: %#v", detail)
+	}
+	if detail.Package.Version.Code != "v2026.06.12" || len(detail.Package.APIs) != 1 || len(detail.Package.Dictionaries) != 1 || countMenus(detail.Package.Menus) != 1 {
+		t.Fatalf("unexpected exported package: %#v", detail.Package)
+	}
+
+	page, err := svc.ListVersions(context.Background(), VersionFilter{Page: 1, PageSize: 10, VersionCode: "2026"})
+	if err != nil {
+		t.Fatalf("ListVersions() error = %v", err)
+	}
+	if page.StorageStatus != "persisted" || page.Total != 1 || page.Items[0].ID != detail.Item.ID {
+		t.Fatalf("unexpected version page: %#v", page)
+	}
+	downloaded, err := svc.GetVersionPackage(context.Background(), detail.Item.ID)
+	if err != nil {
+		t.Fatalf("GetVersionPackage() error = %v", err)
+	}
+	if downloaded.Version.Name != "June Release" || len(downloaded.Dictionaries) != 1 {
+		t.Fatalf("unexpected downloaded package: %#v", downloaded)
+	}
+
+	raw, err := json.Marshal(downloaded)
+	if err != nil {
+		t.Fatalf("marshal package: %v", err)
+	}
+	importRepo := newMemoryAPIRepo(nil)
+	importSvc := New(Config{Now: func() time.Time { return now.Add(time.Hour) }},
+		WithRepository(importRepo),
+		WithIDGenerator(&sequenceIDGenerator{next: 700}),
+	)
+	imported, err := importSvc.ImportVersion(context.Background(), ImportVersionInput{
+		CreatedBy:       2,
+		CreatorUsername: "operator",
+		VersionData:     string(raw),
+	})
+	if err != nil {
+		t.Fatalf("ImportVersion() error = %v", err)
+	}
+	if imported.Item.ID != 702 || imported.Item.Source != model.VersionSourceImport || imported.DictionariesCreated != 1 || imported.DictionaryItemsCreated != 1 {
+		t.Fatalf("unexpected import result: %#v", imported)
+	}
+	if imported.MenusSkipped != 1 || imported.APIsSkipped != 1 {
+		t.Fatalf("expected menu/API entries to be recorded as skipped, got %#v", imported)
+	}
+	catalog, err := importSvc.ListDictionaries(context.Background())
+	if err != nil {
+		t.Fatalf("ListDictionaries() after import error = %v", err)
+	}
+	if catalog.Total != 1 || !dictionaryItemExists(catalog, "release.status", "ready") {
+		t.Fatalf("expected imported dictionary and item, got %#v", catalog)
+	}
+
+	if err := svc.DeleteVersions(context.Background(), []int64{detail.Item.ID}); err != nil {
+		t.Fatalf("DeleteVersions() error = %v", err)
+	}
+	page, err = svc.ListVersions(context.Background(), VersionFilter{Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("ListVersions() after delete error = %v", err)
+	}
+	if page.Total != 0 {
+		t.Fatalf("expected deleted version to be hidden, got %#v", page)
+	}
+}
+
+func TestMediaLibraryManagesCategoriesUploadsURLsAndDownloads(t *testing.T) {
+	now := time.Date(2026, 6, 12, 16, 0, 0, 0, time.UTC)
+	repo := newMemoryAPIRepo(nil)
+	store := newMemoryMediaStore()
+	svc := New(Config{Now: func() time.Time { return now }},
+		WithRepository(repo),
+		WithStorage(store),
+		WithIDGenerator(&sequenceIDGenerator{next: 800}),
+	)
+
+	category, err := svc.UpsertMediaCategory(context.Background(), UpsertMediaCategoryInput{
+		Name: "Images",
+		Sort: 10,
+	})
+	if err != nil {
+		t.Fatalf("UpsertMediaCategory() error = %v", err)
+	}
+	if category.ID != 800 || category.ParentID != 0 {
+		t.Fatalf("unexpected category: %#v", category)
+	}
+
+	catalog, err := svc.ListMediaCategories(context.Background())
+	if err != nil {
+		t.Fatalf("ListMediaCategories() error = %v", err)
+	}
+	if catalog.StorageStatus != "persisted" || catalog.Total != 1 || catalog.Items[0].Name != "Images" {
+		t.Fatalf("unexpected category catalog: %#v", catalog)
+	}
+
+	asset, err := svc.UploadMediaAsset(context.Background(), UploadMediaAssetInput{
+		CategoryID:         category.ID,
+		Filename:           `..\avatar.png`,
+		Reader:             strings.NewReader("hello-media"),
+		Size:               int64(len("hello-media")),
+		UploadedBy:         1,
+		UploadedByUsername: "admin",
+	})
+	if err != nil {
+		t.Fatalf("UploadMediaAsset() error = %v", err)
+	}
+	if asset.ID != 801 || asset.OriginalName != "avatar.png" || !strings.HasPrefix(asset.StorageKey, "media/2026/06/") {
+		t.Fatalf("unexpected uploaded asset: %#v", asset)
+	}
+	if string(store.files[asset.StorageKey]) != "hello-media" {
+		t.Fatalf("expected object storage write, got %#v", store.files)
+	}
+
+	download, err := svc.DownloadMediaAsset(context.Background(), asset.ID)
+	if err != nil {
+		t.Fatalf("DownloadMediaAsset() error = %v", err)
+	}
+	if string(download.Data) != "hello-media" || download.Filename != "avatar.png" {
+		t.Fatalf("unexpected download: %#v", download)
+	}
+
+	renamed, err := svc.UpdateMediaAsset(context.Background(), asset.ID, UpdateMediaAssetInput{DisplayName: "Login Logo"})
+	if err != nil {
+		t.Fatalf("UpdateMediaAsset() error = %v", err)
+	}
+	if renamed.DisplayName != "Login Logo" {
+		t.Fatalf("unexpected renamed asset: %#v", renamed)
+	}
+
+	imported, err := svc.ImportMediaURLs(context.Background(), ImportMediaURLsInput{
+		CategoryID:         category.ID,
+		Items:              []MediaURLImportItem{{Name: "remote.png", URL: "https://example.com/assets/remote.png"}},
+		UploadedBy:         1,
+		UploadedByUsername: "admin",
+	})
+	if err != nil {
+		t.Fatalf("ImportMediaURLs() error = %v", err)
+	}
+	if imported.StorageStatus != "persisted" || imported.Imported != 1 || !imported.Items[0].External {
+		t.Fatalf("unexpected import result: %#v", imported)
+	}
+
+	page, err := svc.ListMediaAssets(context.Background(), MediaAssetFilter{CategoryID: category.ID, Keyword: "Logo", Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("ListMediaAssets() error = %v", err)
+	}
+	if page.StorageStatus != "persisted" || page.ObjectStorage != "enabled" || page.Total != 1 || page.Items[0].DisplayName != "Login Logo" {
+		t.Fatalf("unexpected media page: %#v", page)
+	}
+
+	if err := svc.DeleteMediaAsset(context.Background(), asset.ID); err != nil {
+		t.Fatalf("DeleteMediaAsset(uploaded) error = %v", err)
+	}
+	if _, ok := store.files[asset.StorageKey]; ok {
+		t.Fatalf("expected uploaded object to be removed")
+	}
+	if err := svc.DeleteMediaAsset(context.Background(), imported.Items[0].ID); err != nil {
+		t.Fatalf("DeleteMediaAsset(imported) error = %v", err)
+	}
+	if err := svc.DeleteMediaCategory(context.Background(), category.ID); err != nil {
+		t.Fatalf("DeleteMediaCategory() error = %v", err)
+	}
+	catalog, err = svc.ListMediaCategories(context.Background())
+	if err != nil {
+		t.Fatalf("ListMediaCategories() after delete error = %v", err)
+	}
+	if catalog.Total != 0 {
+		t.Fatalf("expected category to be deleted, got %#v", catalog)
+	}
+}
+
 func TestSeedDefaultsCreatesSystemDataIdempotently(t *testing.T) {
 	now := time.Date(2026, 6, 12, 14, 0, 0, 0, time.UTC)
 	repo := newMemoryAPIRepo(nil)
@@ -573,18 +784,24 @@ func TestSeedDefaultsWithoutRepositoryReportsUnavailable(t *testing.T) {
 type memoryAPIRepo struct {
 	dictionaries     map[int64]model.Dictionary
 	items            map[int64]model.DictionaryItem
+	mediaAssets      map[int64]model.MediaAsset
+	mediaCategories  map[int64]model.MediaCategory
 	operationRecords map[int64]model.OperationRecord
 	parameters       map[int64]model.Parameter
 	records          map[string]model.APIRecord
+	versions         map[int64]model.Version
 }
 
 func newMemoryAPIRepo(records []model.APIRecord) *memoryAPIRepo {
 	repo := &memoryAPIRepo{
 		dictionaries:     make(map[int64]model.Dictionary),
 		items:            make(map[int64]model.DictionaryItem),
+		mediaAssets:      make(map[int64]model.MediaAsset),
+		mediaCategories:  make(map[int64]model.MediaCategory),
 		operationRecords: make(map[int64]model.OperationRecord),
 		parameters:       make(map[int64]model.Parameter),
 		records:          make(map[string]model.APIRecord, len(records)),
+		versions:         make(map[int64]model.Version),
 	}
 	for _, record := range records {
 		repo.records[memoryAPIKey(record.Method, record.Path)] = record
@@ -607,6 +824,16 @@ func (r *memoryAPIRepo) CreateDictionaryItem(_ context.Context, item *model.Dict
 	return nil
 }
 
+func (r *memoryAPIRepo) CreateMediaAsset(_ context.Context, asset *model.MediaAsset) error {
+	r.mediaAssets[asset.ID] = *asset
+	return nil
+}
+
+func (r *memoryAPIRepo) CreateMediaCategory(_ context.Context, category *model.MediaCategory) error {
+	r.mediaCategories[category.ID] = *category
+	return nil
+}
+
 func (r *memoryAPIRepo) CreateOperationRecord(_ context.Context, record *model.OperationRecord) error {
 	r.operationRecords[record.ID] = *record
 	return nil
@@ -614,6 +841,11 @@ func (r *memoryAPIRepo) CreateOperationRecord(_ context.Context, record *model.O
 
 func (r *memoryAPIRepo) CreateParameter(_ context.Context, parameter *model.Parameter) error {
 	r.parameters[parameter.ID] = *parameter
+	return nil
+}
+
+func (r *memoryAPIRepo) CreateVersion(_ context.Context, version *model.Version) error {
+	r.versions[version.ID] = *version
 	return nil
 }
 
@@ -647,6 +879,28 @@ func (r *memoryAPIRepo) DeleteDictionaryItem(_ context.Context, id int64, delete
 	return nil
 }
 
+func (r *memoryAPIRepo) DeleteMediaAsset(_ context.Context, id int64, deletedAt time.Time) error {
+	asset, ok := r.mediaAssets[id]
+	if !ok || asset.DeletedAt != nil {
+		return database.ErrNotFound
+	}
+	asset.DeletedAt = &deletedAt
+	asset.UpdatedAt = deletedAt
+	r.mediaAssets[id] = asset
+	return nil
+}
+
+func (r *memoryAPIRepo) DeleteMediaCategory(_ context.Context, id int64, deletedAt time.Time) error {
+	category, ok := r.mediaCategories[id]
+	if !ok || category.DeletedAt != nil {
+		return database.ErrNotFound
+	}
+	category.DeletedAt = &deletedAt
+	category.UpdatedAt = deletedAt
+	r.mediaCategories[id] = category
+	return nil
+}
+
 func (r *memoryAPIRepo) DeleteOperationRecords(_ context.Context, ids []int64) error {
 	for _, id := range ids {
 		delete(r.operationRecords, id)
@@ -674,6 +928,30 @@ func (r *memoryAPIRepo) DeleteParameters(_ context.Context, ids []int64, deleted
 		parameter.DeletedAt = &deletedAt
 		parameter.UpdatedAt = deletedAt
 		r.parameters[id] = parameter
+	}
+	return nil
+}
+
+func (r *memoryAPIRepo) DeleteVersion(_ context.Context, id int64, deletedAt time.Time) error {
+	version, ok := r.versions[id]
+	if !ok || version.DeletedAt != nil {
+		return database.ErrNotFound
+	}
+	version.DeletedAt = &deletedAt
+	version.UpdatedAt = deletedAt
+	r.versions[id] = version
+	return nil
+}
+
+func (r *memoryAPIRepo) DeleteVersions(_ context.Context, ids []int64, deletedAt time.Time) error {
+	for _, id := range ids {
+		version, ok := r.versions[id]
+		if !ok || version.DeletedAt != nil {
+			continue
+		}
+		version.DeletedAt = &deletedAt
+		version.UpdatedAt = deletedAt
+		r.versions[id] = version
 	}
 	return nil
 }
@@ -711,6 +989,22 @@ func (r *memoryAPIRepo) FindDictionaryItemByID(_ context.Context, id int64) (*mo
 	return &item, nil
 }
 
+func (r *memoryAPIRepo) FindMediaAssetByID(_ context.Context, id int64) (*model.MediaAsset, error) {
+	asset, ok := r.mediaAssets[id]
+	if !ok || asset.DeletedAt != nil {
+		return nil, database.ErrNotFound
+	}
+	return &asset, nil
+}
+
+func (r *memoryAPIRepo) FindMediaCategoryByID(_ context.Context, id int64) (*model.MediaCategory, error) {
+	category, ok := r.mediaCategories[id]
+	if !ok || category.DeletedAt != nil {
+		return nil, database.ErrNotFound
+	}
+	return &category, nil
+}
+
 func (r *memoryAPIRepo) FindParameterByID(_ context.Context, id int64) (*model.Parameter, error) {
 	parameter, ok := r.parameters[id]
 	if !ok || parameter.DeletedAt != nil {
@@ -726,6 +1020,14 @@ func (r *memoryAPIRepo) FindParameterByKey(_ context.Context, key string) (*mode
 		}
 	}
 	return nil, database.ErrNotFound
+}
+
+func (r *memoryAPIRepo) FindVersionByID(_ context.Context, id int64) (*model.Version, error) {
+	version, ok := r.versions[id]
+	if !ok || version.DeletedAt != nil {
+		return nil, database.ErrNotFound
+	}
+	return &version, nil
 }
 
 func (r *memoryAPIRepo) ListAPIs(context.Context) ([]model.APIRecord, error) {
@@ -765,6 +1067,67 @@ func (r *memoryAPIRepo) ListDictionaryItems(_ context.Context, dictionaryID int6
 		return items[i].Sort < items[j].Sort
 	})
 	return items, nil
+}
+
+func (r *memoryAPIRepo) ListMediaCategories(context.Context) ([]model.MediaCategory, error) {
+	categories := make([]model.MediaCategory, 0, len(r.mediaCategories))
+	for _, category := range r.mediaCategories {
+		if category.DeletedAt != nil {
+			continue
+		}
+		categories = append(categories, category)
+	}
+	sort.SliceStable(categories, func(i, j int) bool {
+		if categories[i].Sort == categories[j].Sort {
+			if categories[i].Name == categories[j].Name {
+				return categories[i].ID < categories[j].ID
+			}
+			return categories[i].Name < categories[j].Name
+		}
+		return categories[i].Sort < categories[j].Sort
+	})
+	return categories, nil
+}
+
+func (r *memoryAPIRepo) ListMediaAssets(_ context.Context, filter model.MediaAssetFilter) ([]model.MediaAsset, int64, error) {
+	assets := make([]model.MediaAsset, 0, len(r.mediaAssets))
+	keyword := strings.TrimSpace(filter.Keyword)
+	for _, asset := range r.mediaAssets {
+		if asset.DeletedAt != nil {
+			continue
+		}
+		if filter.CategoryID > 0 && asset.CategoryID != filter.CategoryID {
+			continue
+		}
+		if keyword != "" && !strings.Contains(asset.DisplayName, keyword) && !strings.Contains(asset.OriginalName, keyword) && !strings.Contains(asset.URL, keyword) {
+			continue
+		}
+		assets = append(assets, asset)
+	}
+	sort.SliceStable(assets, func(i, j int) bool {
+		if assets[i].CreatedAt.Equal(assets[j].CreatedAt) {
+			return assets[i].ID > assets[j].ID
+		}
+		return assets[i].CreatedAt.After(assets[j].CreatedAt)
+	})
+	total := int64(len(assets))
+	page := filter.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := filter.PageSize
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	start := (page - 1) * pageSize
+	if start >= len(assets) {
+		return []model.MediaAsset{}, total, nil
+	}
+	end := start + pageSize
+	if end > len(assets) {
+		end = len(assets)
+	}
+	return assets[start:end], total, nil
 }
 
 func (r *memoryAPIRepo) ListOperationRecords(_ context.Context, filter model.OperationRecordFilter) ([]model.OperationRecord, int64, error) {
@@ -874,6 +1237,54 @@ func (r *memoryAPIRepo) ListParameters(_ context.Context, filter model.Parameter
 	return parameters[start:end], total, nil
 }
 
+func (r *memoryAPIRepo) ListVersions(_ context.Context, filter model.VersionFilter) ([]model.Version, int64, error) {
+	versions := make([]model.Version, 0, len(r.versions))
+	name := strings.TrimSpace(filter.VersionName)
+	code := strings.TrimSpace(filter.VersionCode)
+	for _, version := range r.versions {
+		if version.DeletedAt != nil {
+			continue
+		}
+		if name != "" && !strings.Contains(version.VersionName, name) {
+			continue
+		}
+		if code != "" && !strings.Contains(version.VersionCode, code) {
+			continue
+		}
+		if filter.StartCreatedAt != nil && version.CreatedAt.Before(*filter.StartCreatedAt) {
+			continue
+		}
+		if filter.EndCreatedAt != nil && !version.CreatedAt.Before(*filter.EndCreatedAt) {
+			continue
+		}
+		versions = append(versions, version)
+	}
+	sort.SliceStable(versions, func(i, j int) bool {
+		if versions[i].CreatedAt.Equal(versions[j].CreatedAt) {
+			return versions[i].ID > versions[j].ID
+		}
+		return versions[i].CreatedAt.After(versions[j].CreatedAt)
+	})
+	total := int64(len(versions))
+	page := filter.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := filter.PageSize
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	start := (page - 1) * pageSize
+	if start >= len(versions) {
+		return []model.Version{}, total, nil
+	}
+	end := start + pageSize
+	if end > len(versions) {
+		end = len(versions)
+	}
+	return versions[start:end], total, nil
+}
+
 func (r *memoryAPIRepo) SaveAPI(_ context.Context, api *model.APIRecord) error {
 	r.records[memoryAPIKey(api.Method, api.Path)] = *api
 	return nil
@@ -892,6 +1303,22 @@ func (r *memoryAPIRepo) SaveDictionaryItem(_ context.Context, item *model.Dictio
 		return database.ErrNotFound
 	}
 	r.items[item.ID] = *item
+	return nil
+}
+
+func (r *memoryAPIRepo) SaveMediaAsset(_ context.Context, asset *model.MediaAsset) error {
+	if _, ok := r.mediaAssets[asset.ID]; !ok {
+		return database.ErrNotFound
+	}
+	r.mediaAssets[asset.ID] = *asset
+	return nil
+}
+
+func (r *memoryAPIRepo) SaveMediaCategory(_ context.Context, category *model.MediaCategory) error {
+	if _, ok := r.mediaCategories[category.ID]; !ok {
+		return database.ErrNotFound
+	}
+	r.mediaCategories[category.ID] = *category
 	return nil
 }
 
@@ -1008,4 +1435,46 @@ func dictionaryItemExists(catalog model.DictionaryCatalog, code string, value st
 		}
 	}
 	return false
+}
+
+type memoryMediaStore struct {
+	files map[string][]byte
+	dirs  map[string]struct{}
+}
+
+func newMemoryMediaStore() *memoryMediaStore {
+	return &memoryMediaStore{
+		files: make(map[string][]byte),
+		dirs:  make(map[string]struct{}),
+	}
+}
+
+func (s *memoryMediaStore) ReadFile(path string) ([]byte, error) {
+	data, ok := s.files[path]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return append([]byte(nil), data...), nil
+}
+
+func (s *memoryMediaStore) WriteFile(path string, data []byte, _ os.FileMode) error {
+	s.files[path] = append([]byte(nil), data...)
+	return nil
+}
+
+func (s *memoryMediaStore) Remove(path string) error {
+	if _, ok := s.files[path]; !ok {
+		return os.ErrNotExist
+	}
+	delete(s.files, path)
+	return nil
+}
+
+func (s *memoryMediaStore) MkdirAll(path string, _ os.FileMode) error {
+	s.dirs[path] = struct{}{}
+	return nil
+}
+
+func (s *memoryMediaStore) DetectMIMEFromBytes(data []byte) (string, error) {
+	return http.DetectContentType(data), nil
 }

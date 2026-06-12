@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rin721/go-scaffold)
 
-`go-scaffold` 是一个可运行的 Go 后端服务脚手架。当前保留 HTTP 服务、配置加载、结构化日志、数据库访问、Demo Todo CRUD、企业级 IAM、数据库迁移、存储辅助能力、SQL 生成、Docker 构建、CI 检查、部署示例和 AI 运行时文档。
+`go-scaffold` 是一个可运行的 Go 后端服务脚手架。当前保留 HTTP 服务、配置加载、结构化日志、数据库访问、Demo Todo CRUD、企业级 IAM、系统管理发布包、数据库迁移、存储辅助能力、SQL 生成、Docker 构建、CI 检查、部署示例和 AI 运行时文档。
 
 <p align="center">
   <img src="../configs/logo.png" alt="go-scaffold logo" width="180">
@@ -15,7 +15,8 @@
 
 - 可直接启动的服务入口，支持优雅启动和关闭。
 - Demo 模块采用 `handler -> service -> repository -> model` 分层，适合作为新增业务模块参考。
-- IAM 模块提供本地账号、组织租户、JWT、Casbin 权限、邀请、找回密码、TOTP MFA、会话撤销和审计日志。
+- IAM 模块提供本地账号、组织租户、JWT、API Token、Casbin 权限、邀请、找回密码、TOTP MFA、会话撤销和审计日志。
+- System 模块提供菜单/API/字典/参数/操作记录/服务器状态、版本发布包和媒体库管理。版本发布包用于快照菜单、API 和字典配置；当前导入会幂等补齐字典，菜单和 API 仍以代码和路由目录为准。媒体库复用 Storage，支持分类、普通上传、外链导入、重命名、下载和删除。
 - 迁移通过 `pkg/migrator` 封装 goose，并由 `db migrate` 显式执行。
 - 本地默认配置使用 SQLite `./data/app.db`，Redis 默认关闭，Demo 模块默认开启，HTTP 监听 `127.0.0.1:9999`。
 - 提供 Docker、Compose、环境变量、部署脚本和 CI 示例。
@@ -56,7 +57,8 @@ flowchart TB
   subgraph Modules["internal/modules"]
     direction TB
     Demo["demo<br/>Todo CRUD"]
-    IAM["iam<br/>账号、组织、角色、权限、会话、MFA、审计"]
+    IAM["iam<br/>账号、组织、角色、权限、API Token、会话、MFA、审计"]
+    System["system<br/>菜单、API、字典、参数、版本发布包、媒体库"]
     ModuleShape["模块内分层<br/>handler -> service -> repository -> model"]
   end
 
@@ -203,7 +205,7 @@ docker build -t go-scaffold:local .
 | [architecture](architecture/layers.md) | 应用分层和装配方式 |
 | [runtime](runtime/startup-flow.md) | 启动、HTTP、配置重载、状态和错误流程 |
 | [api](api/README.md) | 人可读 HTTP API 文档和 OpenAPI 契约 |
-| [modules/demo](modules/demo.md), [modules/iam](modules/iam.md) | Demo 和 IAM 模块说明 |
+| [modules/demo](modules/demo.md), [modules/iam](modules/iam.md), [modules/system](modules/system.md) | Demo、IAM 和 System 模块说明 |
 | [workflows/db-cli](workflows/db-cli.md), [workflows/iam-cli](workflows/iam-cli.md) | DB/IAM CLI 和运维型命令 |
 | [testing](testing/test-matrix.md) | 测试归属和验证命令 |
 | [build](build/docker-and-ci.md) | CI、本地构建、Docker 构建和质量门禁 |
@@ -235,7 +237,8 @@ docker build -t go-scaffold:local .
 | `POST /api/v1/invitations/:token/accept` | 接受组织邀请 |
 | `GET /api/v1/me` | 当前用户资料 |
 | `GET /api/v1/me/orgs` | 当前用户组织 |
-| `/api/v1/orgs`, `/api/v1/users/*`, `/api/v1/roles`, `/api/v1/permissions`, `/api/v1/sessions`, `/api/v1/audit-logs` | IAM 管理接口 |
+| `/api/v1/orgs`, `/api/v1/orgs/{orgId}/users/*`, `/api/v1/orgs/{orgId}/roles/*`, `/api/v1/orgs/{orgId}/permissions`, `/api/v1/orgs/{orgId}/api-tokens`, `/api/v1/orgs/{orgId}/sessions`, `/api/v1/orgs/{orgId}/audit-logs` | IAM 管理接口 |
+| `/api/v1/system/media/*` | 媒体库分类、上传、外链导入、下载和删除 |
 
 ## 配置
 
@@ -259,13 +262,15 @@ go run ./cmd/main db migrate status
 go run ./cmd/main db migrate up
 ```
 
+本地默认 `migration.auto_apply=true`，启动服务时会自动应用 goose 迁移；上述命令仍适用于手动检查和生产发布窗口。
+
 ## IAM CLI
 
 ```bash
 go run ./cmd/main iam bootstrap-admin --org-code=acme --username=admin --email=admin@example.com --password-stdin
 ```
 
-该命令用于首次创建组织、管理员、内置权限和 owner/admin/member 角色。生产环境应先显式执行 `db migrate up`，并通过标准输入或 secrets 管道传入密码。
+该命令用于首次创建组织、管理员、内置权限和 owner/admin/member 角色。本地也可以直接打开 `/admin` 使用浏览器初始化；生产环境应先显式执行 `db migrate up`，并通过标准输入或 secrets 管道传入密码。
 
 ## 工程工作流
 

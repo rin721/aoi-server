@@ -156,6 +156,9 @@ func registerIAMRoutes(v1 web.Router, deps RouterDeps) {
 	orgs.POST("/:orgId/users/invitations", orgScoped("user", "invite", deps.IAMHandler.InviteUser))
 	orgs.GET("/:orgId/invitations", orgScoped("user", "invite", deps.IAMHandler.ListInvitations))
 	orgs.DELETE("/:orgId/invitations/:invitationId", orgScoped("user", "invite", deps.IAMHandler.RevokeInvitation))
+	orgs.GET("/:orgId/api-tokens", orgScoped("api_token", "read", deps.IAMHandler.ListAPITokens))
+	orgs.POST("/:orgId/api-tokens", orgScoped("api_token", "create", deps.IAMHandler.CreateAPIToken))
+	orgs.DELETE("/:orgId/api-tokens/:tokenId", orgScoped("api_token", "revoke", deps.IAMHandler.RevokeAPIToken))
 	orgs.GET("/:orgId/roles", orgScoped("role", "read", deps.IAMHandler.ListRoles))
 	orgs.POST("/:orgId/roles", orgScoped("role", "create", deps.IAMHandler.CreateRole))
 	orgs.PATCH("/:orgId/roles/:roleId", orgScoped("role", "update", deps.IAMHandler.UpdateRole))
@@ -187,6 +190,23 @@ func registerSystemRoutes(v1 web.Router, deps RouterDeps) {
 	system.POST("/apis/permissions/sync", middleware.RequirePermission(deps.IAMAuthz, "permission", "sync", deps.SystemHandler.SyncPermissions))
 	system.GET("/operation-records", middleware.RequirePermission(deps.IAMAuthz, "operation", "read", deps.SystemHandler.ListOperationRecords))
 	system.DELETE("/operation-records", middleware.RequirePermission(deps.IAMAuthz, "operation", "delete", deps.SystemHandler.DeleteOperationRecords))
+	system.GET("/versions", middleware.RequirePermission(deps.IAMAuthz, "version", "read", deps.SystemHandler.ListVersions))
+	system.POST("/versions/export", middleware.RequirePermission(deps.IAMAuthz, "version", "create", deps.SystemHandler.ExportVersion))
+	system.POST("/versions/import", middleware.RequirePermission(deps.IAMAuthz, "version", "import", deps.SystemHandler.ImportVersion))
+	system.DELETE("/versions", middleware.RequirePermission(deps.IAMAuthz, "version", "delete", deps.SystemHandler.DeleteVersions))
+	system.GET("/versions/sources", middleware.RequirePermission(deps.IAMAuthz, "version", "read", deps.SystemHandler.ListVersionSources))
+	system.GET("/versions/:versionId", middleware.RequirePermission(deps.IAMAuthz, "version", "read", deps.SystemHandler.GetVersion))
+	system.GET("/versions/:versionId/download", middleware.RequirePermission(deps.IAMAuthz, "version", "download", deps.SystemHandler.DownloadVersion))
+	system.DELETE("/versions/:versionId", middleware.RequirePermission(deps.IAMAuthz, "version", "delete", deps.SystemHandler.DeleteVersion))
+	system.GET("/media/categories", middleware.RequirePermission(deps.IAMAuthz, "media", "read", deps.SystemHandler.ListMediaCategories))
+	system.POST("/media/categories", middleware.RequirePermission(deps.IAMAuthz, "media", "update", deps.SystemHandler.UpsertMediaCategory))
+	system.DELETE("/media/categories/:categoryId", middleware.RequirePermission(deps.IAMAuthz, "media", "update", deps.SystemHandler.DeleteMediaCategory))
+	system.GET("/media/assets", middleware.RequirePermission(deps.IAMAuthz, "media", "read", deps.SystemHandler.ListMediaAssets))
+	system.POST("/media/assets/upload", middleware.RequirePermission(deps.IAMAuthz, "media", "upload", deps.SystemHandler.UploadMediaAsset))
+	system.POST("/media/assets/import-url", middleware.RequirePermission(deps.IAMAuthz, "media", "import", deps.SystemHandler.ImportMediaURLs))
+	system.PATCH("/media/assets/:assetId", middleware.RequirePermission(deps.IAMAuthz, "media", "update", deps.SystemHandler.UpdateMediaAsset))
+	system.GET("/media/assets/:assetId/download", middleware.RequirePermission(deps.IAMAuthz, "media", "download", deps.SystemHandler.DownloadMediaAsset))
+	system.DELETE("/media/assets/:assetId", middleware.RequirePermission(deps.IAMAuthz, "media", "delete", deps.SystemHandler.DeleteMediaAsset))
 	system.GET("/parameters", middleware.RequirePermission(deps.IAMAuthz, "parameter", "read", deps.SystemHandler.ListParameters))
 	system.POST("/parameters", middleware.RequirePermission(deps.IAMAuthz, "parameter", "create", deps.SystemHandler.CreateParameter))
 	system.DELETE("/parameters", middleware.RequirePermission(deps.IAMAuthz, "parameter", "delete", deps.SystemHandler.DeleteParameters))
@@ -343,6 +363,40 @@ func apiRoutePermission(method string, path string) string {
 		return "operation:delete"
 	case path == "/api/v1/system/operation-records":
 		return "operation:read"
+	case path == "/api/v1/system/versions" && method == http.MethodGet:
+		return "version:read"
+	case path == "/api/v1/system/versions" && method == http.MethodDelete:
+		return "version:delete"
+	case path == "/api/v1/system/versions/export":
+		return "version:create"
+	case path == "/api/v1/system/versions/import":
+		return "version:import"
+	case path == "/api/v1/system/versions/sources":
+		return "version:read"
+	case strings.HasPrefix(path, "/api/v1/system/versions/") && strings.HasSuffix(path, "/download"):
+		return "version:download"
+	case strings.HasPrefix(path, "/api/v1/system/versions/") && method == http.MethodDelete:
+		return "version:delete"
+	case strings.HasPrefix(path, "/api/v1/system/versions/"):
+		return "version:read"
+	case path == "/api/v1/system/media/categories" && method == http.MethodGet:
+		return "media:read"
+	case path == "/api/v1/system/media/categories" && method == http.MethodPost:
+		return "media:update"
+	case strings.HasPrefix(path, "/api/v1/system/media/categories/"):
+		return "media:update"
+	case path == "/api/v1/system/media/assets" && method == http.MethodGet:
+		return "media:read"
+	case path == "/api/v1/system/media/assets/upload":
+		return "media:upload"
+	case path == "/api/v1/system/media/assets/import-url":
+		return "media:import"
+	case strings.HasPrefix(path, "/api/v1/system/media/assets/") && strings.HasSuffix(path, "/download"):
+		return "media:download"
+	case strings.HasPrefix(path, "/api/v1/system/media/assets/") && method == http.MethodDelete:
+		return "media:delete"
+	case strings.HasPrefix(path, "/api/v1/system/media/assets/"):
+		return "media:update"
 	case path == "/api/v1/system/parameters" && method == http.MethodGet:
 		return "parameter:read"
 	case path == "/api/v1/system/parameters" && method == http.MethodPost:
@@ -369,6 +423,12 @@ func apiRoutePermission(method string, path string) string {
 		return "dictionary:delete"
 	case strings.HasPrefix(path, "/api/v1/system/dictionary-items/"):
 		return "dictionary:update"
+	case strings.Contains(path, "/api-tokens/"):
+		return "api_token:revoke"
+	case strings.HasSuffix(path, "/api-tokens") && method == http.MethodPost:
+		return "api_token:create"
+	case strings.HasSuffix(path, "/api-tokens"):
+		return "api_token:read"
 	case strings.Contains(path, "/users/invitations") || strings.Contains(path, "/invitations"):
 		return "user:invite"
 	case strings.Contains(path, "/users/"):

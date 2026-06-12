@@ -27,6 +27,8 @@ http://127.0.0.1:9999
 Authorization: Bearer <accessToken>
 ```
 
+自动化调用也可以使用后台签发的 API Token 作为同一个 Bearer 值。API Token 固定到签发组织，并按签发时绑定的角色权限授权；完整 token 只在创建响应中返回一次。
+
 ## 探针接口
 
 | 方法 | 路径 | 认证 | 说明 |
@@ -106,6 +108,23 @@ Content-Type: application/json
 | POST | `/api/v1/system/apis/permissions/sync` | `permission:sync` | 从当前 API 目录提取权限码并补齐 `iam_permissions` 字典，便于角色授权页直接勾选。 |
 | GET | `/api/v1/system/operation-records` | `operation:read` | 分页查询后台受保护接口的操作记录，支持请求方法、路径和状态码筛选。 |
 | DELETE | `/api/v1/system/operation-records` | `operation:delete` | 按 ID 批量删除操作记录。 |
+| GET | `/api/v1/system/versions` | `version:read` | 分页查询系统版本发布包，支持创建日期、版本名称和版本号筛选。 |
+| GET | `/api/v1/system/versions/sources` | `version:read` | 返回可打包的菜单、API 和字典来源目录。 |
+| POST | `/api/v1/system/versions/export` | `version:create` | 按所选菜单、API 和字典创建版本发布包。 |
+| POST | `/api/v1/system/versions/import` | `version:import` | 导入版本发布包 JSON；字典会幂等补齐，菜单和 API 会记录在包内并报告跳过。 |
+| GET | `/api/v1/system/versions/{versionId}` | `version:read` | 读取版本发布包详情和完整包内容。 |
+| GET | `/api/v1/system/versions/{versionId}/download` | `version:download` | 返回版本发布包 JSON，前端会保存为文件。 |
+| DELETE | `/api/v1/system/versions/{versionId}` | `version:delete` | 软删除单个版本发布包。 |
+| DELETE | `/api/v1/system/versions` | `version:delete` | 按 ID 批量软删除版本发布包。 |
+| GET | `/api/v1/system/media/categories` | `media:read` | 返回媒体库分类树。 |
+| POST | `/api/v1/system/media/categories` | `media:update` | 创建或更新媒体分类。 |
+| DELETE | `/api/v1/system/media/categories/{categoryId}` | `media:update` | 删除空媒体分类；存在子分类或文件时会拒绝。 |
+| GET | `/api/v1/system/media/assets` | `media:read` | 分页查询媒体资源，支持 `categoryId`、`keyword`、`page`、`pageSize`。 |
+| POST | `/api/v1/system/media/assets/upload` | `media:upload` | multipart 普通上传，字段名为 `file`，可选 `categoryId`。 |
+| POST | `/api/v1/system/media/assets/import-url` | `media:import` | 导入外链媒体记录；只保存 URL，不抓取远程内容。 |
+| PATCH | `/api/v1/system/media/assets/{assetId}` | `media:update` | 更新媒体显示名称。 |
+| GET | `/api/v1/system/media/assets/{assetId}/download` | `media:download` | 鉴权下载本地媒体对象；外链资源应直接打开其 URL。 |
+| DELETE | `/api/v1/system/media/assets/{assetId}` | `media:delete` | 删除媒体资源；本地资源会尝试移除对象后软删除元数据。 |
 | GET | `/api/v1/system/parameters` | `parameter:read` | 分页查询系统参数，支持创建日期、参数名称和参数键筛选。 |
 | POST | `/api/v1/system/parameters` | `parameter:create` | 创建系统参数。 |
 | DELETE | `/api/v1/system/parameters` | `parameter:delete` | 按 ID 批量软删除系统参数。 |
@@ -120,6 +139,77 @@ Content-Type: application/json
 | POST | `/api/v1/system/dictionaries/{dictionaryId}/items` | `dictionary:update` | 创建字典项。 |
 | PATCH | `/api/v1/system/dictionary-items/{itemId}` | `dictionary:update` | 更新字典项标签、值、扩展信息、排序或状态。 |
 | DELETE | `/api/v1/system/dictionary-items/{itemId}` | `dictionary:delete` | 软删除字典项。 |
+
+### 创建版本发布包
+
+```http
+POST /api/v1/system/versions/export
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+```json
+{
+  "versionName": "June Release",
+  "versionCode": "v2026.06.12",
+  "description": "menus, APIs and dictionaries for release window",
+  "menuCodes": ["system:menus", "system:apis"],
+  "apiCodes": ["get /api/v1/system/menus", "get /api/v1/system/apis"],
+  "dictionaryCodes": ["system.status", "http.method"]
+}
+```
+
+`menuCodes` 使用 `menuGroupCode:menuItemCode`，`apiCodes` 使用 API 目录中的 `code` 字段，`dictionaryCodes` 使用字典编码。至少选择一种资源。
+
+### 导入版本发布包
+
+```http
+POST /api/v1/system/versions/import
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+```json
+{
+  "versionData": "{\"version\":{\"name\":\"June Release\",\"code\":\"v2026.06.12\",\"description\":\"demo\",\"exportTime\":\"2026-06-12T08:00:00Z\"},\"menus\":[],\"apis\":[],\"dictionaries\":[]}"
+}
+```
+
+导入会写入一条 `system_versions` 记录。当前系统的菜单来自代码内置目录，API 来自路由同步目录，因此导入时不会修改菜单和 API；字典和字典项会按编码和值幂等创建，响应中的 `menusSkipped`、`apisSkipped`、`dictionariesCreated` 和 `dictionaryItemsCreated` 可用于发布记录。
+
+### 媒体库普通上传
+
+```http
+POST /api/v1/system/media/assets/upload
+Authorization: Bearer <accessToken>
+Content-Type: multipart/form-data
+```
+
+表单字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `file` | 必填，上传文件。服务端会生成 `media/YYYY/MM/<id>.<ext>` 存储 key。 |
+| `categoryId` | 可选，媒体分类 ID；不传或 `0` 表示全部/根分类。 |
+
+普通上传需要 `storage.enabled=true`。如果 storage 未启用，接口返回 503；外链导入不依赖对象存储。
+
+### 导入媒体外链
+
+```http
+POST /api/v1/system/media/assets/import-url
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+```json
+{
+  "categoryId": 0,
+  "text": "我的图片|https://example.com/my.png\nhttps://example.com/other.png"
+}
+```
+
+也可以传 `items: [{ "name": "我的图片", "url": "https://example.com/my.png" }]`。导入只保存 URL 元数据，不会下载远程内容。
 
 ## IAM 公开接口
 
@@ -254,6 +344,9 @@ Content-Type: application/json
 | POST | `/api/v1/orgs/{orgId}/roles` | `role:create` | 在当前组织创建角色。 |
 | PATCH | `/api/v1/orgs/{orgId}/roles/{roleId}` | `role:update` | 更新自定义角色。 |
 | GET | `/api/v1/orgs/{orgId}/permissions` | `permission:read` | 查询可用权限。 |
+| GET | `/api/v1/orgs/{orgId}/api-tokens` | `api_token:read` | 分页查询当前组织 API Token，支持 `userId`、`status`、`page`、`pageSize`。 |
+| POST | `/api/v1/orgs/{orgId}/api-tokens` | `api_token:create` | 为组织成员和角色签发 API Token，完整 token 只在响应中返回一次。 |
+| DELETE | `/api/v1/orgs/{orgId}/api-tokens/{tokenId}` | `api_token:revoke` | 撤销 API Token。 |
 
 路径中的 `{orgId}` 必须与 access token 中的 `orgId` 一致。
 
@@ -286,6 +379,65 @@ Content-Type: application/json
   "description": "Daily operator",
   "permissions": ["user:read", "session:read"]
 }
+```
+
+## IAM API Token 接口
+
+API Token 接口用于管理服务到服务调用凭据。创建时必须选择当前组织中的用户和该用户已经拥有的角色，服务端会把 token 权限限制在这个角色上。
+
+### 查询 API Token
+
+```http
+GET /api/v1/orgs/10001/api-tokens?status=active&userId=10002&page=1&pageSize=10
+Authorization: Bearer <accessToken>
+```
+
+`status` 可选：`active`、`expired`、`revoked`。不传时返回全部状态。响应中的 `tokenPrefix` 只用于识别，不可用于认证。
+
+### 签发 API Token
+
+```http
+POST /api/v1/orgs/10001/api-tokens
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+```json
+{
+  "userId": 10002,
+  "roleCode": "member",
+  "days": 30,
+  "remark": "CI deploy job"
+}
+```
+
+`days` 省略或为 `0` 时默认 30 天，`-1` 表示长期有效，最大支持 3650 天。响应：
+
+```json
+{
+  "item": {
+    "id": "93001",
+    "userId": "10002",
+    "roleCode": "member",
+    "tokenPrefix": "aoi_xxxxxxxx",
+    "status": "active"
+  },
+  "token": "aoi_full_token_only_returned_once"
+}
+```
+
+调用业务接口时把 `token` 放入 Bearer 头：
+
+```http
+GET /api/v1/me
+Authorization: Bearer aoi_full_token_only_returned_once
+```
+
+### 撤销 API Token
+
+```http
+DELETE /api/v1/orgs/10001/api-tokens/93001
+Authorization: Bearer <accessToken>
 ```
 
 ## IAM 会话接口

@@ -15,14 +15,21 @@ const password = ref("")
 const checking = ref(true)
 const completed = ref(false)
 const error = ref("")
+const passwordMinLength = 8
+const passwordError = computed(() =>
+  password.value && password.value.length < passwordMinLength
+    ? `密码至少需要 ${passwordMinLength} 位。`
+    : undefined
+)
 
-const canSubmit = computed(() =>
+const canSubmit = computed(() => Boolean(
   orgCode.value.trim()
   && orgName.value.trim()
   && username.value.trim()
   && email.value.trim()
   && password.value
-)
+  && !passwordError.value
+))
 
 async function checkSetupStatus() {
   checking.value = true
@@ -42,6 +49,9 @@ async function checkSetupStatus() {
 
 async function submit() {
   if (!canSubmit.value || completed.value) {
+    if (passwordError.value) {
+      error.value = passwordError.value
+    }
     return
   }
 
@@ -83,7 +93,17 @@ useHead({
     <AoiTextField v-model="username" label="用户名" icon="user" autocomplete="username" :disabled="checking || completed" @enter="submit" />
     <AoiTextField v-model="displayName" label="显示名称" icon="id-card" :disabled="checking || completed" @enter="submit" />
     <AoiTextField v-model="email" label="邮箱" type="email" icon="mail" autocomplete="email" placeholder="admin@example.com" :disabled="checking || completed" @enter="submit" />
-    <AoiTextField v-model="password" label="密码" icon="key-round" type="password" autocomplete="new-password" :disabled="checking || completed" @enter="submit" />
+    <AoiTextField
+      v-model="password"
+      label="密码"
+      icon="key-round"
+      type="password"
+      autocomplete="new-password"
+      :disabled="checking || completed"
+      :supporting-text="`至少 ${passwordMinLength} 位`"
+      :error-text="passwordError"
+      @enter="submit"
+    />
 
     <AoiButton type="submit" icon="rocket" :disabled="!canSubmit || checking || completed" :loading="auth.loading || checking">
       初始化并进入

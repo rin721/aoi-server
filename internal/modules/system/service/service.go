@@ -19,6 +19,8 @@ import (
 
 type Config struct {
 	DemoEnabled   bool
+	MediaMaxBytes int64
+	MediaPrefix   string
 	RuntimeConfig model.ConfigSnapshot
 	Now           func() time.Time
 	StartTime     time.Time
@@ -28,20 +30,34 @@ type Service interface {
 	CreateDictionary(context.Context, CreateDictionaryInput) (*model.Dictionary, error)
 	CreateDictionaryItem(context.Context, int64, CreateDictionaryItemInput) (*model.DictionaryItem, error)
 	CreateParameter(context.Context, CreateParameterInput) (*model.Parameter, error)
+	DeleteVersion(context.Context, int64) error
+	DeleteVersions(context.Context, []int64) error
 	DeleteDictionary(context.Context, int64) error
 	DeleteDictionaryItem(context.Context, int64) error
+	DeleteMediaAsset(context.Context, int64) error
+	DeleteMediaCategory(context.Context, int64) error
 	DeleteOperationRecords(context.Context, []int64) error
 	DeleteParameter(context.Context, int64) error
 	DeleteParameters(context.Context, []int64) error
+	DownloadMediaAsset(context.Context, int64) (MediaDownload, error)
+	ExportVersion(context.Context, ExportVersionInput) (*model.VersionDetail, error)
 	FindParameter(context.Context, int64) (*model.Parameter, error)
 	FindParameterByKey(context.Context, string) (*model.Parameter, error)
+	FindVersion(context.Context, int64) (*model.VersionDetail, error)
 	GetServerInfo(context.Context) (model.ServerInfo, error)
+	GetVersionPackage(context.Context, int64) (model.VersionPackage, error)
+	ImportMediaURLs(context.Context, ImportMediaURLsInput) (model.MediaURLImportResult, error)
+	ImportVersion(context.Context, ImportVersionInput) (model.VersionImportResult, error)
 	ListAPIs(context.Context) ([]model.APIGroup, error)
 	ListConfig(context.Context) (model.ConfigSnapshot, error)
 	ListDictionaries(context.Context) (model.DictionaryCatalog, error)
+	ListMediaAssets(context.Context, MediaAssetFilter) (model.MediaAssetPage, error)
+	ListMediaCategories(context.Context) (model.MediaCategoryCatalog, error)
 	ListMenus(context.Context) ([]model.MenuGroup, error)
 	ListOperationRecords(context.Context, OperationRecordFilter) (model.OperationRecordPage, error)
 	ListParameters(context.Context, ParameterFilter) (model.ParameterPage, error)
+	ListVersionSources(context.Context) (model.VersionSourceCatalog, error)
+	ListVersions(context.Context, VersionFilter) (model.VersionPage, error)
 	RecordOperation(context.Context, OperationRecordInput) error
 	RegisterAPIs([]model.APIEntry)
 	SeedDefaults(context.Context) (SeedResult, error)
@@ -49,7 +65,10 @@ type Service interface {
 	SyncPermissions(context.Context) (model.PermissionSyncResult, error)
 	UpdateDictionary(context.Context, int64, UpdateDictionaryInput) (*model.Dictionary, error)
 	UpdateDictionaryItem(context.Context, int64, UpdateDictionaryItemInput) (*model.DictionaryItem, error)
+	UpdateMediaAsset(context.Context, int64, UpdateMediaAssetInput) (*model.MediaAsset, error)
 	UpdateParameter(context.Context, int64, UpdateParameterInput) (*model.Parameter, error)
+	UploadMediaAsset(context.Context, UploadMediaAssetInput) (*model.MediaAsset, error)
+	UpsertMediaCategory(context.Context, UpsertMediaCategoryInput) (*model.MediaCategory, error)
 }
 
 type Option func(*service)
@@ -137,6 +156,7 @@ type ParameterFilter struct {
 
 var (
 	ErrDuplicate          = errors.New("system resource already exists")
+	ErrExternalMedia      = errors.New("external media can be opened by url")
 	ErrInvalidInput       = errors.New("invalid system input")
 	ErrNotFound           = errors.New("system resource not found")
 	ErrStorageUnavailable = errors.New("system storage unavailable")
@@ -147,6 +167,7 @@ type service struct {
 	ids             utils.IDGenerator
 	mu              sync.RWMutex
 	apis            []model.APIEntry
+	objectStore     MediaObjectStorage
 	repo            repository.Repository
 	permissionStore PermissionStore
 }
@@ -169,6 +190,12 @@ func WithPermissionStore(store PermissionStore) Option {
 	}
 }
 
+func WithStorage(store MediaObjectStorage) Option {
+	return func(s *service) {
+		s.objectStore = store
+	}
+}
+
 func New(cfg Config, options ...Option) Service {
 	s := &service{cfg: cfg}
 	for _, option := range options {
@@ -176,6 +203,12 @@ func New(cfg Config, options ...Option) Service {
 	}
 	if s.ids == nil {
 		s.ids = utils.DefaultSnowflake()
+	}
+	if strings.TrimSpace(s.cfg.MediaPrefix) == "" {
+		s.cfg.MediaPrefix = "media"
+	}
+	if s.cfg.MediaMaxBytes <= 0 {
+		s.cfg.MediaMaxBytes = 20 * 1024 * 1024
 	}
 	return s
 }
@@ -1373,10 +1406,11 @@ var baseMenus = []model.MenuGroup{
 		Order: 20,
 		Items: []model.MenuItem{
 			{Code: "sessions", Label: "会话", Icon: "monitor-check", Path: "/sessions", Permission: "session:read", Order: 10},
-			{Code: "login-logs", Label: "登录日志", Icon: "log-in", Path: "/login-logs", Permission: "audit:read", Order: 20},
-			{Code: "audit-logs", Label: "审计日志", Icon: "scroll-text", Path: "/audit-logs", Permission: "audit:read", Order: 30},
-			{Code: "error-logs", Label: "错误日志", Icon: "bug", Path: "/error-logs", Permission: "operation:read", Order: 40},
-			{Code: "security", Label: "安全", Icon: "lock-keyhole", Path: "/security", Order: 50},
+			{Code: "api-tokens", Label: "API Token", Icon: "key-round", Path: "/api-tokens", Permission: "api_token:read", Order: 20},
+			{Code: "login-logs", Label: "登录日志", Icon: "log-in", Path: "/login-logs", Permission: "audit:read", Order: 30},
+			{Code: "audit-logs", Label: "审计日志", Icon: "scroll-text", Path: "/audit-logs", Permission: "audit:read", Order: 40},
+			{Code: "error-logs", Label: "错误日志", Icon: "bug", Path: "/error-logs", Permission: "operation:read", Order: 50},
+			{Code: "security", Label: "安全", Icon: "lock-keyhole", Path: "/security", Order: 60},
 		},
 	},
 	{
@@ -1389,8 +1423,9 @@ var baseMenus = []model.MenuGroup{
 			{Code: "dictionaries", Label: "字典管理", Icon: "book-open", Path: "/dictionaries", Permission: "dictionary:read", Order: 30},
 			{Code: "operation-records", Label: "操作历史", Icon: "history", Path: "/operation-records", Permission: "operation:read", Order: 40},
 			{Code: "parameters", Label: "参数管理", Icon: "compass", Path: "/parameters", Permission: "parameter:read", Order: 50},
-			{Code: "system-config", Label: "系统配置", Icon: "settings", Path: "/system", Permission: "config:read", Order: 60},
-			{Code: "server-info", Label: "服务器状态", Icon: "activity", Path: "/server-info", Permission: "server:read", Order: 70},
+			{Code: "versions", Label: "版本管理", Icon: "package-check", Path: "/versions", Permission: "version:read", Order: 60},
+			{Code: "system-config", Label: "系统配置", Icon: "settings", Path: "/system", Permission: "config:read", Order: 70},
+			{Code: "server-info", Label: "服务器状态", Icon: "activity", Path: "/server-info", Permission: "server:read", Order: 80},
 		},
 	},
 }
@@ -1401,5 +1436,6 @@ var demoMenu = model.MenuGroup{
 	Order: 90,
 	Items: []model.MenuItem{
 		{Code: "todos", Label: "Demo Todo", Icon: "list-checks", Path: "/todos", Order: 10},
+		{Code: "media", Label: "媒体库", Icon: "image-up", Path: "/media", Permission: "media:read", Order: 20},
 	},
 }

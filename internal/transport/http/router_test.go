@@ -199,6 +199,15 @@ func (s *fakeIAMService) ListUsers(context.Context, iamservice.Principal) ([]iam
 func (s *fakeIAMService) UpdateUser(context.Context, iamservice.UpdateUserInput) (*iamservice.OrganizationUser, error) {
 	return nil, nil
 }
+func (s *fakeIAMService) CreateAPIToken(context.Context, iamservice.CreateAPITokenInput) (iamservice.CreateAPITokenResult, error) {
+	return iamservice.CreateAPITokenResult{}, nil
+}
+func (s *fakeIAMService) ListAPITokens(context.Context, iamservice.Principal, iamservice.APITokenFilter) (iamservice.APITokenPage, error) {
+	return iamservice.APITokenPage{}, nil
+}
+func (s *fakeIAMService) RevokeAPIToken(context.Context, iamservice.RevokeAPITokenInput) error {
+	return nil
+}
 func (s *fakeIAMService) ListRoles(context.Context, iamservice.Principal) ([]iammodel.Role, error) {
 	return nil, nil
 }
@@ -399,6 +408,12 @@ func TestOpenAPICoversIAMProductRoutes(t *testing.T) {
 		"/api/v1/system/parameters/{parameterId}:",
 		"/api/v1/system/parameters/value:",
 		"/api/v1/system/server-info:",
+		"/api/v1/system/versions:",
+		"/api/v1/system/versions/export:",
+		"/api/v1/system/versions/import:",
+		"/api/v1/system/versions/sources:",
+		"/api/v1/system/versions/{versionId}:",
+		"/api/v1/system/versions/{versionId}/download:",
 	} {
 		if !strings.Contains(spec, path) {
 			t.Fatalf("openapi.yaml missing path %s", path)
@@ -418,6 +433,7 @@ func TestNewRouterSystemMenusRequireAuthAndFilterPermissions(t *testing.T) {
 		"permission:read": true,
 		"role:read":       true,
 		"server:read":     true,
+		"version:read":    true,
 	}, nil)
 	router := newTestRouter(RouterDeps{
 		IAMAuth:       auth,
@@ -470,6 +486,9 @@ func TestNewRouterSystemMenusRequireAuthAndFilterPermissions(t *testing.T) {
 	}
 	if !menuContains(body, "system", "server-info") {
 		t.Fatalf("expected server info menu in %#v", body.Data)
+	}
+	if !menuContains(body, "system", "versions") {
+		t.Fatalf("expected version management menu in %#v", body.Data)
 	}
 	if menuContains(body, "workspace", "users") {
 		t.Fatalf("expected users menu to be hidden without user:read permission: %#v", body.Data)
@@ -561,6 +580,21 @@ func TestNewRouterSystemAPIsRequirePermissionAndListCatalog(t *testing.T) {
 	}
 	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/menus", "") {
 		t.Fatalf("expected system api catalog to include menus: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/versions", "version:read") {
+		t.Fatalf("expected system api catalog to include versions list: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodPost, "/api/v1/system/versions/export", "version:create") {
+		t.Fatalf("expected system api catalog to include version export: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodPost, "/api/v1/system/versions/import", "version:import") {
+		t.Fatalf("expected system api catalog to include version import: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/versions/:versionId/download", "version:download") {
+		t.Fatalf("expected system api catalog to include version download: %#v", body.Data)
+	}
+	if !apiCatalogContains(body, http.MethodDelete, "/api/v1/system/versions/:versionId", "version:delete") {
+		t.Fatalf("expected system api catalog to include version delete: %#v", body.Data)
 	}
 }
 
@@ -742,8 +776,8 @@ func TestNewRouterKeepsAPIAndProbesOutsideWebUI(t *testing.T) {
 	}
 }
 
-// TestNewRouterSkipsWebUIWhenDistMissing 固定缺少静态产物时后端仍可创建路由，管理台前缀返回 404。
-func TestNewRouterSkipsWebUIWhenDistMissing(t *testing.T) {
+// TestNewRouterReturns404WhenWebUIDistMissing 固定缺少静态产物时后端仍可创建路由，管理台前缀返回 404。
+func TestNewRouterReturns404WhenWebUIDistMissing(t *testing.T) {
 	router := newTestRouter(RouterDeps{
 		WebUI: WebUIDeps{Enabled: true, MountPath: "/admin", DistDir: filepath.Join(t.TempDir(), "missing")},
 	})
@@ -751,6 +785,41 @@ func TestNewRouterSkipsWebUIWhenDistMissing(t *testing.T) {
 	recorder := performRawRouterRequest(router, http.MethodGet, "/admin")
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("expected missing WebUI dist to return %d, got %d with body %s", http.StatusNotFound, recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestNewRouterServesAdminWebUIAfterLateStaticGeneration(t *testing.T) {
+	distDir := t.TempDir()
+	router := newTestRouter(RouterDeps{
+		WebUI: WebUIDeps{Enabled: true, MountPath: "/admin", DistDir: distDir},
+	})
+
+	before := performRawRouterRequest(router, http.MethodGet, "/admin")
+	if before.Code != http.StatusNotFound {
+		t.Fatalf("expected missing WebUI dist to return %d before generation, got %d with body %s", http.StatusNotFound, before.Code, before.Body.String())
+	}
+
+	nuxtDir := filepath.Join(distDir, "_nuxt")
+	if err := os.MkdirAll(nuxtDir, 0755); err != nil {
+		t.Fatalf("mkdir _nuxt: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(distDir, "index.html"), []byte(`<!doctype html><div id="admin-shell"></div>`), 0644); err != nil {
+		t.Fatalf("write index.html: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(nuxtDir, "app.js"), []byte(`console.log("admin")`), 0644); err != nil {
+		t.Fatalf("write app.js: %v", err)
+	}
+
+	after := performRawRouterRequest(router, http.MethodGet, "/admin/login")
+	if after.Code != http.StatusOK {
+		t.Fatalf("expected late generated WebUI status %d, got %d with body %s", http.StatusOK, after.Code, after.Body.String())
+	}
+	if !strings.Contains(after.Body.String(), "admin-shell") {
+		t.Fatalf("expected late generated WebUI to serve index.html, got %q", after.Body.String())
+	}
+	asset := performRawRouterRequest(router, http.MethodGet, "/admin/_nuxt/app.js")
+	if asset.Code != http.StatusOK || !strings.Contains(asset.Body.String(), "console.log") {
+		t.Fatalf("expected late generated asset response, got status %d body %s", asset.Code, asset.Body.String())
 	}
 }
 

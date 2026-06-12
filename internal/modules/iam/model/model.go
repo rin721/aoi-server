@@ -8,6 +8,7 @@ const (
 	StatusPending  = "pending"
 	StatusUsed     = "used"
 	StatusRevoked  = "revoked"
+	StatusExpired  = "expired"
 
 	RoleOwner  = "owner"
 	RoleAdmin  = "admin"
@@ -97,6 +98,27 @@ type Session struct {
 }
 
 func (Session) TableName() string { return "iam_sessions" }
+
+type APIToken struct {
+	ID                int64      `gorm:"column:id;primaryKey" json:"id,string"`
+	OrgID             int64      `gorm:"column:org_id;not null" json:"orgId,string"`
+	UserID            int64      `gorm:"column:user_id;not null" json:"userId,string"`
+	RoleCode          string     `gorm:"column:role_code;size:64;not null" json:"roleCode"`
+	TokenPrefix       string     `gorm:"column:token_prefix;size:32;not null" json:"tokenPrefix"`
+	TokenHash         string     `gorm:"column:token_hash;size:128;not null;uniqueIndex" json:"-"`
+	Status            string     `gorm:"column:status;size:32;not null" json:"status"`
+	ExpiresAt         *time.Time `gorm:"column:expires_at" json:"expiresAt,omitempty"`
+	LastUsedAt        *time.Time `gorm:"column:last_used_at" json:"lastUsedAt,omitempty"`
+	LastUsedIPAddress string     `gorm:"column:last_used_ip_address;size:64;not null" json:"lastUsedIpAddress"`
+	RevokedAt         *time.Time `gorm:"column:revoked_at" json:"revokedAt,omitempty"`
+	RevokedBy         *int64     `gorm:"column:revoked_by" json:"revokedBy,omitempty,string"`
+	Remark            string     `gorm:"column:remark;not null" json:"remark"`
+	CreatedBy         int64      `gorm:"column:created_by;not null" json:"createdBy,string"`
+	CreatedAt         time.Time  `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt         time.Time  `gorm:"column:updated_at" json:"updatedAt"`
+}
+
+func (APIToken) TableName() string { return "iam_api_tokens" }
 
 type Invitation struct {
 	ID         int64     `gorm:"column:id;primaryKey" json:"id,string"`

@@ -113,6 +113,7 @@ func (c *authTestContext) Get(key any) (any, bool) {
 func (c *authTestContext) Param(name string) string  { return c.params[name] }
 func (c *authTestContext) BindJSON(dest any) error   { return nil }
 func (c *authTestContext) JSON(status int, body any) {}
+func (c *authTestContext) Data(int, string, []byte)  {}
 func (c *authTestContext) AbortWithStatusJSON(status int, body any) {
 	c.abortStatus = status
 	c.abortBody = body

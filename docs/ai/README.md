@@ -10,8 +10,8 @@ application packages.
 - `tooling.md`: installed AI, GitHub, lint, and security tools.
 - `prompts.md`: reusable prompts for common development tasks.
 - `handoff-template.md`: compact handoff format for long-running work.
-- `gin-vue-admin-parity.md`: reference notes for incremental Gin-Vue-Admin
-  parity work.
+- `gin-vue-admin-parity.md`: persistent task book, status board, visual
+  reference notes, and handoff point for incremental Gin-Vue-Admin parity work.
 
 ## Default Workflow
 
@@ -34,3 +34,6 @@ govulncheck ./...
 gosec ./...
 osv-scanner scan source .
 ```
+## GVA 平替任务书
+
+`gin-vue-admin-parity.md` 是当前逐步平替 Gin-Vue-Admin demo 的持久化任务书。每个切片开始前先记录研究计划和视觉证据；版本管理和媒体库切片已记录 GVA demo 截图、上游源码入口、本地实现边界和验证计划。

@@ -110,6 +110,13 @@ type updateUserRequest struct {
 	Roles  *[]string `json:"roles"`
 }
 
+type createAPITokenRequest struct {
+	UserID   int64String `json:"userId" binding:"required"`
+	RoleCode string      `json:"roleCode" binding:"required"`
+	Days     int         `json:"days"`
+	Remark   string      `json:"remark"`
+}
+
 type updateRoleRequest struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
@@ -418,6 +425,57 @@ func (h *Handler) UpdateUser(c web.Context) {
 	h.write(c, user, err)
 }
 
+func (h *Handler) ListAPITokens(c web.Context) {
+	principal, ok := requirePrincipal(c)
+	if !ok {
+		return
+	}
+	filter, ok := parseAPITokenFilter(c)
+	if !ok {
+		return
+	}
+	page, err := h.service.ListAPITokens(c.RequestContext(), principal, filter)
+	h.write(c, page, err)
+}
+
+func (h *Handler) CreateAPIToken(c web.Context) {
+	principal, ok := requirePrincipal(c)
+	if !ok {
+		return
+	}
+	var req createAPITokenRequest
+	if !bind(c, &req) {
+		return
+	}
+	created, err := h.service.CreateAPIToken(c.RequestContext(), service.CreateAPITokenInput{
+		Principal: principal,
+		UserID:    int64(req.UserID),
+		RoleCode:  req.RoleCode,
+		Days:      req.Days,
+		Remark:    req.Remark,
+		UserAgent: c.GetHeader("User-Agent"),
+		IPAddress: c.ClientIP(),
+	})
+	h.writeCreated(c, created, err)
+}
+
+func (h *Handler) RevokeAPIToken(c web.Context) {
+	principal, ok := requirePrincipal(c)
+	if !ok {
+		return
+	}
+	id, ok := parseInt64Param(c, "tokenId")
+	if !ok {
+		return
+	}
+	h.write(c, map[string]bool{"revoked": true}, h.service.RevokeAPIToken(c.RequestContext(), service.RevokeAPITokenInput{
+		Principal: principal,
+		TokenID:   id,
+		UserAgent: c.GetHeader("User-Agent"),
+		IPAddress: c.ClientIP(),
+	}))
+}
+
 func (h *Handler) ListRoles(c web.Context) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
@@ -569,6 +627,36 @@ func parseAuditLogFilter(c web.Context) (service.AuditLogFilter, bool) {
 			return service.AuditLogFilter{}, false
 		}
 		filter.To = parsed
+	}
+	return filter, true
+}
+
+func parseAPITokenFilter(c web.Context) (service.APITokenFilter, bool) {
+	query := c.Request().URL.Query()
+	filter := service.APITokenFilter{Status: query.Get("status")}
+	if raw := query.Get("page"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			result.BadRequest(c, "invalid page")
+			return service.APITokenFilter{}, false
+		}
+		filter.Page = parsed
+	}
+	if raw := query.Get("pageSize"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			result.BadRequest(c, "invalid pageSize")
+			return service.APITokenFilter{}, false
+		}
+		filter.PageSize = parsed
+	}
+	if raw := query.Get("userId"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			result.BadRequest(c, "invalid userId")
+			return service.APITokenFilter{}, false
+		}
+		filter.UserID = parsed
 	}
 	return filter, true
 }

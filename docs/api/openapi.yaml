@@ -14,6 +14,7 @@ tags:
   - name: IAM 认证
   - name: IAM 账号
   - name: IAM 组织
+  - name: IAM API Token
   - name: IAM 会话
   - name: IAM 审计
   - name: 插件
@@ -927,6 +928,127 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/api-tokens:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+    get:
+      tags: [IAM API Token]
+      summary: List IAM API tokens
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, expired, revoked]
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: API token page.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/APITokenPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags: [IAM API Token]
+      summary: Issue IAM API token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAPITokenRequest"
+      responses:
+        "201":
+          description: API token issued. The plaintext token is returned only once.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CreateAPITokenResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/orgs/{orgId}/api-tokens/{tokenId}:
+    parameters:
+      - $ref: "#/components/parameters/OrgID"
+      - name: tokenId
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      tags: [IAM API Token]
+      summary: Revoke IAM API token
+      responses:
+        "200":
+          description: API token revoked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [revoked]
+                        properties:
+                          revoked:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/v1/orgs/{orgId}/sessions:
     parameters:
       - $ref: "#/components/parameters/OrgID"
@@ -1399,6 +1521,633 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/versions:
+    get:
+      tags: [System]
+      summary: List system version packages
+      parameters:
+        - name: versionName
+          in: query
+          schema:
+            type: string
+        - name: versionCode
+          in: query
+          schema:
+            type: string
+        - name: startCreatedAt
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endCreatedAt
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: System version packages ordered by newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemVersionPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [System]
+      summary: Delete system version packages by id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: System version packages deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [deleted]
+                        properties:
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/versions/sources:
+    get:
+      tags: [System]
+      summary: List system version package sources
+      responses:
+        "200":
+          description: Menus, APIs and dictionaries that can be added to a version package.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemVersionSourceCatalog"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/versions/export:
+    post:
+      tags: [System]
+      summary: Create system version package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportSystemVersionRequest"
+      responses:
+        "201":
+          description: System version package created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemVersionDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/versions/import:
+    post:
+      tags: [System]
+      summary: Import system version package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [versionData]
+              properties:
+                versionData:
+                  type: string
+                  description: JSON encoded SystemVersionPackage.
+      responses:
+        "201":
+          description: System version package imported.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemVersionImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/versions/{versionId}:
+    parameters:
+      - name: versionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    get:
+      tags: [System]
+      summary: Get system version package
+      responses:
+        "200":
+          description: System version package detail.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemVersionDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [System]
+      summary: Delete system version package
+      responses:
+        "200":
+          description: System version package deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [deleted]
+                        properties:
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/versions/{versionId}/download:
+    parameters:
+      - name: versionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    get:
+      tags: [System]
+      summary: Download system version package JSON
+      responses:
+        "200":
+          description: System version package JSON.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemVersionPackage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/media/categories:
+    get:
+      tags: [System]
+      summary: List media categories
+      responses:
+        "200":
+          description: Media category tree.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemMediaCategoryCatalog"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags: [System]
+      summary: Create or update media category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertMediaCategoryRequest"
+      responses:
+        "201":
+          description: Media category created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemMediaCategory"
+        "200":
+          description: Media category updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemMediaCategory"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/media/categories/{categoryId}:
+    parameters:
+      - name: categoryId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    delete:
+      tags: [System]
+      summary: Delete empty media category
+      responses:
+        "200":
+          description: Media category deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [deleted]
+                        properties:
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/media/assets:
+    get:
+      tags: [System]
+      summary: List media assets
+      parameters:
+        - name: categoryId
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Optional category id; omitted or 0 means all categories.
+        - name: keyword
+          in: query
+          schema:
+            type: string
+          description: Partial display name, original filename, or URL filter.
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Media assets ordered by newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemMediaAssetPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/media/assets/upload:
+    post:
+      tags: [System]
+      summary: Upload local media asset
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                categoryId:
+                  type: integer
+                  format: int64
+      responses:
+        "201":
+          description: Media asset uploaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemMediaAsset"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/media/assets/import-url:
+    post:
+      tags: [System]
+      summary: Import external media URLs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportMediaURLsRequest"
+      responses:
+        "201":
+          description: External media URL records imported.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemMediaURLImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/media/assets/{assetId}:
+    parameters:
+      - name: assetId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    patch:
+      tags: [System]
+      summary: Update media display name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [displayName]
+              properties:
+                displayName:
+                  type: string
+      responses:
+        "200":
+          description: Media asset updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SystemMediaAsset"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [System]
+      summary: Delete media asset
+      responses:
+        "200":
+          description: Media asset deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [deleted]
+                        properties:
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/system/media/assets/{assetId}/download:
+    parameters:
+      - name: assetId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    get:
+      tags: [System]
+      summary: Download local media asset
+      responses:
+        "200":
+          description: Binary media object.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
         "500":
@@ -2573,6 +3322,321 @@ components:
           format: date-time
         total:
           type: integer
+    ExportSystemVersionRequest:
+      type: object
+      required: [versionName, versionCode]
+      properties:
+        versionName:
+          type: string
+        versionCode:
+          type: string
+        description:
+          type: string
+        menuCodes:
+          type: array
+          items:
+            type: string
+          description: Menu selectors in group:item form.
+        apiCodes:
+          type: array
+          items:
+            type: string
+          description: API entry code values.
+        dictionaryCodes:
+          type: array
+          items:
+            type: string
+          description: Dictionary code values.
+    SystemVersionPage:
+      type: object
+      required: [items, page, pageSize, storageStatus, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemVersion"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        storageStatus:
+          type: string
+          enum: [unavailable, persisted]
+        total:
+          type: integer
+          format: int64
+    SystemVersion:
+      type: object
+      required: [id, versionName, versionCode, description, menuCount, apiCount, dictionaryCount, source, createdBy, createdByUsername, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: int64 id encoded as string.
+        versionName:
+          type: string
+        versionCode:
+          type: string
+        description:
+          type: string
+        menuCount:
+          type: integer
+        apiCount:
+          type: integer
+        dictionaryCount:
+          type: integer
+        source:
+          type: string
+          enum: [export, import]
+        createdBy:
+          type: string
+          description: int64 user id encoded as string.
+        createdByUsername:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SystemVersionPackageInfo:
+      type: object
+      required: [name, code, description, exportTime]
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+        exportTime:
+          type: string
+          format: date-time
+    SystemVersionPackage:
+      type: object
+      required: [version, menus, apis, dictionaries]
+      properties:
+        version:
+          $ref: "#/components/schemas/SystemVersionPackageInfo"
+        menus:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemMenuGroup"
+        apis:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemAPIEntry"
+        dictionaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemDictionary"
+    SystemVersionDetail:
+      type: object
+      required: [item, package]
+      properties:
+        item:
+          $ref: "#/components/schemas/SystemVersion"
+        package:
+          $ref: "#/components/schemas/SystemVersionPackage"
+    SystemVersionSourceCatalog:
+      type: object
+      required: [menus, menuCount, apis, apiCount, dictionaries, dictionaryCount, storageStatus]
+      properties:
+        menus:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemMenuGroup"
+        menuCount:
+          type: integer
+        apis:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemAPIGroup"
+        apiCount:
+          type: integer
+        dictionaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemDictionary"
+        dictionaryCount:
+          type: integer
+        storageStatus:
+          type: string
+          enum: [unavailable, persisted]
+    SystemVersionImportResult:
+      type: object
+      required: [item, menusSkipped, apisSkipped, dictionariesCreated, dictionariesSkipped, dictionaryItemsCreated, importedAt, storageStatus]
+      properties:
+        item:
+          $ref: "#/components/schemas/SystemVersion"
+        menusSkipped:
+          type: integer
+        apisSkipped:
+          type: integer
+        dictionariesCreated:
+          type: integer
+        dictionariesSkipped:
+          type: integer
+        dictionaryItemsCreated:
+          type: integer
+        importedAt:
+          type: string
+          format: date-time
+        storageStatus:
+          type: string
+          enum: [unavailable, persisted]
+    UpsertMediaCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        id:
+          type: string
+          description: Optional int64 category id encoded as string; omitted or 0 creates a new category.
+        parentId:
+          type: string
+          description: Optional int64 parent id encoded as string; omitted or 0 means root.
+        name:
+          type: string
+        sort:
+          type: integer
+    SystemMediaCategoryCatalog:
+      type: object
+      required: [items, storageStatus, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemMediaCategory"
+        storageStatus:
+          type: string
+          enum: [unavailable, persisted]
+        total:
+          type: integer
+    SystemMediaCategory:
+      type: object
+      required: [id, parentId, name, sort, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: int64 id encoded as string.
+        parentId:
+          type: string
+          description: int64 parent id encoded as string.
+        name:
+          type: string
+        sort:
+          type: integer
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemMediaCategory"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SystemMediaAssetPage:
+      type: object
+      required: [items, objectStorage, page, pageSize, storageStatus, total, uploadMaxBytes, uploadMaxMb, uploadUnavailable]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemMediaAsset"
+        objectStorage:
+          type: string
+          enum: [enabled, unavailable]
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        storageStatus:
+          type: string
+          enum: [unavailable, persisted]
+        total:
+          type: integer
+          format: int64
+        uploadMaxBytes:
+          type: integer
+          format: int64
+        uploadMaxMb:
+          type: integer
+          format: int64
+        uploadUnavailable:
+          type: boolean
+    SystemMediaAsset:
+      type: object
+      required: [id, categoryId, displayName, originalName, storageKey, url, mimeType, extension, sizeBytes, source, external, uploadedBy, uploadedByUsername, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: int64 id encoded as string.
+        categoryId:
+          type: string
+          description: int64 category id encoded as string.
+        displayName:
+          type: string
+        originalName:
+          type: string
+        storageKey:
+          type: string
+        url:
+          type: string
+        mimeType:
+          type: string
+        extension:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        source:
+          type: string
+          enum: [upload, url]
+        external:
+          type: boolean
+        uploadedBy:
+          type: string
+          description: int64 user id encoded as string.
+        uploadedByUsername:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ImportMediaURLsRequest:
+      type: object
+      properties:
+        categoryId:
+          type: string
+          description: Optional int64 category id encoded as string; omitted or 0 means root/all.
+        text:
+          type: string
+          description: Newline separated URL entries. Each line can be name|url or just url.
+        items:
+          type: array
+          items:
+            type: object
+            required: [url]
+            properties:
+              name:
+                type: string
+              url:
+                type: string
+    SystemMediaURLImportResult:
+      type: object
+      required: [items, imported, storageStatus]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SystemMediaAsset"
+        imported:
+          type: integer
+        storageStatus:
+          type: string
+          enum: [unavailable, persisted]
     SystemDictionaryCatalog:
       type: object
       required: [items, storageStatus, total]
@@ -2892,6 +3956,96 @@ components:
           items:
             type: string
             example: user:read
+    CreateAPITokenRequest:
+      type: object
+      required: [userId, roleCode]
+      properties:
+        userId:
+          type: string
+        roleCode:
+          type: string
+          example: member
+        days:
+          type: integer
+          description: 0 defaults to 30 days; -1 means no expiration.
+          example: 30
+        remark:
+          type: string
+    APIToken:
+      type: object
+      required: [id, orgId, userId, username, userDisplayName, roleCode, tokenPrefix, status, remark, createdBy, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        orgId:
+          type: string
+        userId:
+          type: string
+        username:
+          type: string
+        userDisplayName:
+          type: string
+        roleCode:
+          type: string
+        tokenPrefix:
+          type: string
+          description: Display-only prefix; not usable for authentication.
+        status:
+          type: string
+          enum: [active, expired, revoked]
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedIpAddress:
+          type: string
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokedBy:
+          type: string
+          nullable: true
+        remark:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    APITokenPage:
+      type: object
+      required: [items, page, pageSize, storageStatus, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/APIToken"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        storageStatus:
+          type: string
+        total:
+          type: integer
+          format: int64
+    CreateAPITokenResult:
+      type: object
+      required: [item, token]
+      properties:
+        item:
+          $ref: "#/components/schemas/APIToken"
+        token:
+          type: string
+          description: Plaintext API token returned only once at creation.
     UpdateUserRequest:
       type: object
       properties:

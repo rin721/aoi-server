@@ -28,6 +28,7 @@ const baseGroups: AdminNavGroup[] = [
     label: "安全审计",
     items: [
       { icon: "monitor-check", label: "会话", to: "/sessions" },
+      { icon: "key-round", label: "API Token", permission: "api_token:read", to: "/api-tokens" },
       { icon: "scroll-text", label: "审计日志", to: "/audit-logs" },
       { icon: "lock-keyhole", label: "安全", to: "/security" }
     ]
@@ -41,6 +42,8 @@ const baseGroups: AdminNavGroup[] = [
       { icon: "book-open", label: "字典管理", to: "/dictionaries" },
       { icon: "history", label: "操作历史", to: "/operation-records" },
       { icon: "compass", label: "参数管理", to: "/parameters" },
+      { icon: "package-check", label: "版本管理", permission: "version:read", to: "/versions" },
+      { icon: "image-up", label: "媒体库", permission: "media:read", to: "/media" },
       { icon: "settings", label: "系统配置", to: "/system" },
       { icon: "activity", label: "服务器状态", to: "/server-info" }
     ]

@@ -19,6 +19,7 @@ export function formatStatus(value?: string | null) {
   const map: Record<string, string> = {
     active: "启用",
     disabled: "禁用",
+    expired: "已过期",
     pending: "待处理",
     revoked: "已撤销",
     used: "已使用"
@@ -29,7 +30,11 @@ export function formatStatus(value?: string | null) {
 
 export function errorMessage(error: unknown) {
   if (error && typeof error === "object" && "message" in error) {
-    return String((error as { message?: unknown }).message || "请求失败")
+    const message = String((error as { message?: unknown }).message || "")
+    if (message === "invalid iam input") {
+      return "输入不符合 IAM 要求，请检查必填项和密码规则。"
+    }
+    return message || "请求失败"
   }
 
   return "请求失败"

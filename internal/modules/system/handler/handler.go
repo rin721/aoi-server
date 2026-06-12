@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -72,6 +73,45 @@ type deleteOperationRecordsRequest struct {
 
 type deleteParametersRequest struct {
 	IDs []systemID `json:"ids"`
+}
+
+type deleteVersionsRequest struct {
+	IDs []systemID `json:"ids"`
+}
+
+type exportVersionRequest struct {
+	APICodes        []string `json:"apiCodes"`
+	Description     string   `json:"description"`
+	DictionaryCodes []string `json:"dictionaryCodes"`
+	MenuCodes       []string `json:"menuCodes"`
+	VersionCode     string   `json:"versionCode" binding:"required"`
+	VersionName     string   `json:"versionName" binding:"required"`
+}
+
+type importVersionRequest struct {
+	VersionData string `json:"versionData" binding:"required"`
+}
+
+type upsertMediaCategoryRequest struct {
+	ID       systemID `json:"id"`
+	ParentID systemID `json:"parentId"`
+	Name     string   `json:"name" binding:"required"`
+	Sort     int      `json:"sort"`
+}
+
+type importMediaURLsRequest struct {
+	CategoryID systemID             `json:"categoryId"`
+	Items      []importMediaURLItem `json:"items"`
+	Text       string               `json:"text"`
+}
+
+type importMediaURLItem struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+type updateMediaAssetRequest struct {
+	DisplayName string `json:"displayName" binding:"required"`
 }
 
 type systemID int64
@@ -407,6 +447,296 @@ func (h *Handler) DeleteParameters(c web.Context) {
 	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteParameters(c.RequestContext(), req.int64s()), h.writeError)
 }
 
+func (h *Handler) ListVersionSources(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	sources, err := h.service.ListVersionSources(c.RequestContext())
+	writeOK(c, sources, err, h.writeError)
+}
+
+func (h *Handler) ListVersions(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	values := c.Request().URL.Query()
+	page, ok := parseIntQuery(c, "page", 1)
+	if !ok {
+		return
+	}
+	pageSize, ok := parseIntQuery(c, "pageSize", 10)
+	if !ok {
+		return
+	}
+	startCreatedAt, ok := parseTimeQuery(c, "startCreatedAt", false)
+	if !ok {
+		return
+	}
+	endCreatedAt, ok := parseTimeQuery(c, "endCreatedAt", true)
+	if !ok {
+		return
+	}
+	versions, err := h.service.ListVersions(c.RequestContext(), service.VersionFilter{
+		EndCreatedAt:   endCreatedAt,
+		Page:           page,
+		PageSize:       pageSize,
+		StartCreatedAt: startCreatedAt,
+		VersionCode:    values.Get("versionCode"),
+		VersionName:    values.Get("versionName"),
+	})
+	writeOK(c, versions, err, h.writeError)
+}
+
+func (h *Handler) GetVersion(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	id, ok := parseInt64Param(c, "versionId")
+	if !ok {
+		return
+	}
+	version, err := h.service.FindVersion(c.RequestContext(), id)
+	writeOK(c, version, err, h.writeError)
+}
+
+func (h *Handler) ExportVersion(c web.Context) {
+	principal, ok := requirePrincipal(c)
+	if !ok {
+		return
+	}
+	var req exportVersionRequest
+	if !bind(c, &req) {
+		return
+	}
+	version, err := h.service.ExportVersion(c.RequestContext(), service.ExportVersionInput{
+		APICodes:        req.APICodes,
+		CreatedBy:       principal.UserID,
+		CreatorUsername: principal.Username,
+		Description:     req.Description,
+		DictionaryCodes: req.DictionaryCodes,
+		MenuCodes:       req.MenuCodes,
+		VersionCode:     req.VersionCode,
+		VersionName:     req.VersionName,
+	})
+	writeCreated(c, version, err, h.writeError)
+}
+
+func (h *Handler) ImportVersion(c web.Context) {
+	principal, ok := requirePrincipal(c)
+	if !ok {
+		return
+	}
+	var req importVersionRequest
+	if !bind(c, &req) {
+		return
+	}
+	importResult, err := h.service.ImportVersion(c.RequestContext(), service.ImportVersionInput{
+		CreatedBy:       principal.UserID,
+		CreatorUsername: principal.Username,
+		VersionData:     req.VersionData,
+	})
+	writeCreated(c, importResult, err, h.writeError)
+}
+
+func (h *Handler) DownloadVersion(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	id, ok := parseInt64Param(c, "versionId")
+	if !ok {
+		return
+	}
+	pkg, err := h.service.GetVersionPackage(c.RequestContext(), id)
+	if err != nil {
+		h.writeError(c, err)
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="system-version-`+strconv.FormatInt(id, 10)+`.json"`)
+	result.OK(c, pkg)
+}
+
+func (h *Handler) DeleteVersion(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	id, ok := parseInt64Param(c, "versionId")
+	if !ok {
+		return
+	}
+	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteVersion(c.RequestContext(), id), h.writeError)
+}
+
+func (h *Handler) DeleteVersions(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	var req deleteVersionsRequest
+	if !bind(c, &req) {
+		return
+	}
+	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteVersions(c.RequestContext(), req.int64s()), h.writeError)
+}
+
+func (h *Handler) ListMediaCategories(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	catalog, err := h.service.ListMediaCategories(c.RequestContext())
+	writeOK(c, catalog, err, h.writeError)
+}
+
+func (h *Handler) UpsertMediaCategory(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	var req upsertMediaCategoryRequest
+	if !bind(c, &req) {
+		return
+	}
+	category, err := h.service.UpsertMediaCategory(c.RequestContext(), service.UpsertMediaCategoryInput{
+		ID:       int64(req.ID),
+		Name:     req.Name,
+		ParentID: int64(req.ParentID),
+		Sort:     req.Sort,
+	})
+	if int64(req.ID) > 0 {
+		writeOK(c, category, err, h.writeError)
+		return
+	}
+	writeCreated(c, category, err, h.writeError)
+}
+
+func (h *Handler) DeleteMediaCategory(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	id, ok := parseInt64Param(c, "categoryId")
+	if !ok {
+		return
+	}
+	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteMediaCategory(c.RequestContext(), id), h.writeError)
+}
+
+func (h *Handler) ListMediaAssets(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	values := c.Request().URL.Query()
+	page, ok := parseIntQuery(c, "page", 1)
+	if !ok {
+		return
+	}
+	pageSize, ok := parseIntQuery(c, "pageSize", 10)
+	if !ok {
+		return
+	}
+	categoryID, ok := parseInt64Query(c, "categoryId", 0)
+	if !ok {
+		return
+	}
+	assets, err := h.service.ListMediaAssets(c.RequestContext(), service.MediaAssetFilter{
+		CategoryID: categoryID,
+		Keyword:    values.Get("keyword"),
+		Page:       page,
+		PageSize:   pageSize,
+	})
+	writeOK(c, assets, err, h.writeError)
+}
+
+func (h *Handler) UploadMediaAsset(c web.Context) {
+	principal, ok := requirePrincipal(c)
+	if !ok {
+		return
+	}
+	req := c.Request()
+	if err := req.ParseMultipartForm(32 << 20); err != nil {
+		result.BadRequest(c, err.Error())
+		return
+	}
+	file, header, err := req.FormFile("file")
+	if err != nil {
+		result.BadRequest(c, "missing file")
+		return
+	}
+	defer file.Close()
+	categoryID, ok := parseInt64Form(c, "categoryId", 0)
+	if !ok {
+		return
+	}
+	asset, err := h.service.UploadMediaAsset(c.RequestContext(), service.UploadMediaAssetInput{
+		CategoryID:         categoryID,
+		Filename:           header.Filename,
+		Reader:             file,
+		Size:               header.Size,
+		UploadedBy:         principal.UserID,
+		UploadedByUsername: principal.Username,
+	})
+	writeCreated(c, asset, err, h.writeError)
+}
+
+func (h *Handler) ImportMediaURLs(c web.Context) {
+	principal, ok := requirePrincipal(c)
+	if !ok {
+		return
+	}
+	var req importMediaURLsRequest
+	if !bind(c, &req) {
+		return
+	}
+	importResult, err := h.service.ImportMediaURLs(c.RequestContext(), service.ImportMediaURLsInput{
+		CategoryID:         int64(req.CategoryID),
+		Items:              req.items(),
+		UploadedBy:         principal.UserID,
+		UploadedByUsername: principal.Username,
+	})
+	writeCreated(c, importResult, err, h.writeError)
+}
+
+func (h *Handler) UpdateMediaAsset(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	id, ok := parseInt64Param(c, "assetId")
+	if !ok {
+		return
+	}
+	var req updateMediaAssetRequest
+	if !bind(c, &req) {
+		return
+	}
+	asset, err := h.service.UpdateMediaAsset(c.RequestContext(), id, service.UpdateMediaAssetInput{DisplayName: req.DisplayName})
+	writeOK(c, asset, err, h.writeError)
+}
+
+func (h *Handler) DownloadMediaAsset(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	id, ok := parseInt64Param(c, "assetId")
+	if !ok {
+		return
+	}
+	download, err := h.service.DownloadMediaAsset(c.RequestContext(), id)
+	if err != nil {
+		h.writeError(c, err)
+		return
+	}
+	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": download.Filename}))
+	c.Header("Content-Length", strconv.Itoa(len(download.Data)))
+	c.Data(http.StatusOK, download.ContentType, download.Data)
+}
+
+func (h *Handler) DeleteMediaAsset(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	id, ok := parseInt64Param(c, "assetId")
+	if !ok {
+		return
+	}
+	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteMediaAsset(c.RequestContext(), id), h.writeError)
+}
+
 func (h *Handler) RegisterAPIs(entries []model.APIEntry) {
 	h.service.RegisterAPIs(entries)
 }
@@ -449,7 +779,7 @@ func (h *Handler) writeError(c web.Context, err error) {
 	switch {
 	case errors.Is(err, context.Canceled):
 		result.Fail(c, http.StatusRequestTimeout, "request canceled")
-	case errors.Is(err, service.ErrInvalidInput), errors.Is(err, service.ErrDuplicate):
+	case errors.Is(err, service.ErrInvalidInput), errors.Is(err, service.ErrDuplicate), errors.Is(err, service.ErrExternalMedia):
 		result.BadRequest(c, err.Error())
 	case errors.Is(err, service.ErrNotFound):
 		result.NotFound(c, err.Error())
@@ -502,6 +832,32 @@ func parseIntQuery(c web.Context, name string, fallback int) (int, bool) {
 	return value, true
 }
 
+func parseInt64Query(c web.Context, name string, fallback int64) (int64, bool) {
+	raw := strings.TrimSpace(c.Request().URL.Query().Get(name))
+	if raw == "" {
+		return fallback, true
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		result.BadRequest(c, "invalid "+name)
+		return 0, false
+	}
+	return value, true
+}
+
+func parseInt64Form(c web.Context, name string, fallback int64) (int64, bool) {
+	raw := strings.TrimSpace(c.Request().FormValue(name))
+	if raw == "" {
+		return fallback, true
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		result.BadRequest(c, "invalid "+name)
+		return 0, false
+	}
+	return value, true
+}
+
 func parseTimeQuery(c web.Context, name string, endExclusive bool) (*time.Time, bool) {
 	raw := strings.TrimSpace(c.Request().URL.Query().Get(name))
 	if raw == "" {
@@ -535,6 +891,38 @@ func (r deleteParametersRequest) int64s() []int64 {
 		ids = append(ids, int64(id))
 	}
 	return ids
+}
+
+func (r deleteVersionsRequest) int64s() []int64 {
+	ids := make([]int64, 0, len(r.IDs))
+	for _, id := range r.IDs {
+		ids = append(ids, int64(id))
+	}
+	return ids
+}
+
+func (r importMediaURLsRequest) items() []service.MediaURLImportItem {
+	items := make([]service.MediaURLImportItem, 0, len(r.Items))
+	for _, item := range r.Items {
+		items = append(items, service.MediaURLImportItem{Name: item.Name, URL: item.URL})
+	}
+	if len(items) > 0 {
+		return items
+	}
+	for _, line := range strings.Split(r.Text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		name := ""
+		rawURL := line
+		if left, right, ok := strings.Cut(line, "|"); ok {
+			name = strings.TrimSpace(left)
+			rawURL = strings.TrimSpace(right)
+		}
+		items = append(items, service.MediaURLImportItem{Name: name, URL: rawURL})
+	}
+	return items
 }
 
 func (id *systemID) UnmarshalJSON(raw []byte) error {

@@ -75,6 +75,7 @@ type Principal struct {
 	SessionID int64  `json:"sessionId,string"`
 	Username  string `json:"username"`
 	Email     string `json:"email"`
+	RoleCode  string `json:"roleCode,omitempty"`
 }
 
 type TokenPair struct {
@@ -206,12 +207,64 @@ type UpdateOrganizationInput struct {
 	IPAddress string
 }
 
+type CreateAPITokenInput struct {
+	Principal Principal
+	UserID    int64
+	RoleCode  string
+	Days      int
+	Remark    string
+	UserAgent string
+	IPAddress string
+}
+
+type RevokeAPITokenInput struct {
+	Principal Principal
+	TokenID   int64
+	UserAgent string
+	IPAddress string
+}
+
 type AuditLogFilter = repository.AuditLogFilter
+
+type APITokenFilter = repository.APITokenFilter
 
 type OrganizationUser struct {
 	User             model.User `json:"user"`
 	MembershipStatus string     `json:"membershipStatus"`
 	Roles            []string   `json:"roles"`
+}
+
+type APITokenView struct {
+	ID                int64      `json:"id,string"`
+	OrgID             int64      `json:"orgId,string"`
+	UserID            int64      `json:"userId,string"`
+	Username          string     `json:"username"`
+	UserDisplayName   string     `json:"userDisplayName"`
+	RoleCode          string     `json:"roleCode"`
+	TokenPrefix       string     `json:"tokenPrefix"`
+	Status            string     `json:"status"`
+	ExpiresAt         *time.Time `json:"expiresAt,omitempty"`
+	LastUsedAt        *time.Time `json:"lastUsedAt,omitempty"`
+	LastUsedIPAddress string     `json:"lastUsedIpAddress"`
+	RevokedAt         *time.Time `json:"revokedAt,omitempty"`
+	RevokedBy         *int64     `json:"revokedBy,omitempty,string"`
+	Remark            string     `json:"remark"`
+	CreatedBy         int64      `json:"createdBy,string"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
+}
+
+type APITokenPage struct {
+	Items         []APITokenView `json:"items"`
+	Page          int            `json:"page"`
+	PageSize      int            `json:"pageSize"`
+	Total         int64          `json:"total"`
+	StorageStatus string         `json:"storageStatus"`
+}
+
+type CreateAPITokenResult struct {
+	Item  APITokenView `json:"item"`
+	Token string       `json:"token"`
 }
 
 type NotificationDelivery struct {
@@ -272,6 +325,9 @@ type Service interface {
 	VerifyMFA(context.Context, Principal, string) error
 	ListUsers(context.Context, Principal) ([]OrganizationUser, error)
 	UpdateUser(context.Context, UpdateUserInput) (*OrganizationUser, error)
+	CreateAPIToken(context.Context, CreateAPITokenInput) (CreateAPITokenResult, error)
+	ListAPITokens(context.Context, Principal, APITokenFilter) (APITokenPage, error)
+	RevokeAPIToken(context.Context, RevokeAPITokenInput) error
 	ListRoles(context.Context, Principal) ([]model.Role, error)
 	CreateRole(context.Context, CreateRoleInput) (*model.Role, error)
 	UpdateRole(context.Context, UpdateRoleInput) (*model.Role, error)
@@ -663,7 +719,7 @@ func (s *service) SwitchOrg(ctx context.Context, principal Principal, orgID int6
 func (s *service) AuthenticateToken(ctx context.Context, raw string) (Principal, error) {
 	claims, err := s.tokens.Parse(ctx, raw, token.TokenTypeAccess)
 	if err != nil {
-		return Principal{}, ErrInvalidToken
+		return s.authenticateAPIToken(ctx, raw)
 	}
 	session, err := s.repo.FindSessionByID(ctx, claims.SessionID)
 	if err != nil {
@@ -686,6 +742,9 @@ func (s *service) AuthenticateToken(ctx context.Context, raw string) (Principal,
 }
 
 func (s *service) Authorize(ctx context.Context, p Principal, obj, act string) (bool, error) {
+	if p.RoleCode != "" {
+		return s.authorizeRole(ctx, p, obj, act)
+	}
 	return s.authz.Enforce(ctx, userSubject(p.UserID), strconv.FormatInt(p.OrgID, 10), obj, act)
 }
 
@@ -1068,6 +1127,116 @@ func (s *service) UpdateUser(ctx context.Context, input UpdateUserInput) (*Organ
 	return &OrganizationUser{User: *user, MembershipStatus: membership.Status, Roles: roles}, nil
 }
 
+func (s *service) CreateAPIToken(ctx context.Context, input CreateAPITokenInput) (CreateAPITokenResult, error) {
+	roleCode := normalizeCode(input.RoleCode)
+	if input.UserID <= 0 || roleCode == "" {
+		return CreateAPITokenResult{}, ErrInvalidInput
+	}
+	days, err := normalizeAPITokenDays(input.Days)
+	if err != nil {
+		return CreateAPITokenResult{}, err
+	}
+	if _, err := s.repo.FindMembership(ctx, input.Principal.OrgID, input.UserID); err != nil {
+		return CreateAPITokenResult{}, ErrNotFound
+	}
+	user, err := s.repo.FindUserByID(ctx, input.UserID)
+	if err != nil {
+		return CreateAPITokenResult{}, ErrNotFound
+	}
+	if err := s.ensureUserCanLogin(user); err != nil {
+		return CreateAPITokenResult{}, err
+	}
+	if _, err := s.repo.FindRole(ctx, input.Principal.OrgID, roleCode); err != nil {
+		return CreateAPITokenResult{}, ErrNotFound
+	}
+	if ok, err := s.userHasRole(ctx, input.UserID, input.Principal.OrgID, roleCode); err != nil || !ok {
+		return CreateAPITokenResult{}, ErrForbidden
+	}
+
+	raw, hash, prefix, err := s.issueAPITokenSecret()
+	if err != nil {
+		return CreateAPITokenResult{}, err
+	}
+	now := s.now()
+	var expiresAt *time.Time
+	if days > 0 {
+		expires := now.Add(time.Duration(days) * 24 * time.Hour)
+		expiresAt = &expires
+	}
+	apiToken := &model.APIToken{
+		ID:          s.ids.NextID(),
+		OrgID:       input.Principal.OrgID,
+		UserID:      input.UserID,
+		RoleCode:    roleCode,
+		TokenPrefix: prefix,
+		TokenHash:   hash,
+		Status:      model.StatusActive,
+		ExpiresAt:   expiresAt,
+		Remark:      strings.TrimSpace(input.Remark),
+		CreatedBy:   input.Principal.UserID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := s.repo.CreateAPIToken(ctx, apiToken); err != nil {
+		return CreateAPITokenResult{}, err
+	}
+	_ = s.audit(ctx, s.repo, &input.Principal.OrgID, &input.Principal.UserID, "api_token.create", "api_token", strconv.FormatInt(apiToken.ID, 10), input.IPAddress, input.UserAgent, map[string]any{"userId": input.UserID, "roleCode": roleCode, "expiresAt": expiresAt})
+	return CreateAPITokenResult{Item: s.apiTokenView(ctx, *apiToken, user), Token: raw}, nil
+}
+
+func (s *service) ListAPITokens(ctx context.Context, p Principal, filter APITokenFilter) (APITokenPage, error) {
+	filter.Status = normalizeCode(filter.Status)
+	switch filter.Status {
+	case "", model.StatusActive, model.StatusExpired, model.StatusRevoked:
+	default:
+		return APITokenPage{}, ErrInvalidInput
+	}
+	if filter.Page <= 0 {
+		filter.Page = 1
+	}
+	if filter.PageSize <= 0 || filter.PageSize > 100 {
+		filter.PageSize = 10
+	}
+	filter.Now = s.now()
+	items, total, err := s.repo.ListAPITokens(ctx, p.OrgID, filter)
+	if err != nil {
+		return APITokenPage{}, err
+	}
+	views := make([]APITokenView, 0, len(items))
+	for _, item := range items {
+		var user *model.User
+		if found, err := s.repo.FindUserByID(ctx, item.UserID); err == nil {
+			user = found
+		}
+		views = append(views, s.apiTokenView(ctx, item, user))
+	}
+	return APITokenPage{Items: views, Page: filter.Page, PageSize: filter.PageSize, Total: total, StorageStatus: "persisted"}, nil
+}
+
+func (s *service) RevokeAPIToken(ctx context.Context, input RevokeAPITokenInput) error {
+	if input.TokenID <= 0 {
+		return ErrInvalidInput
+	}
+	apiToken, err := s.repo.FindAPITokenByID(ctx, input.TokenID)
+	if err != nil {
+		return ErrNotFound
+	}
+	if apiToken.OrgID != input.Principal.OrgID {
+		return ErrForbidden
+	}
+	if apiToken.Status == model.StatusRevoked {
+		return nil
+	}
+	now := s.now()
+	apiToken.Status = model.StatusRevoked
+	apiToken.RevokedAt = &now
+	apiToken.RevokedBy = &input.Principal.UserID
+	if err := s.repo.SaveAPIToken(ctx, apiToken); err != nil {
+		return err
+	}
+	return s.audit(ctx, s.repo, &input.Principal.OrgID, &input.Principal.UserID, "api_token.revoke", "api_token", strconv.FormatInt(apiToken.ID, 10), input.IPAddress, input.UserAgent, map[string]any{"userId": apiToken.UserID, "roleCode": apiToken.RoleCode})
+}
+
 func (s *service) ListRoles(ctx context.Context, p Principal) ([]model.Role, error) {
 	roles, err := s.repo.ListRoles(ctx, p.OrgID)
 	if err != nil {
@@ -1239,6 +1408,56 @@ func (s *service) ensureSessionActive(session *model.Session) error {
 	return nil
 }
 
+func (s *service) authenticateAPIToken(ctx context.Context, raw string) (Principal, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return Principal{}, ErrInvalidToken
+	}
+	apiToken, err := s.repo.FindAPITokenByHash(ctx, s.tokens.HashRefreshToken(raw))
+	if err != nil {
+		return Principal{}, ErrInvalidToken
+	}
+	if apiToken.Status != model.StatusActive {
+		return Principal{}, ErrSessionRevoked
+	}
+	if apiToken.ExpiresAt != nil && apiToken.ExpiresAt.Before(s.now()) {
+		return Principal{}, ErrInvalidToken
+	}
+	user, err := s.repo.FindUserByID(ctx, apiToken.UserID)
+	if err != nil {
+		return Principal{}, ErrInvalidToken
+	}
+	if err := s.ensureUserCanLogin(user); err != nil {
+		return Principal{}, err
+	}
+	if _, err := s.repo.FindMembership(ctx, apiToken.OrgID, apiToken.UserID); err != nil {
+		return Principal{}, ErrForbidden
+	}
+	if _, err := s.repo.FindRole(ctx, apiToken.OrgID, apiToken.RoleCode); err != nil {
+		return Principal{}, ErrForbidden
+	}
+	if ok, err := s.userHasRole(ctx, apiToken.UserID, apiToken.OrgID, apiToken.RoleCode); err != nil || !ok {
+		return Principal{}, ErrForbidden
+	}
+	now := s.now()
+	apiToken.LastUsedAt = &now
+	_ = s.repo.SaveAPIToken(ctx, apiToken)
+	return Principal{UserID: user.ID, OrgID: apiToken.OrgID, Username: user.Username, Email: user.Email, RoleCode: apiToken.RoleCode}, nil
+}
+
+func (s *service) authorizeRole(ctx context.Context, p Principal, obj, act string) (bool, error) {
+	permissions, err := s.repo.ListRolePermissions(ctx, p.OrgID, roleSubject(p.RoleCode))
+	if err != nil {
+		return false, err
+	}
+	for _, permission := range permissions {
+		if permissionAllows(permission, obj, act) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *service) recordFailedLogin(ctx context.Context, user *model.User) error {
 	user.FailedLoginAttempts++
 	if user.FailedLoginAttempts >= s.cfg.LoginMaxFailures {
@@ -1246,6 +1465,20 @@ func (s *service) recordFailedLogin(ctx context.Context, user *model.User) error
 		user.LockedUntil = &lockedUntil
 	}
 	return s.repo.SaveUser(ctx, user)
+}
+
+func (s *service) userHasRole(ctx context.Context, userID, orgID int64, roleCode string) (bool, error) {
+	roles, err := s.authz.GetRolesForUser(ctx, userSubject(userID), strconv.FormatInt(orgID, 10))
+	if err != nil {
+		return false, err
+	}
+	want := roleSubject(roleCode)
+	for _, role := range roles {
+		if roleSubject(role) == want {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *service) verifyUserMFA(ctx context.Context, userID int64, code string) error {
@@ -1344,6 +1577,64 @@ func (s *service) oneTimeToken() (string, string, error) {
 	}
 	value := base64.RawURLEncoding.EncodeToString(raw)
 	return value, s.tokens.HashRefreshToken(value), nil
+}
+
+func (s *service) issueAPITokenSecret() (string, string, string, error) {
+	raw := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, raw); err != nil {
+		return "", "", "", err
+	}
+	value := "aoi_" + base64.RawURLEncoding.EncodeToString(raw)
+	return value, s.tokens.HashRefreshToken(value), apiTokenDisplayPrefix(value), nil
+}
+
+func apiTokenDisplayPrefix(value string) string {
+	if len(value) <= 16 {
+		return value
+	}
+	return value[:16]
+}
+
+func normalizeAPITokenDays(value int) (int, error) {
+	if value == 0 {
+		return 30, nil
+	}
+	if value == -1 {
+		return value, nil
+	}
+	if value < 1 || value > 3650 {
+		return 0, ErrInvalidInput
+	}
+	return value, nil
+}
+
+func (s *service) apiTokenView(_ context.Context, apiToken model.APIToken, user *model.User) APITokenView {
+	status := apiToken.Status
+	if status == model.StatusActive && apiToken.ExpiresAt != nil && apiToken.ExpiresAt.Before(s.now()) {
+		status = model.StatusExpired
+	}
+	view := APITokenView{
+		ID:                apiToken.ID,
+		OrgID:             apiToken.OrgID,
+		UserID:            apiToken.UserID,
+		RoleCode:          apiToken.RoleCode,
+		TokenPrefix:       apiToken.TokenPrefix,
+		Status:            status,
+		ExpiresAt:         apiToken.ExpiresAt,
+		LastUsedAt:        apiToken.LastUsedAt,
+		LastUsedIPAddress: apiToken.LastUsedIPAddress,
+		RevokedAt:         apiToken.RevokedAt,
+		RevokedBy:         apiToken.RevokedBy,
+		Remark:            apiToken.Remark,
+		CreatedBy:         apiToken.CreatedBy,
+		CreatedAt:         apiToken.CreatedAt,
+		UpdatedAt:         apiToken.UpdatedAt,
+	}
+	if user != nil {
+		view.Username = user.Username
+		view.UserDisplayName = user.DisplayName
+	}
+	return view
 }
 
 func (s *service) debugDelivery(token string, adminPath string) NotificationDelivery {
@@ -1487,6 +1778,14 @@ func permissionObjectAction(code string) (string, string) {
 	return parts[0], parts[1]
 }
 
+func permissionAllows(code string, obj string, act string) bool {
+	permissionObj, permissionAct := permissionObjectAction(code)
+	if permissionObj == "" || permissionAct == "" {
+		return false
+	}
+	return (permissionObj == "*" || permissionObj == obj) && (permissionAct == "*" || permissionAct == act)
+}
+
 func (s *service) hydrateRolePermissions(ctx context.Context, role *model.Role) error {
 	if role == nil {
 		return nil
@@ -1533,10 +1832,24 @@ var builtinPermissions = []permissionSeed{
 	{Code: "parameter:create", Name: "Create parameters", Description: "Create system parameters"},
 	{Code: "parameter:update", Name: "Update parameters", Description: "Update system parameters"},
 	{Code: "parameter:delete", Name: "Delete parameters", Description: "Delete system parameters"},
+	{Code: "version:read", Name: "Read versions", Description: "Read system release packages"},
+	{Code: "version:create", Name: "Create versions", Description: "Create system release packages"},
+	{Code: "version:import", Name: "Import versions", Description: "Import system release packages"},
+	{Code: "version:download", Name: "Download versions", Description: "Download system release packages"},
+	{Code: "version:delete", Name: "Delete versions", Description: "Delete system release packages"},
+	{Code: "media:read", Name: "Read media", Description: "Read media assets and categories"},
+	{Code: "media:upload", Name: "Upload media", Description: "Upload local media assets"},
+	{Code: "media:import", Name: "Import media URLs", Description: "Import external media URL records"},
+	{Code: "media:update", Name: "Update media", Description: "Update media assets and categories"},
+	{Code: "media:download", Name: "Download media", Description: "Download local media assets"},
+	{Code: "media:delete", Name: "Delete media", Description: "Delete media assets"},
 	{Code: "permission:read", Name: "Read permissions", Description: "Read permissions"},
 	{Code: "permission:sync", Name: "Sync permissions", Description: "Sync permissions from registered APIs"},
 	{Code: "session:read", Name: "Read sessions", Description: "Read sessions"},
 	{Code: "session:revoke", Name: "Revoke sessions", Description: "Revoke sessions"},
+	{Code: "api_token:read", Name: "Read API tokens", Description: "Read API token records"},
+	{Code: "api_token:create", Name: "Create API tokens", Description: "Issue API tokens"},
+	{Code: "api_token:revoke", Name: "Revoke API tokens", Description: "Revoke API tokens"},
 	{Code: "audit:read", Name: "Read audit logs", Description: "Read audit logs"},
 	{Code: "plugin:read", Name: "Read plugins", Description: "Read installed plugin manifests"},
 	{Code: "plugin:proxy", Name: "Proxy plugins", Description: "Call installed plugin sidecar APIs"},

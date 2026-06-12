@@ -62,6 +62,8 @@ executor:
       non_blocking: true
 
 storage:
+  # 媒体库普通上传和本地下载依赖 storage.enabled=true。仅使用外链导入时可以保持禁用。
+  # 本地开发建议使用 basepath + ./data，让媒体对象写入 data/media/...。
   enabled: false
   fs_type: basepath
   base_path: ./data
@@ -73,6 +75,8 @@ demo:
   apply_schema_on_start: true
 
 system:
+  # 版本管理使用 system_versions 迁移和 IAM version:* 权限，不需要额外运行期开关。
+  # 媒体库使用 system_media_categories/system_media_assets 迁移和 IAM media:* 权限。
   seed_defaults_on_start: true
 
 cors:
@@ -105,6 +109,7 @@ auth:
   signing_key: ${AUTH_SIGNING_KEY:dev-signing-key-change-me-32-bytes}
   access_token_ttl_seconds: 900
   refresh_token_ttl_seconds: 604800
+  # Also hashes IAM API Token values. Rotating this invalidates existing refresh tokens and API tokens.
   refresh_token_pepper: ${AUTH_REFRESH_TOKEN_PEPPER:dev-refresh-pepper-change-me-32}
   mfa_issuer: go-scaffold
   mfa_secret_key: ${AUTH_MFA_SECRET_KEY:dev-mfa-secret-key-change-me-32-bytes}
@@ -132,5 +137,5 @@ auth:
   casbin_reload_interval_seconds: 300
 
 migration:
-  auto_apply: false
+  auto_apply: true
   dir: ./internal/migrations

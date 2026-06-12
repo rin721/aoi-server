@@ -13,27 +13,42 @@ type Repository interface {
 	CreateAPI(context.Context, *model.APIRecord) error
 	CreateDictionary(context.Context, *model.Dictionary) error
 	CreateDictionaryItem(context.Context, *model.DictionaryItem) error
+	CreateMediaAsset(context.Context, *model.MediaAsset) error
+	CreateMediaCategory(context.Context, *model.MediaCategory) error
 	CreateOperationRecord(context.Context, *model.OperationRecord) error
 	CreateParameter(context.Context, *model.Parameter) error
+	CreateVersion(context.Context, *model.Version) error
 	DeleteDictionary(context.Context, int64, time.Time) error
 	DeleteDictionaryItem(context.Context, int64, time.Time) error
+	DeleteMediaAsset(context.Context, int64, time.Time) error
+	DeleteMediaCategory(context.Context, int64, time.Time) error
 	DeleteOperationRecords(context.Context, []int64) error
 	DeleteParameter(context.Context, int64, time.Time) error
 	DeleteParameters(context.Context, []int64, time.Time) error
+	DeleteVersion(context.Context, int64, time.Time) error
+	DeleteVersions(context.Context, []int64, time.Time) error
 	FindAPI(context.Context, string, string) (*model.APIRecord, error)
 	FindDictionaryByCode(context.Context, string) (*model.Dictionary, error)
 	FindDictionaryByID(context.Context, int64) (*model.Dictionary, error)
 	FindDictionaryItemByID(context.Context, int64) (*model.DictionaryItem, error)
+	FindMediaAssetByID(context.Context, int64) (*model.MediaAsset, error)
+	FindMediaCategoryByID(context.Context, int64) (*model.MediaCategory, error)
 	FindParameterByID(context.Context, int64) (*model.Parameter, error)
 	FindParameterByKey(context.Context, string) (*model.Parameter, error)
+	FindVersionByID(context.Context, int64) (*model.Version, error)
 	ListAPIs(context.Context) ([]model.APIRecord, error)
 	ListDictionaries(context.Context) ([]model.Dictionary, error)
 	ListDictionaryItems(context.Context, int64) ([]model.DictionaryItem, error)
+	ListMediaAssets(context.Context, model.MediaAssetFilter) ([]model.MediaAsset, int64, error)
+	ListMediaCategories(context.Context) ([]model.MediaCategory, error)
 	ListOperationRecords(context.Context, model.OperationRecordFilter) ([]model.OperationRecord, int64, error)
 	ListParameters(context.Context, model.ParameterFilter) ([]model.Parameter, int64, error)
+	ListVersions(context.Context, model.VersionFilter) ([]model.Version, int64, error)
 	SaveAPI(context.Context, *model.APIRecord) error
 	SaveDictionary(context.Context, *model.Dictionary) error
 	SaveDictionaryItem(context.Context, *model.DictionaryItem) error
+	SaveMediaAsset(context.Context, *model.MediaAsset) error
+	SaveMediaCategory(context.Context, *model.MediaCategory) error
 	SaveParameter(context.Context, *model.Parameter) error
 }
 
@@ -57,12 +72,24 @@ func (r *repository) CreateDictionaryItem(ctx context.Context, item *model.Dicti
 	return r.db.Create(ctx, item)
 }
 
+func (r *repository) CreateMediaAsset(ctx context.Context, asset *model.MediaAsset) error {
+	return r.db.Create(ctx, asset)
+}
+
+func (r *repository) CreateMediaCategory(ctx context.Context, category *model.MediaCategory) error {
+	return r.db.Create(ctx, category)
+}
+
 func (r *repository) CreateOperationRecord(ctx context.Context, record *model.OperationRecord) error {
 	return r.db.Create(ctx, record)
 }
 
 func (r *repository) CreateParameter(ctx context.Context, parameter *model.Parameter) error {
 	return r.db.Create(ctx, parameter)
+}
+
+func (r *repository) CreateVersion(ctx context.Context, version *model.Version) error {
+	return r.db.Create(ctx, version)
 }
 
 func (r *repository) DeleteDictionary(ctx context.Context, id int64, deletedAt time.Time) error {
@@ -82,6 +109,22 @@ func (r *repository) DeleteDictionary(ctx context.Context, id int64, deletedAt t
 
 func (r *repository) DeleteDictionaryItem(ctx context.Context, id int64, deletedAt time.Time) error {
 	_, err := r.db.Update(ctx, &model.DictionaryItem{}, map[string]any{
+		"deleted_at": deletedAt,
+		"updated_at": deletedAt,
+	}, database.Where("id = ?", id), alive())
+	return err
+}
+
+func (r *repository) DeleteMediaAsset(ctx context.Context, id int64, deletedAt time.Time) error {
+	_, err := r.db.Update(ctx, &model.MediaAsset{}, map[string]any{
+		"deleted_at": deletedAt,
+		"updated_at": deletedAt,
+	}, database.Where("id = ?", id), alive())
+	return err
+}
+
+func (r *repository) DeleteMediaCategory(ctx context.Context, id int64, deletedAt time.Time) error {
+	_, err := r.db.Update(ctx, &model.MediaCategory{}, map[string]any{
 		"deleted_at": deletedAt,
 		"updated_at": deletedAt,
 	}, database.Where("id = ?", id), alive())
@@ -109,6 +152,25 @@ func (r *repository) DeleteParameters(ctx context.Context, ids []int64, deletedA
 		return nil
 	}
 	_, err := r.db.Update(ctx, &model.Parameter{}, map[string]any{
+		"deleted_at": deletedAt,
+		"updated_at": deletedAt,
+	}, database.Where("id IN ?", ids), alive())
+	return err
+}
+
+func (r *repository) DeleteVersion(ctx context.Context, id int64, deletedAt time.Time) error {
+	_, err := r.db.Update(ctx, &model.Version{}, map[string]any{
+		"deleted_at": deletedAt,
+		"updated_at": deletedAt,
+	}, database.Where("id = ?", id), alive())
+	return err
+}
+
+func (r *repository) DeleteVersions(ctx context.Context, ids []int64, deletedAt time.Time) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := r.db.Update(ctx, &model.Version{}, map[string]any{
 		"deleted_at": deletedAt,
 		"updated_at": deletedAt,
 	}, database.Where("id IN ?", ids), alive())
@@ -151,6 +213,22 @@ func (r *repository) FindDictionaryItemByID(ctx context.Context, id int64) (*mod
 	return &item, nil
 }
 
+func (r *repository) FindMediaAssetByID(ctx context.Context, id int64) (*model.MediaAsset, error) {
+	var asset model.MediaAsset
+	if err := r.db.First(ctx, &asset, database.Where("id = ?", id), alive()); err != nil {
+		return nil, err
+	}
+	return &asset, nil
+}
+
+func (r *repository) FindMediaCategoryByID(ctx context.Context, id int64) (*model.MediaCategory, error) {
+	var category model.MediaCategory
+	if err := r.db.First(ctx, &category, database.Where("id = ?", id), alive()); err != nil {
+		return nil, err
+	}
+	return &category, nil
+}
+
 func (r *repository) FindParameterByID(ctx context.Context, id int64) (*model.Parameter, error) {
 	var parameter model.Parameter
 	if err := r.db.First(ctx, &parameter, database.Where("id = ?", id), alive()); err != nil {
@@ -165,6 +243,14 @@ func (r *repository) FindParameterByKey(ctx context.Context, key string) (*model
 		return nil, err
 	}
 	return &parameter, nil
+}
+
+func (r *repository) FindVersionByID(ctx context.Context, id int64) (*model.Version, error) {
+	var version model.Version
+	if err := r.db.First(ctx, &version, database.Where("id = ?", id), alive()); err != nil {
+		return nil, err
+	}
+	return &version, nil
 }
 
 func (r *repository) ListAPIs(ctx context.Context) ([]model.APIRecord, error) {
@@ -187,6 +273,41 @@ func (r *repository) ListDictionaryItems(ctx context.Context, dictionaryID int64
 		database.Order("sort_order ASC, value ASC"),
 	)
 	return items, err
+}
+
+func (r *repository) ListMediaCategories(ctx context.Context) ([]model.MediaCategory, error) {
+	var categories []model.MediaCategory
+	err := r.db.Find(ctx, &categories, alive(), database.Order("sort_order ASC, name ASC, id ASC"))
+	return categories, err
+}
+
+func (r *repository) ListMediaAssets(ctx context.Context, filter model.MediaAssetFilter) ([]model.MediaAsset, int64, error) {
+	opts := mediaAssetOptions(filter)
+	var total int64
+	var err error
+	total, err = r.db.Count(ctx, &model.MediaAsset{}, opts...)
+	if err != nil {
+		return nil, 0, err
+	}
+	page := filter.Page
+	pageSize := filter.PageSize
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	opts = append(opts,
+		database.Order("created_at DESC, id DESC"),
+		database.Limit(pageSize),
+		database.Offset((page-1)*pageSize),
+	)
+	var assets []model.MediaAsset
+	err = r.db.Find(ctx, &assets, opts...)
+	return assets, total, err
 }
 
 func (r *repository) ListOperationRecords(ctx context.Context, filter model.OperationRecordFilter) ([]model.OperationRecord, int64, error) {
@@ -247,6 +368,35 @@ func (r *repository) ListParameters(ctx context.Context, filter model.ParameterF
 	return parameters, total, err
 }
 
+func (r *repository) ListVersions(ctx context.Context, filter model.VersionFilter) ([]model.Version, int64, error) {
+	opts := versionOptions(filter)
+	var total int64
+	var err error
+	total, err = r.db.Count(ctx, &model.Version{}, opts...)
+	if err != nil {
+		return nil, 0, err
+	}
+	page := filter.Page
+	pageSize := filter.PageSize
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	opts = append(opts,
+		database.Order("created_at DESC, id DESC"),
+		database.Limit(pageSize),
+		database.Offset((page-1)*pageSize),
+	)
+	var versions []model.Version
+	err = r.db.Find(ctx, &versions, opts...)
+	return versions, total, err
+}
+
 func (r *repository) SaveAPI(ctx context.Context, api *model.APIRecord) error {
 	api.UpdatedAt = time.Now().UTC()
 	return r.db.Save(ctx, api)
@@ -260,6 +410,16 @@ func (r *repository) SaveDictionary(ctx context.Context, dictionary *model.Dicti
 func (r *repository) SaveDictionaryItem(ctx context.Context, item *model.DictionaryItem) error {
 	item.UpdatedAt = time.Now().UTC()
 	return r.db.Save(ctx, item)
+}
+
+func (r *repository) SaveMediaAsset(ctx context.Context, asset *model.MediaAsset) error {
+	asset.UpdatedAt = time.Now().UTC()
+	return r.db.Save(ctx, asset)
+}
+
+func (r *repository) SaveMediaCategory(ctx context.Context, category *model.MediaCategory) error {
+	category.UpdatedAt = time.Now().UTC()
+	return r.db.Save(ctx, category)
 }
 
 func (r *repository) SaveParameter(ctx context.Context, parameter *model.Parameter) error {
@@ -311,6 +471,38 @@ func parameterOptions(filter model.ParameterFilter) []database.QueryOption {
 	}
 	if filter.EndCreatedAt != nil {
 		opts = append(opts, database.Where("created_at < ?", *filter.EndCreatedAt))
+	}
+	return opts
+}
+
+func versionOptions(filter model.VersionFilter) []database.QueryOption {
+	opts := []database.QueryOption{alive()}
+	name := strings.TrimSpace(filter.VersionName)
+	if name != "" {
+		opts = append(opts, database.Where("version_name LIKE ?", "%"+name+"%"))
+	}
+	code := strings.TrimSpace(filter.VersionCode)
+	if code != "" {
+		opts = append(opts, database.Where("version_code LIKE ?", "%"+code+"%"))
+	}
+	if filter.StartCreatedAt != nil {
+		opts = append(opts, database.Where("created_at >= ?", *filter.StartCreatedAt))
+	}
+	if filter.EndCreatedAt != nil {
+		opts = append(opts, database.Where("created_at < ?", *filter.EndCreatedAt))
+	}
+	return opts
+}
+
+func mediaAssetOptions(filter model.MediaAssetFilter) []database.QueryOption {
+	opts := []database.QueryOption{alive()}
+	if filter.CategoryID > 0 {
+		opts = append(opts, database.Where("category_id = ?", filter.CategoryID))
+	}
+	keyword := strings.TrimSpace(filter.Keyword)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		opts = append(opts, database.Where("(display_name LIKE ? OR original_name LIKE ? OR url LIKE ?)", like, like, like))
 	}
 	return opts
 }

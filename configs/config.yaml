@@ -97,5 +97,5 @@ auth:
   casbin_reload_interval_seconds: 300
 
 migration:
-  auto_apply: false
+  auto_apply: true
   dir: ./internal/migrations

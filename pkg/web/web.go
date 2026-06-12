@@ -27,6 +27,7 @@ type Context interface {
 	Param(name string) string
 	BindJSON(dest any) error
 	JSON(status int, body any)
+	Data(status int, contentType string, data []byte)
 	AbortWithStatusJSON(status int, body any)
 	Next()
 	Path() string
@@ -134,23 +135,22 @@ func (e *Engine) Routes() []RouteInfo {
 	return out
 }
 
-// MountStaticSPA 在指定前缀托管静态单页应用，并把非资源路由回退到 index.html。
+// MountStaticSPA 在指定前缀托管静态单页应用，并把非资源路由回退到 SPA 入口文件。
 func (e *Engine) MountStaticSPA(cfg StaticSPAConfig) error {
 	mountPath := normalizeMountPath(cfg.MountPath)
 	if mountPath == "" || mountPath == "/" {
 		return errors.New("mount path must be a non-root absolute path")
 	}
 
-	indexPath := filepath.Join(cfg.DistDir, "index.html")
-	if info, err := os.Stat(indexPath); err != nil || info.IsDir() {
-		return ErrStaticSPAIndexMissing
-	}
-
 	handler := func(c *gin.Context) {
-		serveStaticSPA(c, cfg.DistDir, indexPath)
+		serveStaticSPA(c, cfg.DistDir)
 	}
 	e.engine.GET(mountPath, handler)
 	e.engine.GET(mountPath+"/*filepath", handler)
+
+	if _, ok := staticSPAIndexPath(cfg.DistDir); !ok {
+		return ErrStaticSPAIndexMissing
+	}
 	return nil
 }
 
@@ -218,27 +218,40 @@ func (g *group) Group(path string) Router {
 	return &group{group: g.group.Group(path)}
 }
 
-func serveStaticSPA(c *gin.Context, distDir string, indexPath string) {
+func serveStaticSPA(c *gin.Context, distDir string) {
 	cleanPath := cleanSPARequestPath(c.Param("filepath"))
-	if cleanPath == "" {
-		c.File(indexPath)
-		return
+	if cleanPath != "" {
+		filePath, ok := safeJoin(distDir, cleanPath)
+		if !ok {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
+			c.File(filePath)
+			return
+		}
+		if isStaticAssetPath(cleanPath) {
+			c.Status(http.StatusNotFound)
+			return
+		}
 	}
 
-	filePath, ok := safeJoin(distDir, cleanPath)
+	indexPath, ok := staticSPAIndexPath(distDir)
 	if !ok {
 		c.Status(http.StatusNotFound)
 		return
 	}
-	if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
-		c.File(filePath)
-		return
-	}
-	if isStaticAssetPath(cleanPath) {
-		c.Status(http.StatusNotFound)
-		return
-	}
 	c.File(indexPath)
+}
+
+func staticSPAIndexPath(distDir string) (string, bool) {
+	for _, name := range []string{"index.html", "200.html"} {
+		path := filepath.Join(distDir, name)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return path, true
+		}
+	}
+	return "", false
 }
 
 func cleanSPARequestPath(value string) string {

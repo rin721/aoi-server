@@ -4,7 +4,7 @@
 
 ## 首次初始化
 
-首次启用 IAM 前应先应用迁移：
+本地默认 `migration.auto_apply=true`，server 和 IAM CLI 会在启动装配阶段自动应用 goose 迁移。需要手动检查或生产发布时，先显式应用迁移：
 
 ```bash
 go run ./cmd/main db migrate up --config=configs/config.yaml

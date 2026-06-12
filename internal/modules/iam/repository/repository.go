@@ -44,6 +44,11 @@ type Repository interface {
 	FindSessionByRefreshHash(context.Context, string) (*model.Session, error)
 	ListSessionsByUser(context.Context, int64) ([]model.Session, error)
 	SaveSession(context.Context, *model.Session) error
+	CreateAPIToken(context.Context, *model.APIToken) error
+	FindAPITokenByHash(context.Context, string) (*model.APIToken, error)
+	FindAPITokenByID(context.Context, int64) (*model.APIToken, error)
+	ListAPITokens(context.Context, int64, APITokenFilter) ([]model.APIToken, int64, error)
+	SaveAPIToken(context.Context, *model.APIToken) error
 	CreateInvitation(context.Context, *model.Invitation) error
 	FindInvitationByID(context.Context, int64) (*model.Invitation, error)
 	FindInvitationByTokenHash(context.Context, string) (*model.Invitation, error)
@@ -69,6 +74,14 @@ type AuditLogFilter struct {
 	To     time.Time
 	Limit  int
 	Cursor int64
+}
+
+type APITokenFilter struct {
+	Page     int
+	PageSize int
+	Status   string
+	UserID   int64
+	Now      time.Time
 }
 
 type repository struct {
@@ -304,6 +317,77 @@ func (r *repository) ListSessionsByUser(ctx context.Context, userID int64) ([]mo
 func (r *repository) SaveSession(ctx context.Context, session *model.Session) error {
 	session.UpdatedAt = time.Now().UTC()
 	return r.db.Save(ctx, session)
+}
+
+func (r *repository) CreateAPIToken(ctx context.Context, apiToken *model.APIToken) error {
+	return r.db.Create(ctx, apiToken)
+}
+
+func (r *repository) FindAPITokenByHash(ctx context.Context, hash string) (*model.APIToken, error) {
+	var apiToken model.APIToken
+	if err := r.db.First(ctx, &apiToken, database.Where("token_hash = ?", hash)); err != nil {
+		return nil, err
+	}
+	return &apiToken, nil
+}
+
+func (r *repository) FindAPITokenByID(ctx context.Context, id int64) (*model.APIToken, error) {
+	var apiToken model.APIToken
+	if err := r.db.First(ctx, &apiToken, database.Where("id = ?", id)); err != nil {
+		return nil, err
+	}
+	return &apiToken, nil
+}
+
+func (r *repository) ListAPITokens(ctx context.Context, orgID int64, filter APITokenFilter) ([]model.APIToken, int64, error) {
+	if filter.Page <= 0 {
+		filter.Page = 1
+	}
+	if filter.PageSize <= 0 || filter.PageSize > 100 {
+		filter.PageSize = 10
+	}
+	if filter.Now.IsZero() {
+		filter.Now = time.Now().UTC()
+	}
+	opts := []database.QueryOption{
+		database.Where("org_id = ?", orgID),
+	}
+	if filter.UserID > 0 {
+		opts = append(opts, database.Where("user_id = ?", filter.UserID))
+	}
+	switch filter.Status {
+	case model.StatusActive:
+		opts = append(opts,
+			database.Where("status = ?", model.StatusActive),
+			database.Where("(expires_at IS NULL OR expires_at >= ?)", filter.Now),
+		)
+	case model.StatusExpired:
+		opts = append(opts,
+			database.Where("status = ?", model.StatusActive),
+			database.Where("expires_at IS NOT NULL AND expires_at < ?", filter.Now),
+		)
+	case model.StatusRevoked:
+		opts = append(opts, database.Where("status = ?", model.StatusRevoked))
+	}
+	total, err := r.db.Count(ctx, &model.APIToken{}, opts...)
+	if err != nil {
+		return nil, 0, err
+	}
+	query := append(append([]database.QueryOption{}, opts...),
+		database.Order("created_at DESC, id DESC"),
+		database.Limit(filter.PageSize),
+		database.Offset((filter.Page-1)*filter.PageSize),
+	)
+	var items []model.APIToken
+	if err := r.db.Find(ctx, &items, query...); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+func (r *repository) SaveAPIToken(ctx context.Context, apiToken *model.APIToken) error {
+	apiToken.UpdatedAt = time.Now().UTC()
+	return r.db.Save(ctx, apiToken)
 }
 
 func (r *repository) CreateInvitation(ctx context.Context, invitation *model.Invitation) error {

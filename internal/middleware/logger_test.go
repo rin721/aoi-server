@@ -153,6 +153,7 @@ func (c *loggerTestContext) Get(key any) (any, bool) {
 func (c *loggerTestContext) Param(string) string          { return "" }
 func (c *loggerTestContext) BindJSON(any) error           { return nil }
 func (c *loggerTestContext) JSON(int, any)                {}
+func (c *loggerTestContext) Data(int, string, []byte)     {}
 func (c *loggerTestContext) AbortWithStatusJSON(int, any) {}
 func (c *loggerTestContext) Next()                        {}
 func (c *loggerTestContext) Path() string                 { return c.path }

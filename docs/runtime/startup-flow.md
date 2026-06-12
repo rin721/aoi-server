@@ -40,7 +40,7 @@ main.go
 
 启动期间，只有在 Demo 模块启用且 `demo.apply_schema_on_start` 为 true 时才会应用 Demo 表结构。
 
-IAM 表结构由 goose 迁移管理。默认 `migration.auto_apply=false`，应通过 `db migrate up` 显式应用；如果显式开启自动迁移，`internal/app/initapp` 会在模块装配前运行迁移。
+IAM 表结构由 goose 迁移管理。本地默认 `migration.auto_apply=true`，`internal/app/initapp` 会在模块装配前运行迁移，便于首次启动后直接进入 `/admin` 浏览器初始化。生产示例保持 `migration.auto_apply=false`，应通过 `db migrate up` 显式应用。
 
 System 模块在装配时会读取 `system.seed_defaults_on_start`。默认开启时，它会幂等补齐 `system.status`、`http.method`、`operation.result` 三组内置字典，以及 `admin.title`、`admin.home_path`、`system.reference` 三个系统参数。这个过程会跳过未迁移或不可用的 system 表，并且不会覆盖已经存在的参数值。
 

@@ -1,3 +1,9 @@
+## 无新增配置的后台功能
+
+版本管理发布包使用 `system_versions` 数据表和既有 IAM 权限，不新增 YAML 或环境变量配置项。启用该能力只需要执行数据库迁移，并给角色分配 `version:*` 相关权限。
+
+媒体库使用 `system_media_categories`、`system_media_assets` 数据表和既有 Storage 配置。只浏览记录或导入外链时不需要对象存储；普通上传、本地下载和本地对象删除需要 `storage.enabled=true`，推荐本地使用 `storage.fs_type=basepath`、`storage.base_path=./data`，文件会写入 `data/media/...`。
+
 # 配置说明
 
 配置由 `internal/config` 加载。默认配置文件是 `configs/config.yaml`，示例文件位于 `configs/config.example.yaml` 和 `deploy/config.production.example.yaml`。
@@ -60,6 +66,8 @@ DB_HOST
 | Migration | `RIN_APP_MIGRATION_AUTO_APPLY`, `RIN_APP_MIGRATION_DIR` |
 | CORS | `RIN_APP_CORS_ENABLED`, `RIN_APP_CORS_ALLOW_ORIGINS`, `RIN_APP_CORS_ALLOW_METHODS`, `RIN_APP_CORS_ALLOW_HEADERS`, `RIN_APP_CORS_EXPOSE_HEADERS`, `RIN_APP_CORS_ALLOW_CREDENTIALS`, `RIN_APP_CORS_MAX_AGE` |
 
+`RIN_APP_AUTH_REFRESH_TOKEN_PEPPER` 同时用于 refresh token 和 IAM API Token 的 HMAC hash。生产环境轮换该值前，需要把既有 refresh token 与 API Token 会统一失效这件事纳入发布通知和回滚预案。
+
 完整字段列表以 `internal/config/*` 和 `.env.example` 为准。
 
 ## 默认值
@@ -76,7 +84,7 @@ DB_HOST
 - Admin WebUI 默认不在主导航显示 Demo Todo，可在构建前设置 `NUXT_PUBLIC_SHOW_DEMO_TODO=true` 打开；
 - 示例配置开启自助注册，并使用 `debug` 通知驱动返回邀请和重置密码调试链接；
 - 插件默认关闭；启用后会读取 `plugins.manifests` 中的 JSON/YAML manifest；
-- 迁移默认不自动执行，应通过 `db migrate up` 显式应用。
+- 迁移默认随本地服务启动自动执行，用于首次启动后直接进入浏览器初始化；需要手动检查或生产发布时仍可通过 `db migrate up` 显式应用。
 
 生产示例：
 
@@ -84,6 +92,7 @@ DB_HOST
 - 默认关闭 Demo；
 - 默认关闭自助注册，通知驱动配置为 `smtp`，不在 API 响应中返回邀请或重置 token；
 - 插件默认关闭，sidecar 进程由 Compose、systemd 或 Kubernetes 等外部编排系统管理；
+- 迁移默认不自动执行，发布时应先通过 `db migrate status` 和 `db migrate up` 显式应用；
 - 敏感值应通过环境变量、CI/CD secrets 或容器编排系统注入。
 
 ## 新增配置字段
