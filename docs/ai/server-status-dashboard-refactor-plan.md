@@ -82,5 +82,5 @@
 - 修改摘要：集中 Server Status 配置、API endpoint、状态判断、格式化和派生模型；重构页面为健康优先的配置驱动 Dashboard；补齐数据状态组件、CSS tokens、文档和示例配置说明；移除 AI 文档中的明文测试账号组合表述。
 - 验证结果：`pnpm typecheck`、`pnpm build`、`pnpm generate`、`.output/public/index.html` 检查、`go test ./... -count=1 -mod=readonly`、`go build -mod=readonly -o ./tmp/go-scaffold-server ./cmd/main` 通过；Go 静态托管 `/admin/login` 和 `/admin/server-info` 访问通过；Browser 在 `1440x900`、`1280x720`、`390x844` 下无横向溢出、无 `undefined/null/NaN` 文本。
 - commit hash：`c14c45a`
-- 是否已合并 main：待本记录提交后合并。
+- 是否已合并 main：是，fast-forward 合并到 main；本阶段核心提交为 `c14c45a` 与 `7d0be1a`。
 - 下一步建议：NEXT 等后端真实提供 GPU、CI/CD、服务进程明细后，再继续阶段 7 的服务与任务区域结构化治理。
