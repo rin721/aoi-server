@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import type { AuditLog, HealthStatus, ReadyStatus, Session } from "~/types/admin"
+import type { AoiStatItem } from "~/types/ui"
 
 const api = useAdminApi()
 const auth = useAuthStore()
@@ -9,6 +10,18 @@ const health = ref<HealthStatus | null>(null)
 const ready = ref<ReadyStatus | null>(null)
 const sessions = ref<Session[]>([])
 const auditLogs = ref<AuditLog[]>([])
+const dashboardStats = computed<AoiStatItem[]>(() => [
+  { icon: "user", label: "登录账号", value: auth.user?.username || "-", description: auth.user?.email || "-" },
+  { icon: "building-2", label: "当前组织", value: auth.currentOrg?.code || "-", description: auth.currentOrg?.name || "-" },
+  { icon: "heart-pulse", intent: health.value?.status === "ok" ? "success" : "neutral", label: "Health", value: health.value?.status || "-", description: "/health" },
+  {
+    icon: "badge-check",
+    intent: ready.value?.status === "ready" ? "success" : "neutral",
+    label: "Ready",
+    value: ready.value?.status || "-",
+    description: ready.value?.checks ? Object.entries(ready.value.checks).map(([key, value]) => `${key}:${value}`).join(" · ") : "/ready"
+  }
+])
 
 async function refresh() {
   loading.value = true
@@ -54,35 +67,13 @@ useHead({
 
     <AoiStatusMessage tone="danger" :message="error" />
 
-    <section class="summary-grid">
-      <article class="admin-card stat-card">
-        <span class="stat-card__label">登录账号</span>
-        <strong class="stat-card__value">{{ auth.user?.username || "-" }}</strong>
-        <span class="stat-card__meta">{{ auth.user?.email || "-" }}</span>
-      </article>
-      <article class="admin-card stat-card">
-        <span class="stat-card__label">当前组织</span>
-        <strong class="stat-card__value">{{ auth.currentOrg?.code || "-" }}</strong>
-        <span class="stat-card__meta">{{ auth.currentOrg?.name || "-" }}</span>
-      </article>
-      <article class="admin-card stat-card">
-        <span class="stat-card__label">Health</span>
-        <strong class="stat-card__value">{{ health?.status || "-" }}</strong>
-        <span class="stat-card__meta">/health</span>
-      </article>
-      <article class="admin-card stat-card">
-        <span class="stat-card__label">Ready</span>
-        <strong class="stat-card__value">{{ ready?.status || "-" }}</strong>
-        <span class="stat-card__meta">{{ ready?.checks ? Object.entries(ready.checks).map(([k, v]) => `${k}:${v}`).join(" · ") : "/ready" }}</span>
-      </article>
-    </section>
+    <AoiStatGrid :items="dashboardStats" :columns="4" />
 
     <section class="two-column-grid">
-      <article class="admin-card">
-        <div class="admin-card__header">
-          <h2>最近审计</h2>
+      <AoiAdminCard title="最近审计" flush>
+        <template #actions>
           <AoiButton appearance="plain" icon="arrow-right" to="/audit-logs">全部</AoiButton>
-        </div>
+        </template>
         <div class="data-table-wrap">
           <table class="data-table">
             <thead>
@@ -106,24 +97,42 @@ useHead({
             </tbody>
           </table>
         </div>
-      </article>
+      </AoiAdminCard>
 
-      <article class="admin-card">
-        <div class="admin-card__header">
-          <h2>活跃会话</h2>
+      <AoiAdminCard title="活跃会话">
+        <template #actions>
           <AoiButton appearance="plain" icon="arrow-right" to="/sessions">管理</AoiButton>
-        </div>
-        <div class="admin-card__body page-grid">
-          <div v-for="session in sessions.slice(0, 5)" :key="session.id">
+        </template>
+        <div class="dashboard-session-list">
+          <div v-for="session in sessions.slice(0, 5)" :key="session.id" class="dashboard-session-list__item">
             <strong>#{{ session.id }}</strong>
             <div class="muted">{{ session.ipAddress }} · {{ formatDateTime(session.lastUsedAt || session.createdAt) }}</div>
           </div>
           <p v-if="!sessions.length" class="muted">暂无会话。</p>
         </div>
-      </article>
+      </AoiAdminCard>
     </section>
   </div>
 </template>
+
+<style scoped>
+.dashboard-session-list {
+  display: grid;
+  gap: var(--aoi-admin-panel-gap-compact);
+}
+
+.dashboard-session-list__item {
+  display: grid;
+  gap: var(--aoi-admin-card-copy-gap);
+  min-width: 0;
+}
+
+.dashboard-session-list__item strong,
+.dashboard-session-list__item div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+</style>
 
 
 

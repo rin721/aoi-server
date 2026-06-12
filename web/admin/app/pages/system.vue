@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { SystemConfigItem, SystemConfigSection, SystemConfigSnapshot } from "~/types/admin"
+import type { SystemConfigSection, SystemConfigSnapshot } from "~/types/admin"
+import type { AoiKeyValueItem, AoiStatItem } from "~/types/ui"
 
 const api = useAdminApi()
 const snapshot = ref<SystemConfigSnapshot>({ sections: [] })
@@ -11,6 +12,23 @@ const sections = computed<SystemConfigSection[]>(() => [...snapshot.value.sectio
 const selectedSection = computed(() => sections.value.find((section) => section.code === selectedCode.value) || sections.value[0] || null)
 const itemCount = computed(() => sections.value.reduce((count, section) => count + section.items.length, 0))
 const secretCount = computed(() => sections.value.reduce((count, section) => count + section.items.filter((item) => item.secret).length, 0))
+const overviewItems = computed<AoiStatItem[]>(() => [
+  { icon: "blocks", label: "分区", value: sections.value.length },
+  { icon: "list-tree", label: "字段", value: itemCount.value },
+  { icon: "shield-check", intent: secretCount.value ? "warning" : "neutral", label: "脱敏", value: secretCount.value },
+  { icon: "server-cog", label: "来源", value: "runtime" }
+])
+const selectedItems = computed<AoiKeyValueItem[]>(() =>
+  selectedSection.value?.items.map((item) => ({
+    badge: item.secret ? "已脱敏" : undefined,
+    intent: item.secret ? "warning" : "neutral",
+    label: item.label,
+    meta: item.key,
+    monospace: typeof item.value !== "boolean",
+    secret: item.secret,
+    value: formatConfigValue(item.value)
+  })) || []
+)
 
 async function load() {
   loading.value = true
@@ -47,13 +65,6 @@ function formatConfigValue(value: unknown) {
   return String(value)
 }
 
-function itemValueClass(item: SystemConfigItem) {
-  return {
-    "config-item__value--empty": formatConfigValue(item.value) === "-",
-    "config-item__value--secret": item.secret
-  }
-}
-
 onMounted(load)
 
 useHead({
@@ -71,24 +82,7 @@ useHead({
 
     <AoiStatusMessage tone="danger" :message="error" />
 
-    <section class="config-overview" aria-label="配置概览">
-      <div class="config-stat">
-        <span>分区</span>
-        <strong>{{ sections.length }}</strong>
-      </div>
-      <div class="config-stat">
-        <span>字段</span>
-        <strong>{{ itemCount }}</strong>
-      </div>
-      <div class="config-stat">
-        <span>脱敏</span>
-        <strong>{{ secretCount }}</strong>
-      </div>
-      <div class="config-stat">
-        <span>来源</span>
-        <strong>runtime</strong>
-      </div>
-    </section>
+    <AoiStatGrid :items="overviewItems" :columns="4" />
 
     <section v-if="sections.length" class="config-layout">
       <nav class="config-tabs" aria-label="配置分区">
@@ -106,76 +100,31 @@ useHead({
         </button>
       </nav>
 
-      <article v-if="selectedSection" class="admin-card config-panel">
-        <div class="admin-card__header config-panel__header">
-          <div class="config-panel__title">
-            <AoiIcon :name="selectedSection.icon || 'settings'" decorative />
-            <div>
-              <h2>{{ selectedSection.label }}</h2>
-              <p>{{ selectedSection.description }}</p>
-            </div>
-          </div>
-          <span class="badge">{{ selectedSection.code }}</span>
-        </div>
-
-        <div class="config-items">
-          <div v-for="item in selectedSection.items" :key="item.key" class="config-item">
-            <div class="config-item__meta">
-              <strong>{{ item.label }}</strong>
-              <small>{{ item.key }}</small>
-            </div>
-            <div class="config-item__readout">
-              <span class="config-item__value" :class="itemValueClass(item)">{{ formatConfigValue(item.value) }}</span>
-              <span v-if="item.secret" class="badge badge--warning">脱敏</span>
-            </div>
-          </div>
-        </div>
-      </article>
+      <AoiAdminCard
+        v-if="selectedSection"
+        class="config-panel"
+        :badge="selectedSection.code"
+        :description="selectedSection.description"
+        :icon="selectedSection.icon || 'settings'"
+        :title="selectedSection.label"
+      >
+        <AoiKeyValueList :items="selectedItems" layout="rows" />
+      </AoiAdminCard>
     </section>
 
-    <article v-else class="admin-card config-empty">
+    <AoiAdminCard v-else class="config-empty" padding="lg">
       <AoiIcon name="settings" :size="24" decorative />
       <p>{{ loading ? "配置加载中。" : "暂无配置快照。" }}</p>
-    </article>
+    </AoiAdminCard>
   </div>
 </template>
 
 <style scoped>
-.config-overview {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.config-stat {
-  background: var(--aoi-surface-solid);
-  border: 1px solid var(--aoi-border);
-  border-radius: var(--aoi-radius-card);
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  padding: 14px;
-}
-
-.config-stat span {
-  color: var(--aoi-text-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.config-stat strong {
-  color: var(--aoi-text);
-  font-size: 22px;
-  line-height: 1.15;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
 .config-layout {
   align-items: start;
   display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: var(--aoi-admin-panel-gap);
+  grid-template-columns: minmax(var(--aoi-admin-config-nav-min-width), var(--aoi-admin-config-nav-width)) minmax(0, 1fr);
 }
 
 .config-tabs {
@@ -200,10 +149,10 @@ useHead({
   cursor: pointer;
   display: grid;
   font: inherit;
-  gap: 10px;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  min-height: 46px;
-  padding: 10px 12px;
+  gap: var(--aoi-admin-card-gap);
+  grid-template-columns: var(--aoi-nav-icon-size) minmax(0, 1fr) auto;
+  min-height: var(--aoi-admin-nav-row-height);
+  padding: var(--aoi-admin-nav-row-padding);
   text-align: left;
 }
 
@@ -212,13 +161,14 @@ useHead({
 }
 
 .config-tab:hover,
+.config-tab:focus-visible,
 .config-tab--active {
-  background: var(--aoi-active-bg);
+  background: var(--aoi-state-active);
   color: var(--aoi-active-color);
 }
 
 .config-tab span {
-  font-weight: 700;
+  font-weight: 760;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -226,7 +176,7 @@ useHead({
 .config-tab small {
   background: var(--aoi-surface-muted);
   border: 1px solid var(--aoi-border);
-  border-radius: 999px;
+  border-radius: var(--aoi-radius-round);
   color: var(--aoi-text-muted);
   font-size: 11px;
   font-weight: 800;
@@ -239,112 +189,11 @@ useHead({
   min-width: 0;
 }
 
-.config-panel__header {
-  align-items: flex-start;
-}
-
-.config-panel__title {
-  align-items: flex-start;
-  display: flex;
-  gap: 10px;
-  min-width: 0;
-}
-
-.config-panel__title > svg {
-  color: var(--aoi-accent-60);
-  flex: 0 0 auto;
-  margin-top: 2px;
-}
-
-.config-panel__title h2,
-.config-panel__title p {
-  margin: 0;
-}
-
-.config-panel__title p {
-  color: var(--aoi-text-muted);
-  line-height: 1.6;
-  margin-top: 4px;
-  overflow-wrap: anywhere;
-}
-
-.config-items {
-  display: grid;
-}
-
-.config-item {
-  align-items: start;
-  border-top: 1px solid var(--aoi-border);
-  display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
-  padding: 13px 0;
-}
-
-.config-item:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.config-item:last-child {
-  padding-bottom: 0;
-}
-
-.config-item__meta,
-.config-item__readout {
-  min-width: 0;
-}
-
-.config-item__meta {
-  display: grid;
-  gap: 4px;
-}
-
-.config-item__meta strong {
-  color: var(--aoi-text);
-  overflow-wrap: anywhere;
-}
-
-.config-item__meta small {
-  color: var(--aoi-text-muted);
-  font-family: var(--aoi-font-mono);
-  overflow-wrap: anywhere;
-}
-
-.config-item__readout {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.config-item__value {
-  background: var(--aoi-surface-soft);
-  border: 1px solid var(--aoi-border);
-  border-radius: 8px;
-  color: var(--aoi-text);
-  display: inline-block;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  padding: 6px 9px;
-  text-align: right;
-  white-space: pre-wrap;
-}
-
-.config-item__value--empty {
-  color: var(--aoi-text-muted);
-}
-
-.config-item__value--secret {
-  font-weight: 800;
-}
-
 .config-empty {
   align-items: center;
   color: var(--aoi-text-muted);
   display: flex;
-  gap: 10px;
+  gap: var(--aoi-admin-card-gap);
   justify-content: center;
   min-height: 160px;
 }
@@ -367,31 +216,7 @@ useHead({
     border-bottom: 0;
     border-right: 1px solid var(--aoi-border);
     flex: 0 0 auto;
-    min-width: 150px;
-  }
-}
-
-@media (max-width: 680px) {
-  .config-overview {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .config-panel__header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .config-item {
-    gap: 8px;
-    grid-template-columns: 1fr;
-  }
-
-  .config-item__readout {
-    justify-content: flex-start;
-  }
-
-  .config-item__value {
-    text-align: left;
+    min-width: var(--aoi-admin-config-tab-min-width);
   }
 }
 </style>

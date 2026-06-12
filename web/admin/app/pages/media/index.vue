@@ -403,7 +403,7 @@ useHead({
             <button
               class="category-row"
               :class="{ 'category-row--active': selectedCategoryId === item.id }"
-              :style="{ paddingLeft: `${12 + item.depth * 16}px` }"
+              :style="{ '--aoi-media-category-indent': `calc(${item.depth} * var(--aoi-admin-media-category-indent-step))` }"
               type="button"
               @click="chooseCategory(item.id)"
             >
@@ -419,39 +419,42 @@ useHead({
         </div>
       </aside>
 
-      <article class="admin-card media-assets">
-        <div class="admin-card__header media-assets-header">
-          <div>
-            <h2>{{ selectedCategoryName }}</h2>
-            <p class="muted">共 {{ pageData.total }} 个文件，上传上限 {{ pageData.uploadMaxMb }} MB</p>
-          </div>
+      <AoiAdminCard
+        class="media-assets"
+        :title="selectedCategoryName"
+        :description="`共 ${pageData.total} 个文件，上传上限 ${pageData.uploadMaxMb} MB`"
+        flush
+      >
+        <template #actions>
           <div class="media-pager">
             <AoiButton appearance="soft" size="sm" icon="chevron-left" :disabled="page <= 1" @click="previousPage">上一页</AoiButton>
             <span class="badge">{{ page }} / {{ totalPages }}</span>
             <AoiButton appearance="soft" size="sm" icon="chevron-right" :disabled="page >= totalPages" @click="nextPage">下一页</AoiButton>
           </div>
-        </div>
+        </template>
 
-        <div class="media-alert">
-          <AoiIcon name="circle-alert" decorative />
-          <span>点击文件名可编辑；当前选中的分类会作为上传分类。外链导入只保存 URL，不抓取远程文件。</span>
-        </div>
+        <div class="media-assets-body">
+          <div class="media-alert">
+            <AoiIcon name="circle-alert" decorative />
+            <span>点击文件名可编辑；当前选中的分类会作为上传分类。外链导入只保存 URL，不抓取远程文件。</span>
+          </div>
 
-        <div class="media-toolbar">
-          <input ref="fileInput" class="media-file-input" multiple type="file" @change="onFileSelected">
-          <AoiButton appearance="soft" icon="upload" :disabled="uploadDisabled" :loading="uploading" @click="openFilePicker">普通上传</AoiButton>
-          <AoiButton appearance="soft" icon="link" :disabled="!persisted" @click="openImportDialog">导入URL</AoiButton>
-          <AoiTextField v-model="keyword" label="文件名或备注" icon="search" placeholder="请输入文件名或备注" @enter="page = 1; loadAssets()" />
-          <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="page = 1; loadAssets()" />
-          <AoiButton appearance="soft" icon="search" :loading="loading" @click="page = 1; loadAssets()">查询</AoiButton>
-          <AoiButton appearance="plain" icon="rotate-ccw" @click="resetFilters">重置</AoiButton>
-        </div>
+          <div class="media-toolbar">
+            <input ref="fileInput" class="media-file-input" multiple type="file" @change="onFileSelected">
+            <AoiButton appearance="soft" icon="upload" :disabled="uploadDisabled" :loading="uploading" @click="openFilePicker">普通上传</AoiButton>
+            <AoiButton appearance="soft" icon="link" :disabled="!persisted" @click="openImportDialog">导入URL</AoiButton>
+            <AoiTextField v-model="keyword" label="文件名或备注" icon="search" placeholder="请输入文件名或备注" @enter="page = 1; loadAssets()" />
+            <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="page = 1; loadAssets()" />
+            <AoiButton appearance="soft" icon="search" :loading="loading" @click="page = 1; loadAssets()">查询</AoiButton>
+            <AoiButton appearance="plain" icon="rotate-ccw" @click="resetFilters">重置</AoiButton>
+          </div>
 
-        <AoiStatusMessage
-          v-if="pageData.uploadUnavailable"
-          tone="warning"
-          message="对象存储未启用：可以浏览和导入外链，但不能上传或下载本地文件。"
-        />
+          <AoiStatusMessage
+            v-if="pageData.uploadUnavailable"
+            tone="warning"
+            message="对象存储未启用：可以浏览和导入外链，但不能上传或下载本地文件。"
+          />
+        </div>
 
         <div class="data-table-wrap">
           <table class="data-table media-table">
@@ -482,10 +485,10 @@ useHead({
                   </button>
                 </td>
                 <td data-label="链接">
-                  <a v-if="item.external" class="asset-link" :href="item.url" target="_blank" rel="noopener noreferrer">
+                  <AoiLink v-if="item.external" class="asset-link" :href="item.url" target="_blank" rel="noopener noreferrer" external>
                     <AoiIcon name="external-link" decorative />
                     <span>打开外链</span>
-                  </a>
+                  </AoiLink>
                   <span v-else class="asset-link asset-link--local">
                     <AoiIcon name="download" decorative />
                     <span>鉴权下载</span>
@@ -512,7 +515,7 @@ useHead({
             </tbody>
           </table>
         </div>
-      </article>
+      </AoiAdminCard>
     </section>
 
     <AoiDialog v-model:open="importOpen">
@@ -563,18 +566,19 @@ useHead({
 <style scoped>
 .media-workspace {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: minmax(var(--aoi-admin-media-category-min-width), var(--aoi-admin-media-category-width)) minmax(0, 1fr);
+  gap: var(--aoi-admin-panel-gap);
   align-items: start;
 }
 
 .media-categories {
   display: grid;
-  gap: 8px;
-  padding: 16px;
-  border: 1px solid rgb(var(--md-sys-color-outline-variant-rgb, 210 216 224));
-  border-radius: 8px;
-  background: rgb(var(--md-sys-color-surface-rgb, 255 255 255));
+  gap: var(--aoi-admin-card-copy-gap);
+  padding: var(--aoi-admin-card-body-padding);
+  border: 1px solid var(--aoi-admin-border);
+  border-radius: var(--aoi-radius-card);
+  background: var(--aoi-admin-surface);
+  box-shadow: var(--aoi-admin-shadow);
 }
 
 .media-panel-header,
@@ -591,7 +595,7 @@ useHead({
 .media-panel-header,
 .media-assets-header {
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--aoi-admin-card-gap);
 }
 
 .media-panel-header h2,
@@ -608,30 +612,34 @@ useHead({
 
 .category-list {
   display: grid;
-  gap: 4px;
+  gap: var(--aoi-admin-card-copy-gap);
 }
 
 .category-line {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px;
+  gap: var(--aoi-admin-card-copy-gap);
   align-items: center;
 }
 
 .category-row {
   display: flex;
-  min-height: 38px;
+  min-height: var(--aoi-admin-media-category-row-height);
   align-items: center;
-  gap: 8px;
+  gap: var(--aoi-admin-card-copy-gap);
   width: 100%;
-  padding: 8px 12px;
+  padding: var(--aoi-admin-nav-row-padding);
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--aoi-radius-control);
   background: transparent;
-  color: rgb(var(--md-sys-color-on-surface-rgb, 30 36 43));
+  color: var(--aoi-admin-text);
   cursor: pointer;
   font: inherit;
   text-align: left;
+}
+
+.category-line .category-row {
+  padding-inline-start: calc(var(--aoi-admin-nav-row-padding-inline) + var(--aoi-media-category-indent, 0px));
 }
 
 .category-row span {
@@ -643,7 +651,8 @@ useHead({
 
 .category-row:hover,
 .category-row--active {
-  background: rgb(var(--md-sys-color-secondary-container-rgb, 222 234 236));
+  background: var(--aoi-state-active);
+  color: var(--aoi-active-color);
 }
 
 .category-actions {
@@ -661,31 +670,34 @@ useHead({
 }
 
 .media-pager {
-  gap: 8px;
+  gap: var(--aoi-admin-card-copy-gap);
   white-space: nowrap;
+}
+
+.media-assets-body {
+  display: grid;
+  gap: var(--aoi-admin-panel-gap-compact);
+  padding: var(--aoi-admin-card-body-padding);
 }
 
 .media-alert {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  margin: 0 0 14px;
-  padding: 10px 12px;
-  border: 1px solid rgb(245 196 88);
-  border-radius: 6px;
-  background: rgb(255 248 225);
-  color: rgb(92 64 14);
+  gap: var(--aoi-admin-card-copy-gap);
+  padding: var(--aoi-admin-card-body-padding-sm);
+  border: 1px solid var(--aoi-intent-warning-border);
+  border-radius: var(--aoi-radius-control);
+  background: var(--aoi-intent-warning-soft-bg);
+  color: var(--aoi-intent-warning-color);
 }
 
 .media-toolbar {
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: var(--aoi-admin-panel-gap-compact);
 }
 
-.media-toolbar :deep(md-filled-text-field),
-.media-toolbar :deep(md-outlined-text-field) {
-  min-width: 180px;
+.media-toolbar .aoi-text-field {
+  min-width: var(--aoi-admin-filter-min-field-width);
 }
 
 .media-file-input {
@@ -693,24 +705,24 @@ useHead({
 }
 
 .media-table {
-  min-width: 860px;
+  min-width: var(--aoi-admin-media-table-min-width);
 }
 
 .media-table th:first-child,
 .media-table td:first-child {
-  width: 88px;
+  width: var(--aoi-admin-media-preview-cell-width);
 }
 
 .asset-preview {
   display: grid;
-  width: 56px;
-  height: 56px;
+  width: var(--aoi-admin-media-preview-size);
+  height: var(--aoi-admin-media-preview-size);
   place-items: center;
   overflow: hidden;
-  border: 1px solid rgb(var(--md-sys-color-outline-variant-rgb, 210 216 224));
-  border-radius: 6px;
-  background: rgb(var(--md-sys-color-surface-container-rgb, 244 247 249));
-  color: rgb(var(--md-sys-color-primary-rgb, 23 91 112));
+  border: 1px solid var(--aoi-admin-border);
+  border-radius: var(--aoi-radius-control);
+  background: var(--aoi-admin-surface-muted);
+  color: var(--aoi-active-color);
 }
 
 .asset-preview img {
@@ -721,7 +733,7 @@ useHead({
 
 .asset-name {
   display: grid;
-  gap: 2px;
+  gap: var(--aoi-admin-card-copy-gap);
   border: 0;
   background: transparent;
   color: inherit;
@@ -732,39 +744,41 @@ useHead({
 
 .asset-name strong,
 .asset-name small {
-  max-width: 260px;
+  max-width: var(--aoi-admin-media-name-max-width);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .asset-name small {
-  color: rgb(var(--md-sys-color-on-surface-variant-rgb, 91 97 105));
+  color: var(--aoi-admin-text-muted);
 }
 
 .asset-link {
-  gap: 6px;
-  color: rgb(var(--md-sys-color-primary-rgb, 23 91 112));
+  min-height: var(--aoi-control-height-md);
+  align-items: center;
+  gap: var(--aoi-admin-card-copy-gap);
+  color: var(--aoi-active-color);
   text-decoration: none;
 }
 
 .asset-link--local {
-  color: rgb(var(--md-sys-color-on-surface-variant-rgb, 91 97 105));
+  color: var(--aoi-admin-text-muted);
 }
 
 .table-actions {
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--aoi-admin-card-copy-gap);
 }
 
 .media-empty {
-  padding: 18px 8px;
+  padding: var(--aoi-admin-card-body-padding-lg) var(--aoi-admin-card-body-padding-sm);
   text-align: center;
 }
 
 .media-dialog {
   display: grid;
-  gap: 14px;
+  gap: var(--aoi-admin-panel-gap-compact);
   min-width: min(520px, 84vw);
 }
 
@@ -795,8 +809,7 @@ useHead({
     flex-direction: column;
   }
 
-  .media-toolbar :deep(md-filled-text-field),
-  .media-toolbar :deep(md-outlined-text-field) {
+  .media-toolbar .aoi-text-field {
     width: 100%;
     min-width: 0;
   }
@@ -818,8 +831,8 @@ useHead({
   }
 
   .media-table tr {
-    padding: 12px 0;
-    border-bottom: 1px solid rgb(var(--md-sys-color-outline-variant-rgb, 210 216 224));
+    padding: var(--aoi-admin-card-body-padding-sm) 0;
+    border-bottom: 1px solid var(--aoi-admin-border-soft);
   }
 
   .media-table tr:last-child {
@@ -829,15 +842,15 @@ useHead({
   .media-table td,
   .media-table td:last-child {
     display: grid;
-    grid-template-columns: 92px minmax(0, 1fr);
-    gap: 10px;
+    grid-template-columns: var(--aoi-admin-media-mobile-label-width) minmax(0, 1fr);
+    gap: var(--aoi-admin-panel-gap-compact);
     align-items: center;
-    padding: 8px 0;
+    padding: var(--aoi-admin-table-cell-padding-block) 0;
     border-bottom: 0;
   }
 
   .media-table td::before {
-    color: rgb(var(--md-sys-color-on-surface-variant-rgb, 91 97 105));
+    color: var(--aoi-admin-text-muted);
     content: attr(data-label);
     font-size: 0.78rem;
   }

@@ -10,18 +10,18 @@ function isActive(to: string) {
 
 <template>
   <aside class="admin-sidebar" :class="{ 'admin-sidebar--collapsed': state.sidebarCollapsed }">
-    <NuxtLink class="admin-sidebar__brand" to="/">
+    <AoiLink class="admin-sidebar__brand" to="/">
       <span class="admin-brand-mark">A</span>
       <span class="admin-sidebar__brand-copy">
         <strong>Aoi Admin</strong>
         <small>go-scaffold</small>
       </span>
-    </NuxtLink>
+    </AoiLink>
 
     <nav class="admin-sidebar__nav" aria-label="后台主导航">
       <section v-for="group in groups" :key="group.label" class="admin-sidebar__group">
         <p class="admin-sidebar__group-label">{{ group.label }}</p>
-        <NuxtLink
+        <AoiLink
           v-for="item in group.items"
           :key="item.to"
           class="admin-sidebar__item"
@@ -31,7 +31,7 @@ function isActive(to: string) {
         >
           <AoiIcon :name="item.icon" decorative />
           <span>{{ item.label }}</span>
-        </NuxtLink>
+        </AoiLink>
       </section>
     </nav>
   </aside>

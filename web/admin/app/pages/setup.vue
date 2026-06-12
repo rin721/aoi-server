@@ -110,7 +110,7 @@ useHead({
     </AoiButton>
 
     <div class="auth-links">
-      <NuxtLink to="/login">返回登录</NuxtLink>
+      <AoiLink to="/login">返回登录</AoiLink>
     </div>
   </form>
 </template>

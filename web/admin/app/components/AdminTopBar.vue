@@ -10,7 +10,7 @@ const { darkActive, state } = useAdminUiPreferences()
 
 const orgOptions = computed(() => auth.orgs.map((org) => ({
   label: `${org.name} (${org.code})`,
-  value: org.id
+  value: String(org.id)
 })))
 const currentTitle = computed(() => findItem(route.path)?.label || "工作台")
 
@@ -39,17 +39,18 @@ async function logout() {
         <span>后台管理</span>
         <strong>{{ currentTitle }}</strong>
       </div>
-    </div>
+      </div>
 
     <div class="admin-topbar__actions">
-      <label v-if="orgOptions.length" class="admin-topbar__org">
-        <span>组织</span>
-        <select :value="auth.currentOrgId || ''" @change="switchOrg(($event.target as HTMLSelectElement).value)">
-          <option v-for="option in orgOptions" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-      </label>
+      <div v-if="orgOptions.length" class="admin-topbar__org">
+        <AoiSelect
+          :model-value="auth.currentOrgId || ''"
+          :options="orgOptions"
+          appearance="outlined"
+          label="组织"
+          @update:model-value="switchOrg"
+        />
+      </div>
       <AoiIconButton
         :icon="darkActive ? 'moon' : 'sun'"
         label="切换明暗主题"

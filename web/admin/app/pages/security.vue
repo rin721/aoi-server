@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { AoiKeyValueItem } from "~/types/ui"
+
 const api = useAdminApi()
 const auth = useAuthStore()
 
@@ -14,11 +16,11 @@ const accountName = computed(() => auth.user?.displayName || auth.user?.username
 const mfaEnabled = computed(() => Boolean(auth.user?.mfaEnabled))
 const accessExpiresLabel = computed(() => formatDateTime(auth.accessExpiresAt))
 const refreshExpiresLabel = computed(() => formatDateTime(auth.refreshExpiresAt))
-const securityItems = computed(() => [
+const securityItems = computed<AoiKeyValueItem[]>(() => [
   { icon: "user", label: "账号", value: accountName.value },
   { icon: "mail", label: "邮箱", value: auth.user?.email || "-" },
   { icon: "building-2", label: "当前组织", value: auth.currentOrg?.name || "-" },
-  { icon: "fingerprint", label: "当前会话", value: auth.sessionId || "-" },
+  { icon: "fingerprint", label: "当前会话", value: auth.sessionId || "-", monospace: true },
   { icon: "clock", label: "Access 过期", value: accessExpiresLabel.value },
   { icon: "calendar-clock", label: "Refresh 过期", value: refreshExpiresLabel.value }
 ])
@@ -67,7 +69,7 @@ async function logout() {
 }
 
 async function openSessions() {
-  await navigateTo("/admin/sessions")
+  await navigateTo("/sessions")
 }
 
 useHead({
@@ -87,41 +89,30 @@ useHead({
     <AoiStatusMessage tone="success" :message="success" />
 
     <section class="security-workspace">
-      <article class="admin-card security-account-card">
-        <div class="admin-card__header">
-          <div>
-            <h2>当前账号</h2>
-            <span>{{ auth.user?.username || "-" }}</span>
-          </div>
-          <span class="badge" :class="mfaEnabled ? 'badge--success' : 'badge--warning'">
-            MFA {{ mfaEnabled ? "已启用" : "未启用" }}
-          </span>
-        </div>
-
-        <div class="security-summary-grid">
-          <div v-for="item in securityItems" :key="item.label" class="security-summary-item">
-            <AoiIcon :name="item.icon" decorative />
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-          </div>
-        </div>
-
+      <AoiAdminCard
+        class="security-account-card"
+        :badge="`MFA ${mfaEnabled ? '已启用' : '未启用'}`"
+        :badge-intent="mfaEnabled ? 'success' : 'warning'"
+        :description="auth.user?.username || '-'"
+        icon="user-round-check"
+        title="当前账号"
+      >
+        <AoiKeyValueList :items="securityItems" layout="cards" />
         <div class="security-actions">
           <AoiButton appearance="soft" icon="monitor-check" @click="openSessions">查看会话</AoiButton>
           <AoiButton appearance="soft" intent="danger" icon="log-out" :loading="auth.loading" @click="logout">
             退出登录
           </AoiButton>
         </div>
-      </article>
+      </AoiAdminCard>
 
-      <article class="admin-card security-mfa-card">
-        <div class="admin-card__header">
-          <div>
-            <h2>MFA</h2>
-            <span>{{ mfaEnabled ? "登录时需要一次性验证码" : "建议启用一次性验证码保护账号" }}</span>
-          </div>
-        </div>
-        <div class="admin-card__body form-grid">
+      <AoiAdminCard
+        class="security-mfa-card"
+        :description="mfaEnabled ? '登录时需要一次性验证码' : '建议启用一次性验证码保护账号'"
+        icon="shield-check"
+        title="MFA"
+      >
+        <div class="form-grid">
           <AoiButton appearance="soft" icon="shield-plus" :loading="loading" @click="setupMFA">
             {{ mfaEnabled ? "轮换密钥" : "生成密钥" }}
           </AoiButton>
@@ -132,7 +123,7 @@ useHead({
             <AoiButton icon="check" :loading="verifying" :disabled="!mfaCode.trim()" @click="verifyMFA">验证并启用</AoiButton>
           </div>
         </div>
-      </article>
+      </AoiAdminCard>
     </section>
   </div>
 </template>
@@ -140,65 +131,21 @@ useHead({
 <style scoped>
 .security-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(var(--aoi-admin-security-side-min-width), var(--aoi-admin-security-side-width));
+  gap: var(--aoi-admin-panel-gap);
   align-items: start;
 }
 
-.security-account-card .admin-card__header > div,
-.security-mfa-card .admin-card__header > div {
+.security-account-card :deep(.aoi-admin-card__body) {
   display: grid;
-  gap: 8px;
-}
-
-.security-account-card .admin-card__header span,
-.security-mfa-card .admin-card__header span {
-  color: var(--aoi-text-muted);
-  font-size: 13px;
-}
-
-.security-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 16px;
-}
-
-.security-summary-item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 6px 10px;
-  align-items: center;
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--aoi-border);
-  border-radius: var(--aoi-radius-md);
-  background: var(--aoi-surface-soft);
-}
-
-.security-summary-item :deep(.aoi-icon) {
-  color: var(--aoi-primary);
-}
-
-.security-summary-item span {
-  color: var(--aoi-text-muted);
-  font-size: 12px;
-}
-
-.security-summary-item strong {
-  grid-column: 1 / -1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--aoi-text);
-  font-size: 14px;
+  gap: var(--aoi-admin-panel-gap);
 }
 
 .security-actions {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: var(--aoi-admin-card-gap);
   justify-content: flex-end;
-  padding: 14px 16px;
-  border-top: 1px solid var(--aoi-border);
 }
 
 @media (max-width: 1100px) {
@@ -208,10 +155,6 @@ useHead({
 }
 
 @media (max-width: 720px) {
-  .security-summary-grid {
-    grid-template-columns: 1fr;
-  }
-
   .security-actions {
     align-items: stretch;
     flex-direction: column;

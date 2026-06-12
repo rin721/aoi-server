@@ -9,7 +9,7 @@ function isActive(to: string) {
 
 <template>
   <nav class="admin-mobile-nav" aria-label="移动端主导航">
-    <NuxtLink
+    <AoiLink
       v-for="item in mobileItems"
       :key="item.to"
       class="admin-mobile-nav__item"
@@ -18,7 +18,7 @@ function isActive(to: string) {
     >
       <AoiIcon :name="item.icon" decorative />
       <span>{{ item.label }}</span>
-    </NuxtLink>
+    </AoiLink>
   </nav>
 </template>
 

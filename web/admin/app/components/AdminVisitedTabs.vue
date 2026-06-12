@@ -65,7 +65,7 @@ watch(() => route.path, (path) => addCurrent(path))
 
 <template>
   <div class="admin-tabs" aria-label="访问标签页">
-    <NuxtLink
+    <AoiLink
       v-for="tab in tabs"
       :key="tab.path"
       class="admin-tabs__item"
@@ -83,7 +83,7 @@ watch(() => route.path, (path) => addCurrent(path))
       >
         <AoiIcon name="x" decorative />
       </button>
-    </NuxtLink>
+    </AoiLink>
   </div>
 </template>
 

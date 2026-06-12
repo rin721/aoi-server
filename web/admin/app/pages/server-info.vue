@@ -1,39 +1,23 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import type { SystemServerDiskInfo, SystemServerInfo } from "~/types/admin"
+import type { AoiKeyValueItem, AoiStatItem } from "~/types/ui"
 
 const api = useAdminApi()
 const info = ref<SystemServerInfo | null>(null)
 const loading = ref(false)
 const error = ref("")
 
-const summaryCards = computed(() => {
+const summaryCards = computed<AoiStatItem[]>(() => {
   const current = info.value
   return [
-    {
-      icon: "clock-3",
-      label: "运行时长",
-      value: current?.runtime.uptime || "-"
-    },
-    {
-      icon: "activity",
-      label: "CPU 平均",
-      value: formatPercent(averagePercent(current?.cpu.percent))
-    },
-    {
-      icon: "database",
-      label: "主机内存",
-      value: formatPercent(current?.ram.usedPercent)
-    },
-    {
-      icon: "hard-drive",
-      label: "磁盘分区",
-      value: formatNumber(current?.disk.length)
-    }
+    { icon: "clock-3", label: "运行时长", value: current?.runtime.uptime || "-" },
+    { icon: "activity", label: "CPU 平均", value: formatPercent(averagePercent(current?.cpu.percent)) },
+    { icon: "database", label: "主机内存", value: formatPercent(current?.ram.usedPercent) },
+    { icon: "hard-drive", label: "磁盘分区", value: formatNumber(current?.disk.length) }
   ]
 })
-
 const cpuAveragePercent = computed(() => averagePercent(info.value?.cpu.percent))
-const cpuPreview = computed(() => info.value?.cpu.percent.slice(0, 16) || [])
+const cpuSamples = computed(() => info.value?.cpu.percent || [])
 const diskItems = computed(() => info.value?.disk || [])
 const heapUsagePercent = computed(() => percent(info.value?.memory.heapInuseMb, info.value?.memory.heapSysMb))
 const ramUsagePercent = computed(() => boundedPercent(info.value?.ram.usedPercent))
@@ -44,8 +28,71 @@ const gcPauseMs = computed(() => {
   }
   return `${(ns / 1_000_000).toFixed(ns < 10_000_000 ? 2 : 0)} ms`
 })
-
-const buildSettings = computed(() => info.value?.build.settings.slice(0, 10) || [])
+const environmentItems = computed<AoiKeyValueItem[]>(() => {
+  const current = info.value
+  if (!current) {
+    return []
+  }
+  return [
+    { label: "启动时间", value: formatDateTime(current.runtime.startTime) },
+    { label: "刷新时间", value: formatDateTime(current.refreshedAt) },
+    { label: "物理核心", value: current.cpu.cores || current.os.numCpu },
+    { label: "逻辑 CPU", value: current.os.numCpu },
+    { label: "编译器", value: current.os.compiler, monospace: true },
+    { label: "协程", value: formatNumber(current.os.numGoroutine), monospace: true }
+  ]
+})
+const ramItems = computed<AoiKeyValueItem[]>(() => {
+  const current = info.value
+  if (!current) {
+    return []
+  }
+  return [
+    { label: "总内存", value: formatMB(current.ram.totalMb), monospace: true },
+    { label: "已使用", value: formatMB(current.ram.usedMb), monospace: true },
+    { label: "可用估算", value: formatRAMFree(), monospace: true },
+    { label: "使用率", value: formatPercent(current.ram.usedPercent), monospace: true }
+  ]
+})
+const memoryItems = computed<AoiKeyValueItem[]>(() => {
+  const current = info.value
+  if (!current) {
+    return []
+  }
+  return [
+    { label: "当前分配", value: formatMB(current.memory.allocMb), monospace: true },
+    { label: "系统占用", value: formatMB(current.memory.sysMb), monospace: true },
+    { label: "累计分配", value: formatMB(current.memory.totalAllocMb), monospace: true },
+    { label: "对象数量", value: formatNumber(current.memory.heapObjects), monospace: true }
+  ]
+})
+const gcItems = computed<AoiKeyValueItem[]>(() => {
+  const current = info.value
+  if (!current) {
+    return []
+  }
+  return [
+    { label: "最近 GC", value: current.gc.lastGcAt ? formatDateTime(current.gc.lastGcAt) : "-" },
+    { label: "暂停总时长", value: gcPauseMs.value, monospace: true },
+    { label: "空闲堆", value: formatMB(current.memory.heapIdleMb), monospace: true },
+    { label: "已释放堆", value: formatMB(current.memory.heapReleasedMb), monospace: true }
+  ]
+})
+const buildItems = computed<AoiKeyValueItem[]>(() => {
+  const current = info.value
+  if (!current) {
+    return []
+  }
+  return [
+    { label: "主包", value: current.build.path || "-", monospace: true },
+    { label: "Go 版本", value: current.build.goVersion, monospace: true },
+    ...current.build.settings.map((setting) => ({
+      label: setting.key,
+      value: setting.value || "-",
+      monospace: true
+    }))
+  ]
+})
 
 async function load() {
   loading.value = true
@@ -125,16 +172,6 @@ function formatRAMFree() {
   return formatMB(Math.max(0, current.ram.totalMb - current.ram.usedMb))
 }
 
-function formatBuildValue(value?: string) {
-  if (!value) {
-    return "-"
-  }
-  if (value.length <= 72) {
-    return value
-  }
-  return `${value.slice(0, 68)}...`
-}
-
 onMounted(load)
 
 useHead({
@@ -152,65 +189,23 @@ useHead({
 
     <AoiStatusMessage tone="danger" :message="error" />
 
-    <section class="server-overview" aria-label="服务器状态概览">
-      <article v-for="card in summaryCards" :key="card.label" class="admin-card server-stat">
-        <AoiIcon :name="card.icon" :size="22" decorative />
-        <div>
-          <span>{{ card.label }}</span>
-          <strong>{{ card.value }}</strong>
-        </div>
-      </article>
-    </section>
+    <AoiStatGrid :items="summaryCards" :columns="4" />
 
-    <section v-if="info" class="server-layout">
-      <article class="admin-card server-panel">
-        <div class="admin-card__header">
-          <div>
-            <h2>运行环境</h2>
-            <p>{{ info.os.goos }} / {{ info.os.goarch }}</p>
-          </div>
-          <span class="badge">{{ info.os.goVersion }}</span>
-        </div>
-        <dl class="server-kv">
-          <div>
-            <dt>启动时间</dt>
-            <dd>{{ formatDateTime(info.runtime.startTime) }}</dd>
-          </div>
-          <div>
-            <dt>刷新时间</dt>
-            <dd>{{ formatDateTime(info.refreshedAt) }}</dd>
-          </div>
-          <div>
-            <dt>物理核心</dt>
-            <dd>{{ info.cpu.cores || info.os.numCpu }}</dd>
-          </div>
-          <div>
-            <dt>逻辑 CPU</dt>
-            <dd>{{ info.os.numCpu }}</dd>
-          </div>
-          <div>
-            <dt>编译器</dt>
-            <dd>{{ info.os.compiler }}</dd>
-          </div>
-          <div>
-            <dt>协程</dt>
-            <dd>{{ formatNumber(info.os.numGoroutine) }}</dd>
-          </div>
-        </dl>
-      </article>
+    <AoiMasonryGrid v-if="info" class="server-layout">
+      <AoiAdminCard title="运行环境" :description="`${info.os.goos} / ${info.os.goarch}`" icon="server" :badge="info.os.goVersion">
+        <AoiKeyValueList :items="environmentItems" layout="cards" />
+      </AoiAdminCard>
 
-      <article class="admin-card server-panel">
-        <div class="admin-card__header">
-          <div>
-            <h2>CPU 负载</h2>
-            <p>{{ cpuPreview.length ? `${cpuPreview.length} 个逻辑核心采样` : "暂无核心采样" }}</p>
-          </div>
-          <span class="badge">{{ formatPercent(cpuAveragePercent) }}</span>
-        </div>
+      <AoiAdminCard
+        title="CPU 负载"
+        :description="cpuSamples.length ? `${cpuSamples.length} 个逻辑核心采样` : '暂无核心采样'"
+        icon="activity"
+        :badge="formatPercent(cpuAveragePercent)"
+      >
         <AoiProgressBar :value="boundedPercent(cpuAveragePercent)" intent="info" size="md" label="CPU 平均负载" />
-        <div v-if="cpuPreview.length" class="server-cpu-list">
+        <div v-if="cpuSamples.length" class="server-cpu-grid">
           <div
-            v-for="(value, index) in cpuPreview"
+            v-for="(value, index) in cpuSamples"
             :key="index"
             class="server-cpu-row"
             :style="{ '--server-percent': `${boundedPercent(value)}%` }"
@@ -221,102 +216,23 @@ useHead({
           </div>
         </div>
         <p v-else class="server-note">CPU 采样暂不可用，刷新后会再次尝试读取。</p>
-      </article>
+      </AoiAdminCard>
 
-      <article class="admin-card server-panel">
-        <div class="admin-card__header">
-          <div>
-            <h2>主机内存</h2>
-            <p>{{ formatMB(info.ram.usedMb) }} / {{ formatMB(info.ram.totalMb) }}</p>
-          </div>
-          <span class="badge">{{ formatPercent(info.ram.usedPercent) }}</span>
-        </div>
+      <AoiAdminCard title="主机内存" :description="`${formatMB(info.ram.usedMb)} / ${formatMB(info.ram.totalMb)}`" icon="database" :badge="formatPercent(info.ram.usedPercent)">
         <AoiProgressBar :value="ramUsagePercent" intent="info" size="md" label="主机内存使用率" />
-        <dl class="server-kv server-kv--compact">
-          <div>
-            <dt>总内存</dt>
-            <dd>{{ formatMB(info.ram.totalMb) }}</dd>
-          </div>
-          <div>
-            <dt>已使用</dt>
-            <dd>{{ formatMB(info.ram.usedMb) }}</dd>
-          </div>
-          <div>
-            <dt>可用估算</dt>
-            <dd>{{ formatRAMFree() }}</dd>
-          </div>
-          <div>
-            <dt>使用率</dt>
-            <dd>{{ formatPercent(info.ram.usedPercent) }}</dd>
-          </div>
-        </dl>
-      </article>
+        <AoiKeyValueList :items="ramItems" layout="cards" density="compact" />
+      </AoiAdminCard>
 
-      <article class="admin-card server-panel">
-        <div class="admin-card__header">
-          <div>
-            <h2>Go 堆内存</h2>
-            <p>{{ formatMB(info.memory.heapInuseMb) }} / {{ formatMB(info.memory.heapSysMb) }}</p>
-          </div>
-          <span class="badge">{{ heapUsagePercent }}%</span>
-        </div>
+      <AoiAdminCard title="Go 堆内存" :description="`${formatMB(info.memory.heapInuseMb)} / ${formatMB(info.memory.heapSysMb)}`" icon="memory-stick" :badge="`${heapUsagePercent}%`">
         <AoiProgressBar :value="heapUsagePercent" intent="info" size="md" label="堆内存使用率" />
-        <dl class="server-kv server-kv--compact">
-          <div>
-            <dt>当前分配</dt>
-            <dd>{{ formatMB(info.memory.allocMb) }}</dd>
-          </div>
-          <div>
-            <dt>系统占用</dt>
-            <dd>{{ formatMB(info.memory.sysMb) }}</dd>
-          </div>
-          <div>
-            <dt>累计分配</dt>
-            <dd>{{ formatMB(info.memory.totalAllocMb) }}</dd>
-          </div>
-          <div>
-            <dt>对象数量</dt>
-            <dd>{{ formatNumber(info.memory.heapObjects) }}</dd>
-          </div>
-        </dl>
-      </article>
+        <AoiKeyValueList :items="memoryItems" layout="cards" density="compact" />
+      </AoiAdminCard>
 
-      <article class="admin-card server-panel">
-        <div class="admin-card__header">
-          <div>
-            <h2>GC 状态</h2>
-            <p>下次目标 {{ formatMB(info.gc.nextGcMb) }}</p>
-          </div>
-          <span class="badge">{{ info.gc.numGc }} 次</span>
-        </div>
-        <dl class="server-kv">
-          <div>
-            <dt>最近 GC</dt>
-            <dd>{{ info.gc.lastGcAt ? formatDateTime(info.gc.lastGcAt) : "-" }}</dd>
-          </div>
-          <div>
-            <dt>暂停总时长</dt>
-            <dd>{{ gcPauseMs }}</dd>
-          </div>
-          <div>
-            <dt>空闲堆</dt>
-            <dd>{{ formatMB(info.memory.heapIdleMb) }}</dd>
-          </div>
-          <div>
-            <dt>已释放堆</dt>
-            <dd>{{ formatMB(info.memory.heapReleasedMb) }}</dd>
-          </div>
-        </dl>
-      </article>
+      <AoiAdminCard title="GC 状态" :description="`下次目标 ${formatMB(info.gc.nextGcMb)}`" icon="refresh-cw" :badge="`${info.gc.numGc} 次`">
+        <AoiKeyValueList :items="gcItems" layout="rows" />
+      </AoiAdminCard>
 
-      <article class="admin-card server-panel server-panel--wide">
-        <div class="admin-card__header">
-          <div>
-            <h2>磁盘空间</h2>
-            <p>{{ diskItems.length ? `${diskItems.length} 个挂载点` : "暂无磁盘采样" }}</p>
-          </div>
-          <span class="badge">{{ formatNumber(diskItems.length) }}</span>
-        </div>
+      <AoiAdminCard title="磁盘空间" :description="diskItems.length ? `${diskItems.length} 个挂载点` : '暂无磁盘采样'" icon="hard-drive" :badge="formatNumber(diskItems.length)">
         <div v-if="diskItems.length" class="server-disk-list">
           <div v-for="item in diskItems" :key="item.mountPoint" class="server-disk-row">
             <div class="server-disk-row__head">
@@ -331,167 +247,44 @@ useHead({
           </div>
         </div>
         <p v-else class="server-note">当前运行环境没有返回可读磁盘分区。</p>
-      </article>
+      </AoiAdminCard>
 
-      <article class="admin-card server-panel server-panel--wide">
-        <div class="admin-card__header">
-          <div>
-            <h2>构建信息</h2>
-            <p>{{ info.build.module || info.build.path || "-" }}</p>
-          </div>
-          <span class="badge">{{ info.build.version || "devel" }}</span>
-        </div>
-        <dl class="server-kv server-kv--build">
-          <div>
-            <dt>主包</dt>
-            <dd>{{ info.build.path || "-" }}</dd>
-          </div>
-          <div>
-            <dt>Go 版本</dt>
-            <dd>{{ info.build.goVersion }}</dd>
-          </div>
-          <div v-for="setting in buildSettings" :key="setting.key">
-            <dt>{{ setting.key }}</dt>
-            <dd>{{ formatBuildValue(setting.value) }}</dd>
-          </div>
-        </dl>
-      </article>
-    </section>
+      <AoiAdminCard title="构建信息" :description="info.build.module || info.build.path || '-'" icon="package-check" :badge="info.build.version || 'devel'">
+        <AoiKeyValueList :items="buildItems" layout="rows" />
+      </AoiAdminCard>
+    </AoiMasonryGrid>
 
-    <article v-else class="admin-card server-empty">
+    <AoiAdminCard v-else class="server-empty" padding="lg">
       <AoiIcon name="activity" :size="24" decorative />
       <p>{{ loading ? "服务器状态加载中。" : "暂无服务器状态。" }}</p>
-    </article>
+    </AoiAdminCard>
   </div>
 </template>
 
 <style scoped>
-.server-overview {
+.server-layout :deep(.aoi-admin-card__body) {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--aoi-admin-panel-gap-compact);
 }
 
-.server-stat {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-  min-width: 0;
-  padding: 14px;
-}
-
-.server-stat > svg {
-  color: var(--aoi-accent-60);
-  flex: 0 0 auto;
-}
-
-.server-stat div {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-}
-
-.server-stat span {
-  color: var(--aoi-text-muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.server-stat strong {
-  color: var(--aoi-text);
-  font-size: 22px;
-  line-height: 1.15;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.server-layout {
-  align-items: start;
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.server-panel {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
-}
-
-.server-panel--wide {
-  grid-column: 1 / -1;
-}
-
-.server-panel .admin-card__header {
-  align-items: flex-start;
-}
-
-.server-panel h2,
-.server-panel p {
-  margin: 0;
-}
-
-.server-panel p {
-  color: var(--aoi-text-muted);
-  line-height: 1.5;
-  margin-top: 4px;
-  overflow-wrap: anywhere;
-}
-
-.server-kv {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-}
-
-.server-kv--compact,
-.server-kv--build {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.server-kv div {
-  align-items: start;
-  border-top: 1px solid var(--aoi-border);
-  display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(110px, 150px) minmax(0, 1fr);
-  min-width: 0;
-  padding-top: 10px;
-}
-
-.server-kv--compact div,
-.server-kv--build div {
-  grid-template-columns: 1fr;
-}
-
-.server-kv dt {
-  color: var(--aoi-text-muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.server-kv dd {
-  color: var(--aoi-text);
-  font-family: var(--aoi-font-mono);
-  margin: 0;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.server-cpu-list,
+.server-cpu-grid,
 .server-disk-list {
   display: grid;
-  gap: 10px;
+  gap: var(--aoi-admin-panel-gap-compact);
   min-width: 0;
+}
+
+.server-cpu-grid {
+  grid-template-columns: repeat(auto-fit, minmax(var(--aoi-admin-cpu-row-min-width), 1fr));
 }
 
 .server-cpu-row {
   --server-percent: 0%;
   align-items: center;
   display: grid;
-  gap: 10px;
-  grid-template-columns: 66px minmax(0, 1fr) 54px;
-  min-height: 28px;
+  gap: var(--aoi-admin-kv-value-gap);
+  grid-template-columns: var(--aoi-admin-cpu-label-width) minmax(0, 1fr) var(--aoi-admin-cpu-value-width);
+  min-height: var(--aoi-admin-cpu-row-height);
   min-width: 0;
 }
 
@@ -500,7 +293,7 @@ useHead({
 .server-disk-row__meta span,
 .server-disk-row__meta strong {
   font-family: var(--aoi-font-mono);
-  font-size: 12px;
+  font-size: var(--aoi-admin-kv-mono-size);
 }
 
 .server-cpu-row span {
@@ -514,7 +307,7 @@ useHead({
 
 .server-cpu-row i {
   display: block;
-  height: 8px;
+  height: var(--aoi-admin-meter-height);
   overflow: hidden;
   border-radius: var(--aoi-radius-round);
   background: var(--aoi-surface-muted);
@@ -525,16 +318,16 @@ useHead({
   width: var(--server-percent);
   height: 100%;
   border-radius: inherit;
-  background: var(--aoi-accent-50);
+  background: var(--aoi-info);
   content: "";
 }
 
 .server-disk-row {
   display: grid;
-  gap: 8px;
+  gap: var(--aoi-admin-kv-value-gap);
   min-width: 0;
   border-top: 1px solid var(--aoi-border);
-  padding-top: 12px;
+  padding-top: var(--aoi-admin-kv-card-padding);
 }
 
 .server-disk-row:first-child {
@@ -546,7 +339,7 @@ useHead({
 .server-disk-row__meta {
   align-items: center;
   display: flex;
-  gap: 10px;
+  gap: var(--aoi-admin-card-gap);
   justify-content: space-between;
   min-width: 0;
 }
@@ -576,7 +369,7 @@ useHead({
   align-items: center;
   color: var(--aoi-text-muted);
   display: flex;
-  gap: 10px;
+  gap: var(--aoi-admin-card-gap);
   justify-content: center;
   min-height: 160px;
 }
@@ -585,39 +378,12 @@ useHead({
   margin: 0;
 }
 
-@media (max-width: 960px) {
-  .server-overview,
-  .server-layout {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 680px) {
-  .server-overview,
-  .server-layout,
-  .server-kv--compact,
-  .server-kv--build {
-    grid-template-columns: 1fr;
-  }
-
-  .server-panel .admin-card__header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .server-kv div {
-    grid-template-columns: 1fr;
-  }
-
-  .server-cpu-row {
-    grid-template-columns: 58px minmax(0, 1fr) 48px;
-  }
-
   .server-disk-row__head,
   .server-disk-row__meta {
     align-items: flex-start;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--aoi-admin-card-copy-gap);
   }
 }
 </style>

@@ -1,5 +1,6 @@
 ﻿type AdminThemeMode = "light" | "dark" | "system"
 type AdminDensity = "comfortable" | "compact"
+type AdminInfoLayout = "adaptive" | "list" | "masonry"
 
 type AdminAccentPreset = {
   accent10: string
@@ -15,6 +16,7 @@ type AdminUiPreferences = {
   accent: string
   contrast: boolean
   density: AdminDensity
+  infoLayout: AdminInfoLayout
   reducedMotion: boolean
   sidebarCollapsed: boolean
   theme: AdminThemeMode
@@ -27,6 +29,7 @@ const defaults: AdminUiPreferences = {
   accent: "blue",
   contrast: false,
   density: "comfortable",
+  infoLayout: "adaptive",
   reducedMotion: false,
   sidebarCollapsed: false,
   theme: "light",
@@ -130,6 +133,7 @@ export function useAdminUiPreferences() {
     root.classList.toggle("dark", dark)
     root.dataset.aoiColorfulNav = "false"
     root.dataset.aoiAdminDensity = state.density
+    root.dataset.aoiAdminInfoLayout = state.infoLayout
     root.dataset.aoiAdminReducedMotion = String(state.reducedMotion)
     root.dataset.aoiContrast = state.contrast ? "high" : "normal"
     root.dataset.aoiAdminWatermark = String(state.watermark)

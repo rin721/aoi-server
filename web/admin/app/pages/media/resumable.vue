@@ -272,14 +272,16 @@ useHead({
       message="对象存储未启用：断点上传需要先启用 storage。"
     />
 
-    <article class="admin-card resumable-card">
-      <div class="admin-card__header">
+    <AoiAdminCard class="resumable-card">
+      <template #header>
+        <div class="admin-card__header">
         <div>
           <h2>大文件上传</h2>
           <p class="muted">单文件上限 {{ uploadMaxMb }} MB，默认分片 {{ formatBytes(chunkSize) }}。</p>
         </div>
         <span class="badge">{{ statusLabel }}</span>
       </div>
+      </template>
 
       <div class="resumable-actions">
         <input ref="fileInput" class="resumable-file-input" type="file" @change="onFileSelected">
@@ -317,24 +319,26 @@ useHead({
           <dd class="mono">{{ fileHash ? `${fileHash.slice(0, 16)}...` : "-" }}</dd>
         </div>
       </dl>
-    </article>
+    </AoiAdminCard>
 
-    <article v-if="lastAsset" class="admin-card resumable-result">
-      <div class="admin-card__header">
+    <AoiAdminCard v-if="lastAsset" class="resumable-result">
+      <template #header>
+        <div class="admin-card__header">
         <div>
           <h2>上传结果</h2>
           <p class="muted">{{ lastAsset.displayName }} · {{ formatBytes(lastAsset.sizeBytes) }}</p>
         </div>
         <AoiButton icon="image-up" to="/media">查看媒体库</AoiButton>
       </div>
-    </article>
+      </template>
+    </AoiAdminCard>
   </div>
 </template>
 
 <style scoped>
 .resumable-card,
 .resumable-result {
-  max-width: 960px;
+  max-width: var(--aoi-admin-upload-card-max-width);
 }
 
 .resumable-actions,
@@ -345,8 +349,8 @@ useHead({
 
 .resumable-actions {
   flex-wrap: wrap;
-  gap: 10px;
-  padding: 16px 0;
+  gap: var(--aoi-admin-panel-gap-compact);
+  padding: var(--aoi-admin-card-body-padding) 0;
 }
 
 .resumable-file-input {
@@ -354,19 +358,19 @@ useHead({
 }
 
 .resumable-file {
-  gap: 12px;
-  min-height: 72px;
-  padding: 14px;
-  border: 1px solid rgb(var(--md-sys-color-outline-variant-rgb, 210 216 224));
-  border-radius: 8px;
-  background: rgb(var(--md-sys-color-surface-container-rgb, 244 247 249));
+  gap: var(--aoi-admin-card-gap);
+  min-height: var(--aoi-admin-summary-min-height);
+  padding: var(--aoi-admin-card-body-padding);
+  border: 1px solid var(--aoi-admin-border);
+  border-radius: var(--aoi-radius-card);
+  background: var(--aoi-admin-surface-muted);
 }
 
 .resumable-file > div {
   display: grid;
   min-width: 0;
   flex: 1;
-  gap: 4px;
+  gap: var(--aoi-admin-card-copy-gap);
 }
 
 .resumable-file strong,
@@ -377,7 +381,7 @@ useHead({
 }
 
 .resumable-file span {
-  color: rgb(var(--md-sys-color-on-surface-variant-rgb, 91 97 105));
+  color: var(--aoi-admin-text-muted);
 }
 
 .resumable-percent {
@@ -388,21 +392,21 @@ useHead({
 .resumable-meta {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin: 18px 0 0;
+  gap: var(--aoi-admin-panel-gap-compact);
+  margin: var(--aoi-admin-panel-gap) 0 0;
 }
 
 .resumable-meta div {
   display: grid;
-  gap: 4px;
+  gap: var(--aoi-admin-card-copy-gap);
   min-width: 0;
-  padding: 12px;
-  border: 1px solid rgb(var(--md-sys-color-outline-variant-rgb, 210 216 224));
-  border-radius: 8px;
+  padding: var(--aoi-admin-card-body-padding-sm);
+  border: 1px solid var(--aoi-admin-border);
+  border-radius: var(--aoi-radius-card);
 }
 
 .resumable-meta dt {
-  color: rgb(var(--md-sys-color-on-surface-variant-rgb, 91 97 105));
+  color: var(--aoi-admin-text-muted);
   font-size: 0.78rem;
 }
 

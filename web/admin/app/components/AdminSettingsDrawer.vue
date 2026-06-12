@@ -19,6 +19,12 @@ const densityItems = [
   { icon: "rows-3", label: "舒适", value: "comfortable" },
   { icon: "list", label: "紧凑", value: "compact" }
 ]
+
+const infoLayoutItems = [
+  { icon: "layout-grid", label: "自适应", value: "adaptive" },
+  { icon: "columns-3", label: "瀑布流", value: "masonry" },
+  { icon: "list", label: "列表", value: "list" }
+]
 </script>
 
 <template>
@@ -60,6 +66,11 @@ const densityItems = [
         <section class="admin-settings-drawer__section">
           <h3>界面密度</h3>
           <AoiSegmentedControl v-model="state.density" :items="densityItems" aria-label="界面密度" :columns="2" />
+        </section>
+
+        <section class="admin-settings-drawer__section">
+          <h3>信息面板布局</h3>
+          <AoiSegmentedControl v-model="state.infoLayout" :items="infoLayoutItems" aria-label="信息面板布局" :columns="3" />
         </section>
 
         <section class="admin-settings-drawer__section admin-toggle-list">

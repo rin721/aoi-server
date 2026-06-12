@@ -782,6 +782,7 @@ a {
   --aoi-admin-sidebar-width: 250px;
   --aoi-admin-sidebar-collapsed-width: 72px;
   --aoi-admin-topbar-height: 58px;
+  --aoi-admin-topbar-org-width: 220px;
   --aoi-admin-tabs-height: 42px;
   --aoi-admin-page-max-width: 1480px;
   --aoi-admin-bg: #f5f7fb;
@@ -794,6 +795,64 @@ a {
   --aoi-admin-icon: #4b5563;
   --aoi-admin-hover: #f1f5f9;
   --aoi-admin-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  --aoi-admin-page-gap: 16px;
+  --aoi-admin-panel-gap: 16px;
+  --aoi-admin-panel-gap-compact: 12px;
+  --aoi-admin-card-gap: 12px;
+  --aoi-admin-card-copy-gap: 4px;
+  --aoi-admin-card-header-min-height: 56px;
+  --aoi-admin-card-header-padding: 14px 16px;
+  --aoi-admin-card-body-padding: 16px;
+  --aoi-admin-card-body-padding-sm: 12px;
+  --aoi-admin-card-body-padding-lg: 20px;
+  --aoi-admin-card-icon-size: 34px;
+  --aoi-admin-card-title-size: 15px;
+  --aoi-admin-info-card-min-width: 320px;
+  --aoi-admin-config-nav-min-width: 180px;
+  --aoi-admin-config-nav-width: 240px;
+  --aoi-admin-config-tab-min-width: 150px;
+  --aoi-admin-security-side-min-width: 320px;
+  --aoi-admin-security-side-width: 420px;
+  --aoi-admin-cpu-row-min-width: 220px;
+  --aoi-admin-cpu-row-height: 28px;
+  --aoi-admin-cpu-label-width: 62px;
+  --aoi-admin-cpu-value-width: 52px;
+  --aoi-admin-meter-height: 7px;
+  --aoi-admin-summary-min-height: 104px;
+  --aoi-admin-summary-padding: 14px;
+  --aoi-admin-nav-row-height: 44px;
+  --aoi-admin-nav-row-padding: 10px 12px;
+  --aoi-admin-nav-row-padding-inline: 12px;
+  --aoi-admin-kv-gap: 0;
+  --aoi-admin-kv-gap-compact: 0;
+  --aoi-admin-kv-row-gap: 14px;
+  --aoi-admin-kv-row-padding: 14px 0;
+  --aoi-admin-kv-row-min-height: 54px;
+  --aoi-admin-kv-label-min-width: 160px;
+  --aoi-admin-kv-label-max-width: 260px;
+  --aoi-admin-kv-label-gap: 4px;
+  --aoi-admin-kv-label-size: 13px;
+  --aoi-admin-kv-meta-size: 12px;
+  --aoi-admin-kv-mono-size: 12px;
+  --aoi-admin-kv-value-gap: 8px;
+  --aoi-admin-kv-value-min-height: 34px;
+  --aoi-admin-kv-value-padding: 6px 10px;
+  --aoi-admin-kv-card-gap: 10px;
+  --aoi-admin-kv-card-padding: 12px;
+  --aoi-admin-table-cell-padding-block: 10px;
+  --aoi-admin-table-cell-padding-inline: 12px;
+  --aoi-admin-filter-padding: 12px 14px;
+  --aoi-admin-filter-min-field-width: 156px;
+  --aoi-admin-media-category-min-width: 220px;
+  --aoi-admin-media-category-width: 280px;
+  --aoi-admin-media-category-row-height: 38px;
+  --aoi-admin-media-preview-size: 56px;
+  --aoi-admin-media-preview-cell-width: 88px;
+  --aoi-admin-media-table-min-width: 860px;
+  --aoi-admin-media-mobile-label-width: 92px;
+  --aoi-admin-media-name-max-width: 260px;
+  --aoi-admin-media-category-indent-step: 16px;
+  --aoi-admin-upload-card-max-width: 960px;
 }
 
 :root[data-aoi-admin-density="compact"] {
@@ -803,6 +862,27 @@ a {
   --aoi-control-height-md: 34px;
   --aoi-control-height-lg: 38px;
   --aoi-icon-button-size: 34px;
+  --aoi-admin-page-gap: 12px;
+  --aoi-admin-panel-gap: 12px;
+  --aoi-admin-panel-gap-compact: 8px;
+  --aoi-admin-card-gap: 10px;
+  --aoi-admin-card-header-min-height: 50px;
+  --aoi-admin-card-header-padding: 11px 12px;
+  --aoi-admin-card-body-padding: 12px;
+  --aoi-admin-card-body-padding-sm: 10px;
+  --aoi-admin-card-body-padding-lg: 16px;
+  --aoi-admin-summary-min-height: 88px;
+  --aoi-admin-summary-padding: 12px;
+  --aoi-admin-nav-row-height: 40px;
+  --aoi-admin-nav-row-padding: 8px 10px;
+  --aoi-admin-kv-row-padding: 10px 0;
+  --aoi-admin-kv-row-min-height: 46px;
+  --aoi-admin-kv-value-min-height: 30px;
+  --aoi-admin-kv-value-padding: 5px 8px;
+  --aoi-admin-kv-card-padding: 10px;
+  --aoi-admin-table-cell-padding-block: 7px;
+  --aoi-admin-table-cell-padding-inline: 10px;
+  --aoi-admin-filter-padding: 10px 12px;
 }
 
 :root.dark {
@@ -1046,16 +1126,11 @@ a {
   color: var(--aoi-admin-text-muted);
   font-size: 12px;
   font-weight: 820;
+  width: var(--aoi-admin-topbar-org-width);
 }
 
-.admin-topbar__org select {
-  height: 34px;
-  min-width: 190px;
-  border: 1px solid var(--aoi-admin-border);
-  border-radius: var(--aoi-radius-control);
-  background: var(--aoi-admin-surface);
-  color: var(--aoi-admin-text);
-  padding: 0 8px;
+.admin-topbar__org .aoi-text-field {
+  --md-outlined-select-text-field-container-height: var(--aoi-control-height-md);
 }
 
 .admin-tabs {
@@ -1204,7 +1279,7 @@ a {
 
 .page-grid {
   display: grid;
-  gap: 16px;
+  gap: var(--aoi-admin-page-gap);
 }
 
 .page-grid > *,
@@ -1216,13 +1291,13 @@ a {
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--aoi-admin-panel-gap-compact);
 }
 
 .two-column-grid {
   display: grid;
   grid-template-columns: minmax(0, .9fr) minmax(320px, .45fr);
-  gap: 16px;
+  gap: var(--aoi-admin-panel-gap);
   align-items: start;
 }
 
@@ -1236,13 +1311,13 @@ a {
 
 .admin-card__header {
   display: flex;
-  min-height: 54px;
+  min-height: var(--aoi-admin-card-header-min-height);
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--aoi-admin-card-gap);
   border-bottom: 1px solid var(--aoi-admin-border);
   background: var(--aoi-admin-surface);
-  padding: 12px 14px;
+  padding: var(--aoi-admin-card-header-padding);
 }
 
 .admin-card__header h2,
@@ -1252,13 +1327,13 @@ a {
 }
 
 .admin-card__body {
-  padding: 14px;
+  padding: var(--aoi-admin-card-body-padding);
 }
 
 .admin-management-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
-  gap: 16px;
+  gap: var(--aoi-admin-panel-gap);
   align-items: start;
 }
 
@@ -1269,8 +1344,8 @@ a {
 .stat-card {
   display: grid;
   gap: 8px;
-  min-height: 104px;
-  padding: 14px;
+  min-height: var(--aoi-admin-summary-min-height);
+  padding: var(--aoi-admin-summary-padding);
 }
 
 .stat-card__label {
@@ -1297,23 +1372,23 @@ a {
 
 .form-grid {
   display: grid;
-  gap: 12px;
+  gap: var(--aoi-admin-panel-gap-compact);
 }
 
 .form-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--aoi-admin-panel-gap-compact);
 }
 
 .admin-filter-toolbar {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(var(--aoi-admin-filter-min-field-width), 1fr));
+  gap: var(--aoi-admin-panel-gap-compact);
   align-items: end;
   border-bottom: 1px solid var(--aoi-admin-border);
   background: var(--aoi-admin-surface);
-  padding: 12px 14px;
+  padding: var(--aoi-admin-filter-padding);
 }
 
 .admin-filter-toolbar .aoi-text-field,
@@ -1364,7 +1439,7 @@ a {
 .data-table th,
 .data-table td {
   border-bottom: 1px solid var(--aoi-admin-border-soft);
-  padding: 10px 12px;
+  padding: var(--aoi-admin-table-cell-padding-block) var(--aoi-admin-table-cell-padding-inline);
   text-align: left;
   vertical-align: middle;
   white-space: nowrap;
@@ -1372,7 +1447,7 @@ a {
 
 :root[data-aoi-admin-density="compact"] .data-table th,
 :root[data-aoi-admin-density="compact"] .data-table td {
-  padding-block: 7px;
+  padding-block: var(--aoi-admin-table-cell-padding-block);
 }
 
 .data-table th {
