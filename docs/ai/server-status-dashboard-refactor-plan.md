@@ -104,5 +104,5 @@
 - 修改摘要：补齐 Admin WebUI 的 Docker 构建参数、Nuxt baseURL 构建配置、API baseURL 构建配置、Demo Todo 构建开关、部署后 WebUI 静态路由检查、远程部署 workflow 变量透传、生产 compose/config 示例和 Docker/部署文档。
 - 验证结果：`go test ./... -count=1 -mod=readonly`、`go build -mod=readonly -o ./tmp/go-scaffold-server ./cmd/main`、`pnpm typecheck`、`pnpm generate`、`git diff --check` 通过，且 `web/admin/.output/public/index.html` 存在；敏感账号搜索无命中；`bash -n` 与 Docker build/compose 检查因当前环境缺少 `bash` 与 Docker CLI 标记为 BLOCKED。
 - commit hash：主体提交 `993d567`；状态回填提交见最终 Git 结果。
-- 是否已合并 main：是，计划 fast-forward 合并到 main，最终以 Git 状态为准。
+- 是否已合并 main：是，已 fast-forward 合并到 main；本轮记录提交为 `b5e0862`，最终以 Git 状态为准。
 - 下一步建议：在具备 Docker 与 Bash 的部署环境中补跑 `bash -n deploy.sh script/install.sh`、`docker build` 和 `docker compose config`，并访问 `/admin/server-info` 验证静态托管链路。
