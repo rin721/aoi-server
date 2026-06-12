@@ -1,18 +1,35 @@
 server:
+  # 服务器状态页会自动采集主机 CPU、内存和磁盘指标，无需额外配置。
   host: 127.0.0.1
-  port: 9999
-  mode: release
+  port: 5000
+  mode: debug
   read_timeout: 10
   write_timeout: 10
   idle_timeout: 30
 
-rpc:
+webui:
+  # Admin WebUI 静态产物由 web/admin 的 pnpm generate 生成。
+  # mount_path、dist_dir 与 Nuxt NUXT_APP_BASE_URL 需要保持同一部署语义。
+  # Server Status Dashboard 的指标阈值、状态文案和刷新策略位于前端配置，不在示例 YAML 中写死。
   enabled: true
+  mount_path: /admin
+  dist_dir: ./web/admin/.output/public
+  public_base_url: /admin
+
+rpc:
+  enabled: false
   host: 127.0.0.1
-  port: 10099
+  port: 6000
   read_timeout: 10
   write_timeout: 10
   idle_timeout: 30
+
+plugins:
+  enabled: false
+  manifests:
+    - ./plugins/demo1/plugin.yaml
+  health_timeout_seconds: 3
+  proxy_timeout_seconds: 30
 
 database:
   # 本地默认使用 SQLite。只有在目标数据库可用时才切换到 mysql/postgres。
@@ -48,6 +65,9 @@ executor:
       non_blocking: true
 
 storage:
+  # 媒体库普通上传、断点上传、分片合并和本地下载依赖 storage.enabled=true。
+  # 仅浏览记录或使用外链导入时可以保持禁用。
+  # 本地开发建议使用 basepath + ./data，让媒体对象写入 data/media/...，临时分片写入 data/media/chunks/...。
   enabled: false
   fs_type: basepath
   base_path: ./data
@@ -55,8 +75,16 @@ storage:
   watch_buffer_size: 100
 
 demo:
+  # Demo 模块包含公开 Todo 与受 IAM 保护的客户资源示例。
   enabled: true
+  # 启动时应用 demo_todos 与 demo_customers 表结构；生产示例应关闭。
   apply_schema_on_start: true
+
+system:
+  # 版本管理使用 system_versions 迁移和 IAM version:* 权限，不需要额外运行期开关。
+  # 媒体库使用 system_media_categories/system_media_assets 迁移和 IAM media:* 权限。
+  # 断点上传还需要 system_media_upload_sessions/system_media_upload_chunks 迁移。
+  seed_defaults_on_start: true
 
 cors:
   enabled: true
@@ -81,19 +109,38 @@ cors:
 
 auth:
   enabled: true
+  self_signup_enabled: true
   issuer: go-scaffold
   audience:
     - go-scaffold-api
   signing_key: ${AUTH_SIGNING_KEY:dev-signing-key-change-me-32-bytes}
   access_token_ttl_seconds: 900
   refresh_token_ttl_seconds: 604800
+  # Also hashes IAM API Token values. Rotating this invalidates existing refresh tokens and API tokens.
   refresh_token_pepper: ${AUTH_REFRESH_TOKEN_PEPPER:dev-refresh-pepper-change-me-32}
   mfa_issuer: go-scaffold
-  mfa_secret_key: ${AUTH_MFA_SECRET_KEY:dev-mfa-secret-key-change-me-032}
+  mfa_secret_key: ${AUTH_MFA_SECRET_KEY:dev-mfa-secret-key-change-me-32-bytes}
   login_max_failures: 5
   login_lock_minutes: 15
+  login_captcha_enabled: false
+  captcha_ttl_seconds: 120
   invitation_ttl_seconds: 86400
   password_reset_ttl_seconds: 1800
+  notification_driver: debug
+  smtp:
+    host: ${AUTH_SMTP_HOST:}
+    port: ${AUTH_SMTP_PORT:587}
+    username: ${AUTH_SMTP_USERNAME:}
+    password: ${AUTH_SMTP_PASSWORD:}
+    from: ${AUTH_SMTP_FROM:}
+    from_name: ${AUTH_SMTP_FROM_NAME:Aoi Admin}
+    starttls: true
+  password_policy:
+    min_length: 8
+    require_lower: false
+    require_upper: false
+    require_number: false
+    require_symbol: false
   casbin_reload_interval_seconds: 300
 
 migration:
