@@ -1,15 +1,15 @@
-# Gin-Vue-Admin Parity Notes
+﻿# 上游样板 Parity Notes
 
 Verified on 2026-06-11 from the public demo and upstream documentation.
 Sources:
 
-- https://demo.gin-vue-admin.com
-- https://www.gin-vue-admin.com/guide/server/
-- https://github.com/flipped-aurora/gin-vue-admin/tree/main/server
+- 外部后台演示站
+- 外部后台项目服务端文档
+- 外部后台项目服务端源码
 
 ## Persistent Task Book
 
-This file is the durable handoff point for incremental Gin-Vue-Admin parity.
+This file is the durable handoff point for incremental 上游样板 parity.
 Before implementing a parity slice, update or append a short entry here with:
 
 1. target slice and current status;
@@ -26,7 +26,7 @@ Status legend:
 
 - `[done]`: implemented and documented in this repository.
 - `[doing]`: actively being implemented in the current parity slice.
-- `[audit]`: present locally but needs GVA comparison or polish before calling
+- `[audit]`: present locally but needs 上游样板 comparison or polish before calling
   it equivalent.
 - `[next]`: preferred next implementation slice.
 - `[todo]`: not implemented or intentionally deferred.
@@ -36,18 +36,20 @@ Status legend:
 
 Last checked: 2026-06-12.
 
-- Demo access: `https://demo.gin-vue-admin.com` opened directly into an
-  authenticated admin dashboard during this session; no captcha blocker was
-  observed.
+- Demo access: `外部后台演示站` opened directly into an
+  authenticated admin dashboard in the in-app Browser. A separate clean
+  external browser session hit login captcha during breakpoint upload
+  interaction research, so captcha-protected demo upload completion remains
+  blocked until the user provides the visible captcha value.
 - Visual evidence saved for this session:
-  `tmp/ai/gva-dashboard-2026-06-12.png`,
-  `tmp/ai/gva-api-token-2026-06-12.png`,
-  `tmp/ai/gva-api-token-dialog-2026-06-12.png`,
-  `tmp/ai/gva-version-2026-06-12.png`,
-  `tmp/ai/gva-version-export-drawer-2026-06-12.png`,
-  `tmp/ai/gva-version-import-drawer-2026-06-12.png`,
-  `tmp/ai/gva-upload-2026-06-12.png`,
-  `tmp/ai/gva-upload-import-url-2026-06-12.png`,
+  `tmp/ai/demo-dashboard-2026-06-12.png`,
+  `tmp/ai/demo-api-token-2026-06-12.png`,
+  `tmp/ai/demo-api-token-dialog-2026-06-12.png`,
+  `tmp/ai/demo-version-2026-06-12.png`,
+  `tmp/ai/demo-version-export-drawer-2026-06-12.png`,
+  `tmp/ai/demo-version-import-drawer-2026-06-12.png`,
+  `tmp/ai/demo-upload-2026-06-12.png`,
+  `tmp/ai/demo-upload-import-url-2026-06-12.png`,
   `tmp/ai/version-desktop-1440x900-final.png`,
   `tmp/ai/version-export-dialog-1440x900-final.png`,
   `tmp/ai/version-mobile-390x844-final.png`,
@@ -58,26 +60,44 @@ Last checked: 2026-06-12.
   `tmp/ai/media-desktop-1440x900-final.png`,
   `tmp/ai/media-import-url-1440x900-final.png`,
   `tmp/ai/media-mobile-390x844-final.png`, and
-  `tmp/ai/media-mobile-390x844-viewport.png`.
+  `tmp/ai/media-mobile-390x844-viewport.png`,
+  `tmp/ai/demo-breakpoint-2026-06-12.png`, and
+  `tmp/ai/demo-breakpoint-diagnose-2026-06-12.png`,
+  `tmp/ai/media-resumable-desktop-1440x900-final.png`,
+  `tmp/ai/media-resumable-selected-1440x900-final.png`,
+  `tmp/ai/media-resumable-complete-1440x900-final.png`,
+  `tmp/ai/media-resumable-mobile-390x844-final.png`,
+  `tmp/ai/media-resumable-mobile-390x844-viewport.png`,
+  `tmp/ai/customer-desktop-1440.png`,
+  `tmp/ai/customer-drawer-1440.png`,
+  `tmp/ai/customer-mobile-390.png`,
+  `tmp/ai/users-desktop-1440-final.png`, and
+  `tmp/ai/users-mobile-390-final.png`.
+- Customer/resource example research: 上游样板 route
+  `外部后台演示站/#/layout/example/customer` was opened in the
+  in-app Browser on 2026-06-12. Screenshot capture timed out in the demo tab,
+  so the current evidence is DOM/source based: warning bar, `新增` action, empty
+  table with columns `接入日期`、`姓名`、`电话`、`接入人ID`、`操作`, pagination, and
+  a `客户` drawer containing `客户名` and `客户电话`.
 - Demo visual readout: fixed white shell, left menu, thin dividers, compact
   operational cards, dense tables, small action buttons, minimal decorative
   effects, and visible diagonal demo watermark.
-- Local parity stance: continue mapping GVA responsibilities into this repo's
+- Local parity stance: continue mapping 上游样板 responsibilities into this repo's
   existing `internal/modules/*/{model,repository,service,handler}`,
   `internal/transport/http`, `internal/app/initapp`, `internal/config`, and
-  `pkg` boundaries instead of renaming the backend to GVA's folders.
+  `pkg` boundaries instead of renaming the backend to 上游样板的 folders.
 
 ### Route And Feature Board
 
-| Status | GVA area | Local target | Research gate | Notes |
+| Status | Upstream area | Local target | Research gate | Notes |
 | --- | --- | --- | --- | --- |
-| [done] | Admin shell, left menu, visited tabs, dense table styling | `web/admin/app` layout and shared CSS | Visual before/after required for every future UI slice | Keep low-noise GVA-like management style. |
+| [done] | Admin shell, left menu, visited tabs, dense table styling | `web/admin/app` layout and shared CSS | Visual before/after required for every future UI slice | Keep low-noise 管理后台式 management style. |
 | [done] | Dashboard baseline | `/admin` | Re-check demo dashboard before major dashboard redesign | Local dashboard is service/IAM-focused, not plugin-market focused. |
 | [done] | Menu management | `/admin/menus`, `/api/v1/system/menus` | Demo page optional unless changing interactions | Server-driven menu catalog is the local source of truth. |
 | [done] | API management and sync | `/admin/apis`, `/api/v1/system/apis` | Demo page optional unless changing access/filter UI | Includes access-mode summary and permission sync. |
-| [done] | Role authorization matrix | `/admin/roles` | Re-check GVA role page before editing permission UX | Local implementation maps to Casbin domain RBAC. |
-| [audit] | User management | `/admin/users` and IAM APIs | Must inspect GVA user page before next user-management change | Verify filters, invite/create flow, role binding, status controls. |
-| [audit] | Organization/tenant management | `/admin/organizations` | Research GVA tenant/org equivalent before changing | Local IAM has organizations; GVA demo may not match one-to-one. |
+| [done] | Role authorization matrix | `/admin/roles` | Re-check 上游样板 role page before editing permission UX | Local implementation maps to Casbin domain RBAC. |
+| [done] | User management | `/admin/users` and IAM APIs | External route/source checked on 2026-06-12 | First pass added list filters, pagination, and compact role/status operations without exposing source wording. |
+| [audit] | Organization/tenant management | `/admin/organizations` | Research upstream tenant/org equivalent before changing | Local IAM has organizations; 外部样板 may not match one-to-one. |
 | [audit] | Session/security/MFA pages | `/admin/sessions`, `/admin/security` | Visual and workflow check required before UI changes | Keep token and MFA behavior local; do not copy insecure demo shortcuts. |
 | [done] | Dictionary management | `/admin/dictionaries`, system dictionary APIs | Demo page optional unless changing item editing UX | Persisted dictionaries and items are implemented. |
 | [done] | Operation history | `/admin/operation-records` | Re-check demo before adding advanced filters/export | Persisted protected request records are implemented. |
@@ -88,44 +108,46 @@ Last checked: 2026-06-12.
 | [done] | Error log | `/admin/error-logs` | Demo page observed as unassigned route for admin account | Local page uses `system_operation_records` status filters. |
 | [done] | Login captcha | `/api/v1/auth/captcha`, `/admin/login` | Demo login captcha must be checked if login screen changes | Optional config: `auth.login_captcha_enabled`. |
 | [done] | API Token | `/admin/api-tokens`, `/api/v1/orgs/:orgId/api-tokens` | Demo page and upstream source inspected on 2026-06-12 | Local opaque token implementation with one-time plaintext display and hash-only storage. |
-| [done] | Version management | `/admin/versions`, `/api/v1/system/versions` | Demo page and upstream source inspected on 2026-06-12 | GVA feature is a configuration release package for selected menus, APIs, and dictionaries; local import safely persists dictionaries and stores menu/API package records. |
-| [done] | Media library upload/download | `/admin/media`, `/api/v1/system/media/*` | Demo page and upstream source inspected on 2026-06-12 | GVA feature is left-category media management with upload, URL import, keyword filter, preview, rename, download, and delete. |
-| [todo] | Breakpoint upload | Storage resumable upload module | Must inspect demo workflow and source first | Higher risk: requires protocol, cleanup, limits, and docs. |
-| [todo] | Customer/resource example | Demo module extension | Demo visual/source check required | Implement only as reusable CRUD example if still valuable. |
+| [done] | Version management | `/admin/versions`, `/api/v1/system/versions` | Demo page and upstream source inspected on 2026-06-12 | 上游样板 feature is a configuration release package for selected menus, APIs, and dictionaries; local import safely persists dictionaries and stores menu/API package records. |
+| [done] | Media library upload/download | `/admin/media`, `/api/v1/system/media/*` | Demo page and upstream source inspected on 2026-06-12 | 上游样板 feature is left-category media management with upload, URL import, keyword filter, preview, rename, download, and delete. |
+| [done] | Breakpoint upload | `/admin/media/resumable`, `/api/v1/system/media/assets/resumable/*` | Demo page and upstream source inspected on 2026-06-12 | Local implementation uses resumable sessions, SHA-256 chunk/full-file verification, Storage-backed chunk cleanup, and media asset completion. |
+| [done] | Customer/resource example | `/admin/customers`, `/api/v1/demo/customers` | Demo visual/source checked on 2026-06-12 | Protected resource CRUD example using local IAM principal scope. |
 | [defer] | Template config/code generator/form generator/export template | `pkg/sqlgen` plus explicit product spec | Research required, but do not copy wholesale | Needs product decision and security review before implementation. |
 | [defer] | AI workflow, MCP Tools, Skills, AI page drawing | Separate AI tooling boundary | Research required before any local work | Keep AI artifacts under `docs/ai` or `tools/ai`; do not mix into app packages. |
 | [defer] | Plugin market/install/package/mail plugin/announcements | Existing `plugins` module plus product spec | Research required | Avoid remote marketplace/install behavior without an explicit requirement. |
 
 ### Next Slice Protocol
 
-Preferred next slice: Breakpoint upload.
+Preferred next slice: Organization/tenant management audit, unless the user redirects
+to another 外部样板 area.
 
 Before implementation:
 
-- Research the GVA breakpoint upload workflow visually and capture screenshots
-  for upload start, progress, pause/resume or retry, and completion states.
-- Inspect upstream GVA server and web source for chunk request shape, merge
-  behavior, cleanup rules, hash handling, and failure responses.
-- Inspect local `pkg/storage`, storage config, media model, and migration
-  status before deciding whether resumable upload belongs in System media or a
-  separate storage module.
+- Research the selected 上游样板 workflow visually and capture screenshots for the
+  main list/form, important dialogs, empty state, error state, and completion
+  state where the demo exposes them.
+- Inspect upstream 上游样板 server and web source for request shape, service
+  behavior, cleanup rules, validation, permissions, and failure responses.
+- Inspect the closest local module, config, migration status, and frontend
+  route before deciding whether to extend an existing boundary or add a new
+  one.
 - Write the slice plan here before editing code.
 
 Implementation guardrails:
 
-- Treat this as a higher-risk storage protocol, not a small UI button.
-- Use append-only migrations if chunk sessions or temporary object state need
-  persistence.
-- Keep file-system writes below the configured storage root, sanitize filenames,
+- Treat persistence, permissions, file writes, imports, exports, and background
+  cleanup as higher-risk surfaces that need explicit service-level rules.
+- Use append-only migrations for new shared tables or columns.
+- Keep file-system writes below configured roots, sanitize user-supplied names,
   generate server-side object keys, and never trust uploaded or imported paths.
-- Add explicit size, chunk count, TTL, cleanup, and idempotency rules before
-  accepting any chunk.
-- Add IAM permissions, server-driven menu entry, API catalog entries, and admin
-  page together when the feature becomes user-visible.
+- Add IAM permissions, server-driven menu entries, API catalog entries, and
+  admin pages together when a feature becomes user-visible.
 - Update developer, maintainer, user, and beginner-facing docs when behavior is
   exposed.
-- Update `configs/*.example.yaml` and `.env.example` when media storage knobs or
+- Update `configs/*.example.yaml` and `.env.example` when config knobs or
   operational notes are introduced.
+- Do not display upstream/source names or "reference demo" wording in product
+  UI, user-facing docs, example config comments, or release docs.
 
 Validation floor:
 
@@ -134,16 +156,300 @@ Validation floor:
 - For visible UI work, visually inspect desktop `1440x900` and mobile
   `390x844` routes with Browser and record results here or in the final note.
 
+### Active Slice: User Management Filters And Pagination
+
+Status: `[done]` started and completed on 2026-06-12.
+
+Research completed before implementation:
+
+- Demo route attempted:
+  `外部后台演示站/#/layout/superAdmin/user`. The current public
+  demo session returned the 上游样板 no-route/no-permission page, so this role cannot
+  visually inspect the live user table without a different demo permission set.
+  No captcha was shown.
+- Upstream primary source checked at commit
+  `78b3bd0c67a2e5cbf469d7e6c5ceceb6fe5546a4`:
+  `web/src/view/superAdmin/user/user.vue`,
+  `web/src/api/user.js`,
+  `server/model/system/sys_user.go`,
+  `server/model/system/request/sys_user.go`,
+  `server/service/system/sys_user.go`,
+  `server/router/system/sys_user.go`, and system menu/API/casbin seeds.
+- External user-management shape: warning bar, inline filters for username,
+  nickname, phone, and email; a paginated user table sorted by ID descending;
+  avatar, username, nickname, phone, email, role cascader, enable switch, and
+  row actions for delete, edit, and reset password; add/edit user drawer; reset
+  password dialog.
+
+Local implementation plan:
+
+- Preserve this repo's organization-scoped IAM design. Do not add phone/avatar
+  columns in this slice because local `iam_users` does not currently model
+  those fields and adding schema solely for visual parity would be noisy.
+- Extend organization user listing with 管理后台式 server-side filters and
+  pagination: keyword, username, display name, email, role code, membership
+  status, page, and page size. Keep the endpoint path
+  `/api/v1/orgs/:orgId/users` and make no-query calls return page 1.
+- Update `/admin/users` into a compact 管理后台式 list surface with warning bar,
+  search/reset controls, page-size selector, paginated table, role/status quick
+  actions, and invitation side panel. Keep invitation as the local equivalent
+  of "新增用户" until a deliberate direct-user-create slice is planned.
+- Update API docs, OpenAPI, IAM module docs, onboarding/maintenance notes, and
+  AI task status after validation.
+
+Validation plan:
+
+- Focused Go tests for IAM service and HTTP router user-list query handling.
+- `go test ./internal/modules/iam/... ./internal/transport/http -count=1 -mod=readonly`
+- `pnpm --dir web/admin typecheck`
+- Local visual checks on `/admin/users` at `1440x900` and `390x844`, including
+  populated table, filter controls, and invitation panel.
+
+Implementation completed:
+
+- Extended `GET /api/v1/orgs/:orgId/users` to return `OrganizationUserPage`
+  with `keyword`, `username`, `displayName`/`nickName`, `email`, `roleCode`,
+  `status`, `orderKey`, `desc`, `page`, and `pageSize` query support.
+- Added IAM service and HTTP router tests for filtered/paginated user lists.
+- Updated `/admin/users` into a compact organization-user management surface
+  with filters, pagination, role/status quick actions, and invitation panels.
+- Updated API composable/types and the API Token issue dialog to consume
+  paginated user metadata via `items`.
+- Removed upstream/source wording from product UI and user-facing docs.
+
+Validation completed:
+
+- `go test ./internal/modules/iam/... ./internal/transport/http -count=1 -mod=readonly`
+- `pnpm --dir web/admin typecheck`
+- `docs/api/openapi.yaml` parsed successfully with PyYAML.
+- API smoke using `admin` / `admin888` verified `/api/v1/orgs/{orgId}/users`
+  returns a persisted page object and filters `keyword=admin`.
+- Local visual evidence saved:
+  `tmp/ai/users-desktop-1440-final.png` and
+  `tmp/ai/users-mobile-390-final.png`.
+- Visual notes: desktop filters no longer overlap the invitation panel; mobile
+  keeps filters vertical and the dense member table inside a local horizontal
+  scroll area; rendered body text contains no upstream/source wording.
+
+### Active Slice: Customer Resource Example
+
+Status: `[done]` started and completed on 2026-06-12.
+
+Research completed before implementation:
+
+- Demo route: `外部后台演示站/#/layout/example/customer`.
+- Demo visual readout: a compact white resource example page, warning bar,
+  primary `新增` action, table columns for access date, customer name, phone,
+  access-user ID and operations, empty state `暂无数据`, and bottom pagination.
+  The create/edit surface is a right-side `客户` drawer with `客户名` and
+  `客户电话` fields plus cancel/confirm actions.
+- Browser screenshot capture timed out on the public demo tab, so no 上游样板
+  customer screenshot is saved yet. DOM inspection and upstream source were
+  used for this slice; local screenshots are still required after
+  implementation.
+- Upstream primary source checked at commit
+  `78b3bd0c67a2e5cbf469d7e6c5ceceb6fe5546a4`:
+  `web/src/view/example/customer/customer.vue`,
+  `web/src/api/customer.js`,
+  `server/model/example/exa_customer.go`,
+  `server/model/example/response/exa_customer.go`,
+  `server/api/v1/example/exa_customer.go`,
+  `server/service/example/exa_customer.go`,
+  `server/router/example/exa_customer.go`,
+  `server/source/system/menu.go`, `server/source/system/api.go`, and
+  `server/source/system/casbin.go`.
+
+Local implementation plan:
+
+- Keep the feature in the Demo module because it is an example CRUD resource,
+  but register it behind IAM authentication and `customer:*` permissions to
+  mirror 上游样板的 private router plus Casbin responsibility split.
+- Add a `demo_customers` model/table with customer name, phone, owner user ID,
+  owner username, owner role code, organization ID, timestamps, and soft delete.
+  It is intentionally separate from System media/version tables because it is a
+  teaching example rather than operational configuration.
+- Apply local resource visibility as: users list customers from their current
+  organization where the owner role matches their active role, or records they
+  created themselves. This maps 上游样板的 role data-authority example into the
+  current IAM principal shape without adding 上游样板的 full authority association
+  model.
+- Expose protected APIs under `/api/v1/demo/customers` for list, create, detail,
+  update, and delete. Use `customer:read`, `customer:create`,
+  `customer:update`, and `customer:delete`; add them to built-in permissions,
+  API catalog mapping, and the server-driven menu.
+- Add `/admin/customers` with a compact 管理后台式 warning bar, `新增` action,
+  table, pagination, drawer form, and mobile responsive layout. Use existing
+  admin components and avoid decorative backgrounds or nested card clutter.
+- Update developer, secondary-development, maintainer, user, beginner, API,
+  OpenAPI, Demo module, configuration, and AI handoff docs. Example config
+  comments should say the Demo switch now controls both public Todo and the
+  protected Customer resource example.
+
+Validation plan:
+
+- Run focused Go tests for Demo service, app db/init transport, and HTTP router,
+  then `go test ./... -count=1 -mod=readonly`.
+- Run `go build -mod=readonly -o ./tmp/go-scaffold-server ./cmd/main`.
+- Run `pnpm --dir web/admin typecheck`.
+- Use Browser or Playwright visual checks on `/admin/customers` at `1440x900`
+  and `390x844`, including list and create-drawer states.
+
+Implementation completed:
+
+- Added `demo_customers` model, repository, service, handler, schema bootstrap,
+  IAM permissions, HTTP route permission mapping, API catalog mapping, and
+  server-driven menu entry.
+- Added `/admin/customers` with a 管理后台式 warning bar, compact search tools,
+  table pagination, create/edit drawer, delete flow, and mobile horizontal table
+  handling.
+- Updated Demo, API, OpenAPI, configuration, onboarding, overview, maintenance,
+  extension, and AI handoff docs plus example config comments.
+
+Validation completed:
+
+- `go test ./internal/modules/demo/... ./internal/app/dbapp ./internal/app/initapp ./internal/app ./internal/transport/http -count=1 -mod=readonly`
+- `go test ./... -count=1 -mod=readonly`
+- `go build -mod=readonly -o ./tmp/go-scaffold-server ./cmd/main`
+- `go build -mod=readonly -o ./tmp/go-scaffold-server.exe ./cmd/main`
+- `pnpm --dir web/admin typecheck`
+- `docs/api/openapi.yaml` parsed successfully with PyYAML.
+- API smoke using `admin` / `admin888` verified login, customer detail, list,
+  update, and UTF-8 Chinese keyword filtering. Windows PowerShell string bodies
+  must be sent as UTF-8 bytes for Chinese request payloads.
+- Local visual evidence saved:
+  `tmp/ai/customer-desktop-1440.png`,
+  `tmp/ai/customer-drawer-1440.png`, and
+  `tmp/ai/customer-mobile-390.png`.
+- Visual notes: desktop list and right drawer are readable with no body-level
+  horizontal overflow; mobile keeps the dense customer table inside a horizontal
+  scroll area and avoids global layout pollution.
+
+### Active Slice: Breakpoint Upload
+
+Status: `[done]` started and completed on 2026-06-12.
+
+Research completed before implementation:
+
+- Demo route: `外部后台演示站/#/layout/example/breakpoint`.
+- Visual evidence: `tmp/ai/demo-breakpoint-2026-06-12.png`.
+- Demo page shape: a compact white panel titled "大文件上传", one "选择文件"
+  file picker button, one "上传文件" primary action, a selected-file row with
+  filename, percentage and a thin progress bar, plus a note that the test
+  version writes chunks and merged files into server-side breakpoint/file
+  folders. The demo limit shown in the UI is 5 MB.
+- External clean-browser login required a captcha during upload interaction
+  research. Per the captcha rule, the user was asked for the visible captcha
+  value; until provided, upload progress/completion screenshots remain pending.
+- Upstream primary source checked at commit
+  `78b3bd0c67a2e5cbf469d7e6c5ceceb6fe5546a4`:
+  `web/src/view/example/breakpoint/breakpoint.vue`,
+  `web/src/api/breakpoint.js`,
+  `server/api/v1/example/exa_breakpoint_continue.go`,
+  `server/service/example/exa_breakpoint_continue.go`,
+  `server/model/example/exa_breakpoint_continue.go`,
+  `server/router/example/exa_file_upload_and_download.go`,
+  `server/utils/breakpoint_continue.go`,
+  `server/source/system/menu.go`,
+  `server/source/system/api.go`, and `server/source/system/casbin.go`.
+
+Local implementation plan:
+
+- Keep the feature under System media because resumable upload creates the same
+  operational media assets as ordinary upload. Add a dedicated
+  `/admin/media/resumable` page and a server-driven demo menu item next to the
+  media library.
+- Add append-only tables `system_media_upload_sessions` and
+  `system_media_upload_chunks`. Sessions store file hash, original filename,
+  category, size, chunk size/count, status (`active`, `completed`, `aborted`,
+  `expired`), final asset ID, uploader identity, timestamps and expiry. Chunks
+  store session ID, chunk index, byte size, chunk hash, storage key and upload
+  timestamp.
+- Expose protected APIs under `/api/v1/system/media/assets/resumable`: check or
+  create session, upload one chunk, complete/merge, and abort/cleanup. Reuse
+  `media:upload` for check/chunk/complete/abort; listing and final asset access
+  continue to use existing media permissions.
+- Use SHA-256 for full-file and chunk hashes, while keeping request field names
+  close enough to 上游样板的 `fileHash`, `chunkHash`, `chunkIndex`, `chunkTotal`,
+  and `fileName` responsibility split.
+- Reuse the existing `MediaMaxBytes` limit and `MediaPrefix`; default chunk
+  size is 1 MB and the server rejects empty files, files over the max, invalid
+  chunk indexes/counts, mismatched chunk hashes, and sessions that are complete,
+  aborted or expired.
+- Keep all temporary objects below a server-generated
+  `media/chunks/<session-id>/` prefix, never trust client file paths, and merge
+  chunks into a normal `system_media_assets` row with a generated final key.
+- Abort and complete should best-effort remove temporary chunk objects. Expired
+  sessions remain visible to the backend as non-uploadable; a later maintenance
+  job can hard-delete stale chunk data if needed.
+- Build the frontend page with the 管理后台式 compact panel, choose/upload
+  buttons, selected-file row, progress bar, existing-chunk resume state, storage
+  unavailable warning, and links back to the media library.
+- Update developer, secondary-development, maintainer, user, beginner, API,
+  OpenAPI, system module, storage/config and AI handoff docs.
+
+Validation plan:
+
+- Run focused Go tests for `internal/modules/system/service`,
+  `internal/modules/system/handler`, `internal/transport/http`, and `pkg/web`
+  where touched, then `go test ./... -count=1 -mod=readonly`.
+- Run `go build -mod=readonly -o ./tmp/go-scaffold-server ./cmd/main`.
+- Run `pnpm typecheck` from `web/admin`.
+- Use Browser visual checks on `/admin/media/resumable` at `1440x900` and
+  `390x844`, including storage-disabled and selected-file states. If the user
+  provides the 上游样板 captcha, also capture 上游样板 upload progress/completion
+  evidence for comparison.
+
+Implementation completed:
+
+- Added append-only migration
+  `internal/migrations/20260612000700_create_system_media_resumable_uploads.sql`
+  for `system_media_upload_sessions` and `system_media_upload_chunks`.
+- Added System media models, repository methods, service methods, handlers, and
+  protected routes for resumable `check`, `chunks`, `complete`, and `abort`.
+- Reused `media:upload`, `MediaMaxBytes`, `MediaPrefix`, and the injected
+  `pkg/storage` object store. Temporary chunks are written below
+  `media/chunks/<session-id>/`, and complete/abort best-effort remove chunk
+  objects plus chunk rows.
+- Implemented `/admin/media/resumable` with 管理后台式 choose/upload/reset/abort
+  actions, selected-file row, progress bar, resume state, storage unavailable
+  warning, and completion link back to the media library.
+- Moved the media library route from `pages/media.vue` to
+  `pages/media/index.vue` after visual validation found `/media/resumable`
+  was otherwise rendering the parent media page.
+- Updated API, OpenAPI, module, configuration, extension, maintenance,
+  onboarding, overview and AI docs, plus `.env.example` and
+  `configs/config.example.yaml`.
+
+Validation completed:
+
+- `go test ./internal/modules/system/service -count=1 -mod=readonly`
+- `go test ./internal/modules/system/... ./internal/transport/http ./pkg/web -count=1 -mod=readonly`
+- `go test ./... -count=1 -mod=readonly`
+- `go build -mod=readonly -o ./tmp/go-scaffold-server ./cmd/main`
+- `go build -mod=readonly -o ./tmp/go-scaffold-server.exe ./cmd/main`
+- `pnpm --dir web/admin typecheck`
+- `python -c "import pathlib, yaml; yaml.safe_load(pathlib.Path('docs/api/openapi.yaml').read_text(encoding='utf-8')); print('openapi yaml parsed')"`
+- Browser desktop visual check on `/admin/media/resumable` at `1440x900`.
+- Edge/Playwright upload flow using a generated 1.5 MB `tmp/ai` file: selected
+  state recognized two chunks, upload completed, and the final asset appeared
+  in the page result.
+- Visual evidence:
+  `tmp/ai/media-resumable-desktop-1440x900-final.png`,
+  `tmp/ai/media-resumable-selected-1440x900-final.png`,
+  `tmp/ai/media-resumable-complete-1440x900-final.png`,
+  `tmp/ai/media-resumable-mobile-390x844-final.png`, and
+  `tmp/ai/media-resumable-mobile-390x844-viewport.png`.
+
 ### Active Slice: Media Library Upload/Download
 
 Status: `[done]` started and completed on 2026-06-12.
 
 Research completed before implementation:
 
-- Demo route: `https://demo.gin-vue-admin.com/#/layout/example/upload`.
+- Demo route: `外部后台演示站/#/layout/example/upload`.
 - Visual evidence:
-  `tmp/ai/gva-upload-2026-06-12.png` and
-  `tmp/ai/gva-upload-import-url-2026-06-12.png`.
+  `tmp/ai/demo-upload-2026-06-12.png` and
+  `tmp/ai/demo-upload-import-url-2026-06-12.png`.
 - Demo page shape: left category tree with `全部分类`; top warning bar; action
   buttons for normal upload, crop upload, QR upload, compressed upload, and
   URL import; keyword filter; table columns for preview, date, file name/remark,
@@ -164,7 +470,7 @@ Research completed before implementation:
   `server/service/example/exa_attachment_category.go`,
   `server/router/example/exa_file_upload_and_download.go`, and
   `server/router/example/exa_attachment_category.go` from
-  `github.com/flipped-aurora/gin-vue-admin`.
+  `外部后台项目源码`.
 
 Local implementation plan:
 
@@ -186,7 +492,7 @@ Local implementation plan:
 - Add IAM permissions `media:read`, `media:upload`, `media:import`,
   `media:update`, `media:download`, and `media:delete`, then wire them through
   API catalog, role permission matrix, and server-driven menus.
-- Build `/admin/media` with the GVA-like layout: left category panel, compact
+- Build `/admin/media` with the 管理后台式 layout: left category panel, compact
   action/filter row, preview table/list, URL import dialog, rename dialog, and
   desktop/mobile responsive behavior. Start with normal upload and URL import;
   crop/QR/compress buttons may be represented as deferred actions only if they
@@ -221,7 +527,7 @@ Implementation completed:
 - Added IAM permissions `media:read`, `media:upload`, `media:import`,
   `media:update`, `media:download`, and `media:delete`, then wired them into
   the route catalog, server-driven menu, and role permission matrix.
-- Added `/admin/media` with the GVA-like left category panel, action/filter
+- Added `/admin/media` with the 管理后台式 left category panel, action/filter
   row, warning bars, table/card resource list, URL import dialog, rename
   dialog, and responsive desktop/mobile behavior.
 - Kept storage safety explicit: server-generated object keys under `media/`,
@@ -251,11 +557,11 @@ Status: `[done]` started and completed on 2026-06-12.
 
 Research completed before implementation:
 
-- Demo route: `https://demo.gin-vue-admin.com/#/layout/admin/sysVersion`.
+- Demo route: `外部后台演示站/#/layout/admin/sysVersion`.
 - Visual evidence:
-  `tmp/ai/gva-version-2026-06-12.png`,
-  `tmp/ai/gva-version-export-drawer-2026-06-12.png`, and
-  `tmp/ai/gva-version-import-drawer-2026-06-12.png`.
+  `tmp/ai/demo-version-2026-06-12.png`,
+  `tmp/ai/demo-version-export-drawer-2026-06-12.png`, and
+  `tmp/ai/demo-version-import-drawer-2026-06-12.png`.
 - Demo page shape: list page filters by created date, version name, and version
   code; primary actions are create release package and import version package;
   row actions are view, download package, and delete. The create drawer collects
@@ -271,11 +577,11 @@ Research completed before implementation:
   `server/api/v1/system/sys_version.go`,
   `server/service/system/sys_version.go`, and
   `server/router/system/sys_version.go` from
-  `github.com/flipped-aurora/gin-vue-admin`.
+  `外部后台项目源码`.
 
 Local implementation plan:
 
-- Keep the GVA responsibility split, but name the local concept explicitly as a
+- Keep the 上游样板 responsibility split, but name the local concept explicitly as a
   system release package. It snapshots menus, API routes, and dictionaries into
   a versioned JSON payload instead of representing the running binary version or
   migration version.
@@ -288,7 +594,7 @@ Local implementation plan:
   `version:download`, and `version:delete`, then wire them through API catalog,
   server-driven menus, and the role permission matrix.
 - Build `/admin/versions` with the same low-noise table/filter/drawer workflow
-  observed in the GVA demo: filters, selection, create package, import package,
+  observed in the external reference: filters, selection, create package, import package,
   detail preview, JSON download, and batch delete.
 - Preserve local architecture on import: dictionaries and dictionary items can
   be created idempotently when missing; menus and API routes are code/router
@@ -317,7 +623,7 @@ Implementation completed:
 - Added IAM permissions `version:read`, `version:create`, `version:import`,
   `version:download`, and `version:delete`, then wired them into the route
   catalog, role permission matrix, and server-driven system menu.
-- Added `/admin/versions` with GVA-like filters, table selection, create
+- Added `/admin/versions` with 管理后台式 filters, table selection, create
   release package workflow, import JSON workflow, detail/JSON download support,
   and mobile responsive layout.
 - Preserved local architecture on import: dictionaries and items are created
@@ -346,8 +652,8 @@ Status: `[done]` started and completed on 2026-06-12.
 Research completed before implementation:
 
 - Demo route: API Token page under Super Admin. Screenshots:
-  `tmp/ai/gva-api-token-2026-06-12.png` and
-  `tmp/ai/gva-api-token-dialog-2026-06-12.png`.
+  `tmp/ai/demo-api-token-2026-06-12.png` and
+  `tmp/ai/demo-api-token-dialog-2026-06-12.png`.
 - Demo page shape: filters by user ID and status; primary action is issue;
   table columns are ID, user, role ID, status, expires at, remark, operation;
   issue drawer asks for user, role, validity period, and remark; success dialog
@@ -360,13 +666,13 @@ Research completed before implementation:
   `server/api/v1/system/sys_api_token.go`,
   `server/service/system/sys_api_token.go`, and
   `server/router/system/sys_api_token.go` from
-  `github.com/flipped-aurora/gin-vue-admin`.
+  `外部后台项目源码`.
 
 Local implementation plan:
 
-- Keep the GVA management workflow shape, but implement local API tokens as
+- Keep the 上游样板 management workflow shape, but implement local API tokens as
   opaque secrets with a display prefix and SHA-256 hash. Do not store the
-  plaintext token or copy GVA's raw JWT persistence.
+  plaintext token or copy 上游样板的 raw JWT persistence.
 - Put the backend in IAM because the token authenticates callers and belongs to
   users, organizations, and role/permission scope. Keep route registration in
   `internal/transport/http`.
@@ -427,7 +733,7 @@ sufficient for the current management workflow.
   lists are arranged as operational widgets rather than marketing cards.
 - Styling: the demo keeps backgrounds mostly solid white, uses thin borders, and
   avoids blurred or translucent surfaces inside core management workflows.
-- Visual pollution to avoid while replacing GVA incrementally: front-site
+- Visual pollution to avoid while replacing 上游样板 incrementally: front-site
   background images, colorful navigation gradients, translucent glass panels,
   large marketing gradients, decorative blur, high-opacity watermark patterns,
   and low-contrast table/header text.
@@ -450,7 +756,7 @@ available.
 
 ## Backend Reference
 
-Gin-Vue-Admin's server is organized around `api/v1`, `config`, `core`,
+上游样板's server is organized around `api/v1`, `config`, `core`,
 `global`, `initialize`, `middleware`, `model`, `model/request`,
 `model/response`, `router`, `service`, `source`, and `utils`.
 
@@ -469,12 +775,12 @@ renaming the backend wholesale:
 - `middleware` maps to `internal/middleware`.
 - `utils` maps to reusable packages under `pkg`.
 
-Do not rename this repository to match GVA's folder names wholesale. The parity
+Do not rename this repository to match 上游样板的 folder names wholesale. The parity
 target is the responsibility split: router catalog, API handler, service domain
 rules, repository persistence, typed request/response shapes, initialization,
 middleware, and reusable utilities.
 
-GVA's router initialization separates public routes from private routes guarded
+上游样板的 router initialization separates public routes from private routes guarded
 by JWT and Casbin. In this scaffold, the equivalent information is expressed in
 the API catalog as `access=public|authenticated|permission` while the concrete
 middleware remains in `internal/transport/http` and `internal/middleware`.
@@ -488,7 +794,7 @@ middleware remains in `internal/transport/http` and `internal/middleware`.
    models and routes.
 4. Preserve the current dependency rule: modules depend on reusable `pkg`
    infrastructure, while `pkg` does not import application modules.
-5. Avoid copying Gin-Vue-Admin's code generator, plugin market, or generated
+5. Avoid copying 上游样板's code generator, plugin market, or generated
    CRUD surface until this backend has an explicit product requirement for them.
 
 ## Implemented Parity Slices
@@ -497,7 +803,7 @@ middleware remains in `internal/transport/http` and `internal/middleware`.
 - 2026-06-11: Server-driven admin menu groups at `/api/v1/system/menus`.
 - 2026-06-11: HTTP API catalog at `/api/v1/system/apis`, mapped from the
   current router table.
-- 2026-06-11: GVA-style API sync action at `/api/v1/system/apis/sync`, backed by
+- 2026-06-11: 管理后台式 API sync action at `/api/v1/system/apis/sync`, backed by
   `system_apis` when the migration has been applied and safely downgraded to
   live in-memory catalog refresh when the table is not available yet.
 - 2026-06-11: API permission dictionary sync at
@@ -513,62 +819,62 @@ middleware remains in `internal/transport/http` and `internal/middleware`.
   `system_dictionaries` and `system_dictionary_items`, CRUD HTTP APIs, IAM
   permissions, role-matrix grouping, a server-driven menu entry, and the
   `/admin/dictionaries` management page.
-- 2026-06-12: Operation history slice added after visually inspecting GVA's
+- 2026-06-12: Operation history slice added after visually inspecting 上游样板的
   `操作历史` page: protected API requests are recorded into
   `system_operation_records`, surfaced through `/api/v1/system/operation-records`,
   wired into IAM permissions and server-driven menus, and managed from
-  `/admin/operation-records` with GVA-style filters, selection, table layout, and
+  `/admin/operation-records` with 管理后台式 filters, selection, table layout, and
   pagination.
-- 2026-06-12: Parameter management slice added after checking GVA's
+- 2026-06-12: Parameter management slice added after checking 上游样板的
   `参数管理` / `sys_params` model and service: persisted `system_parameters`
   records expose name, key, value, description, created timestamps, list filters,
   single and batch delete, key lookup, IAM permissions, server-driven menus, and
   the `/admin/parameters` management page.
-- 2026-06-12: System configuration slice added after checking GVA's
+- 2026-06-12: System configuration slice added after checking 上游样板的
   `系统配置` page and `/system/getSystemConfig` route: this scaffold now exposes
   a permission-protected `/api/v1/system/config` read-only runtime snapshot,
   masks secrets, wires `config:read` into IAM/menu/API catalogs, and adds the
-  `/admin/system` grouped configuration page. GVA-style config write and service
+  `/admin/system` grouped configuration page. 管理后台式 config write and service
   reload remain a later, higher-risk parity slice.
-- 2026-06-12: Server status slice added after checking GVA's
+- 2026-06-12: Server status slice added after checking 上游样板的
   `/system/getServerInfo` service shape: this scaffold now exposes
   `/api/v1/system/server-info` with `server:read`, returns gopsutil-backed
   host CPU/RAM/disk metrics plus Go runtime, memory, GC, OS, uptime, and build
   metadata, wires the server-driven menu and role permission matrix, and adds
   `/admin/server-info`.
 - 2026-06-12: Admin visual pollution hardening after visual comparison with
-  GVA dashboard and menu-management pages: the admin runtime now clears legacy
+  上游样板 dashboard and menu-management pages: the admin runtime now clears legacy
   Aoi background/colorful-nav variables, and the admin CSS baseline uses a
-  restrained GVA-like palette with solid panels, thin borders, low shadows,
+  restrained 管理后台式 palette with solid panels, thin borders, low shadows,
   denser tables, muted login branding, semantic API method badges, isolated
   admin surface tokens, and desktop/mobile visual checks.
-- 2026-06-12: GVA `source`/`initialize` parity slice: the System module can
+- 2026-06-12: 上游样板 `source`/`initialize` parity slice: the System module can
   seed default dictionaries and parameters during startup through
   `system.seed_defaults_on_start`. The seed is idempotent, skips unavailable
   tables, and never overwrites existing user-edited parameter values.
-- 2026-06-12: Login log parity slice after inspecting GVA
+- 2026-06-12: Login log parity slice after inspecting 上游样板
   `#/layout/admin/loginLog`: the demo currently exposes the menu item and tab
   but keeps dashboard content in the work surface, so this scaffold implements a
   usable `/admin/login-logs` page backed by IAM `auth.login` audit records and
   adds the server-driven menu entry under Security Audit.
-- 2026-06-12: Error log parity slice after inspecting GVA
+- 2026-06-12: Error log parity slice after inspecting 上游样板
   `#/layout/admin/errorLog`: the public demo currently renders the unassigned
   route/permission page for the admin account, so this scaffold implements a
   usable `/admin/error-logs` page over `system_operation_records`. The backend
   keeps the existing operation-record table and adds optional `statusClass`
   filtering (`4xx`, `5xx`, or `error`) to `/api/v1/system/operation-records`;
   exact `status` filters still take priority when supplied.
-- 2026-06-12: API catalog access-mode parity slice based on GVA's public vs
+- 2026-06-12: API catalog access-mode parity slice based on 上游样板的 public vs
   JWT/Casbin-protected router groups: route catalog entries now expose
   `access` as `public`, `authenticated`, or `permission`, and the API management
   page can summarize and filter by that access mode without changing the
   append-only `system_apis` schema.
-- 2026-06-12: Login captcha parity slice based on the GVA demo login screen:
+- 2026-06-12: Login captcha parity slice based on the external login screen:
   IAM now exposes public `GET /api/v1/auth/captcha`, validates optional
   `captchaId`/`captchaCode` during login when `auth.login_captcha_enabled=true`,
   keeps short-lived challenges in service memory, and renders the admin login
   captcha row only when the backend reports it enabled.
-- 2026-06-12: API Token management parity slice after inspecting the GVA demo
+- 2026-06-12: API Token management parity slice after inspecting the external reference
   page and upstream `sys_api_token` source: this scaffold now stores
   organization-scoped opaque API tokens by hash, supports one-time plaintext
   display on issue, list/status filtering, revoke, API-token Bearer auth with
@@ -576,7 +882,7 @@ middleware remains in `internal/transport/http` and `internal/middleware`.
   `/admin/api-tokens` management page. During visual QA, the shared
   `AoiSelect` component was fixed so Material select values render reliably in
   desktop and mobile dialogs.
-- 2026-06-12: Version management parity slice after inspecting the GVA demo
+- 2026-06-12: Version management parity slice after inspecting the external reference
   `sysVersion` page and upstream `sys_version` source: this scaffold now stores
   versioned system release packages for selected menus, APIs, and dictionaries,
   exposes `/api/v1/system/versions` source/export/import/download/delete
@@ -584,7 +890,7 @@ middleware remains in `internal/transport/http` and `internal/middleware`.
   `/admin/versions` management page, and documents the safe local import rule
   where dictionaries are persisted while menu/API entries remain code-owned.
 - 2026-06-12: Media library upload/download parity slice after inspecting the
-  GVA demo upload page and upstream file/category source: this scaffold now
+  外部样板 upload page and upstream file/category source: this scaffold now
   stores media categories and assets, supports normal storage-backed upload,
   external URL import, keyword filtering, rename, download/open, delete, IAM
   `media:*` permissions, server-driven menus/API catalog entries, and the

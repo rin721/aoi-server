@@ -1,11 +1,11 @@
-# 项目代号 ｢<ruby>Aoi<rp>（</rp><rt>[葵]</rt><rp>）</rp></ruby>｣
+﻿# 项目代号 ｢<ruby>Aoi<rp>（</rp><rt>[葵]</rt><rp>）</rp></ruby>｣
 
 [![CI](https://github.com/rin721/go-scaffold/actions/workflows/ci.yml/badge.svg)](https://github.com/rin721/go-scaffold/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25.7-00ADD8?logo=go)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rin721/go-scaffold)
 
-`go-scaffold` 是一个可运行的 Go 后端服务脚手架。当前保留 HTTP 服务、配置加载、结构化日志、数据库访问、Demo Todo CRUD、企业级 IAM、系统管理发布包、数据库迁移、存储辅助能力、SQL 生成、Docker 构建、CI 检查、部署示例和 AI 运行时文档。
+`go-scaffold` 是一个可运行的 Go 后端服务脚手架。当前保留 HTTP 服务、配置加载、结构化日志、数据库访问、Demo Todo CRUD、客户资源权限示例、企业级 IAM、系统管理发布包、数据库迁移、存储辅助能力、SQL 生成、Docker 构建、CI 检查、部署示例和 AI 运行时文档。
 
 <p align="center">
   <img src="../configs/logo.png" alt="go-scaffold logo" width="180">
@@ -14,9 +14,9 @@
 ## 亮点
 
 - 可直接启动的服务入口，支持优雅启动和关闭。
-- Demo 模块采用 `handler -> service -> repository -> model` 分层，适合作为新增业务模块参考。
+- Demo 模块采用 `handler -> service -> repository -> model` 分层，包含公开 Todo 和受保护客户资源示例，适合作为新增业务模块参考。
 - IAM 模块提供本地账号、组织租户、JWT、API Token、Casbin 权限、邀请、找回密码、TOTP MFA、会话撤销和审计日志。
-- System 模块提供菜单/API/字典/参数/操作记录/服务器状态、版本发布包和媒体库管理。版本发布包用于快照菜单、API 和字典配置；当前导入会幂等补齐字典，菜单和 API 仍以代码和路由目录为准。媒体库复用 Storage，支持分类、普通上传、外链导入、重命名、下载和删除。
+- System 模块提供菜单/API/字典/参数/操作记录/服务器状态、版本发布包和媒体库管理。版本发布包用于快照菜单、API 和字典配置；当前导入会幂等补齐字典，菜单和 API 仍以代码和路由目录为准。媒体库复用 Storage，支持分类、普通上传、断点上传、外链导入、重命名、下载和删除。
 - 迁移通过 `pkg/migrator` 封装 goose，并由 `db migrate` 显式执行。
 - 本地默认配置使用 SQLite `./data/app.db`，Redis 默认关闭，Demo 模块默认开启，HTTP 监听 `127.0.0.1:9999`。
 - 提供 Docker、Compose、环境变量、部署脚本和 CI 示例。
@@ -56,7 +56,7 @@ flowchart TB
 
   subgraph Modules["internal/modules"]
     direction TB
-    Demo["demo<br/>Todo CRUD"]
+    Demo["demo<br/>Todo CRUD<br/>Customer Resource"]
     IAM["iam<br/>账号、组织、角色、权限、API Token、会话、MFA、审计"]
     System["system<br/>菜单、API、字典、参数、版本发布包、媒体库"]
     ModuleShape["模块内分层<br/>handler -> service -> repository -> model"]
@@ -143,7 +143,7 @@ pnpm build
 pnpm generate
 ```
 
-`pnpm build` 用作 Nuxt 构建检查；Go 静态托管需要 `pnpm generate` 生成的 `.output/public/index.html`。后台体验参考 Gin-Vue-Admin 的左侧菜单、顶部工具栏、访问标签、设置抽屉、筛选工具条、表格页和仪表盘布局，但不新增 Gin-Vue-Admin 的编程辅助、代码生成或插件市场能力。
+`pnpm build` 用作 Nuxt 构建检查；Go 静态托管需要 `pnpm generate` 生成的 `.output/public/index.html`。后台体验采用左侧菜单、顶部工具栏、访问标签、设置抽屉、筛选工具条、表格页和仪表盘布局；当前不发布编程辅助、代码生成或插件市场能力。
 
 可见前端变更必须使用 Browser 做桌面与移动端视觉检查，至少覆盖 `1440x900` 和 `390x844`，并在交付说明中记录检查路线、视口和残余风险。
 
@@ -228,6 +228,7 @@ docker build -t go-scaffold:local .
 | `GET /api/v1/demo/todos/:id` | 读取单个 Demo Todo |
 | `PUT /api/v1/demo/todos/:id` | 更新单个 Demo Todo |
 | `DELETE /api/v1/demo/todos/:id` | 删除单个 Demo Todo |
+| `/api/v1/demo/customers` | 受 IAM `customer:*` 保护的客户资源示例 |
 | `GET /api/v1/auth/captcha` | 获取可选 IAM 登录验证码 |
 | `POST /api/v1/auth/login` | IAM 登录 |
 | `POST /api/v1/auth/refresh` | IAM refresh token 轮换 |
@@ -283,7 +284,7 @@ docker build -t go-scaffold:ci .
 
 ## 生产提示
 
-生产示例默认关闭 Demo 模块。除非明确需要，不要在生产或类生产环境暴露 Demo 路由，也不要隐式创建 Demo 表结构。
+生产示例默认关闭 Demo 模块。除非明确需要，不要在生产或类生产环境暴露 Demo 路由，也不要隐式创建 `demo_todos` 或 `demo_customers` 示例表结构。
 
 真实部署前需要审查数据库、Redis、存储、日志、CORS、健康/就绪检查、备份和回滚策略。
 

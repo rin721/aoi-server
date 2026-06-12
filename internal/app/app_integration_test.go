@@ -69,6 +69,9 @@ func TestNewServerModeBuildsMinimalApplication(t *testing.T) {
 	if application.Modules.Demo.TodoHandler == nil {
 		t.Fatal("expected demo handler")
 	}
+	if application.Modules.Demo.CustomerHandler == nil {
+		t.Fatal("expected demo customer handler")
+	}
 
 	if application.Transport.Router == nil {
 		t.Fatal("expected HTTP router")
@@ -86,6 +89,13 @@ func TestNewServerModeBuildsMinimalApplication(t *testing.T) {
 	}
 	if !hasTable {
 		t.Fatal("expected demo todo schema to be created in server mode")
+	}
+	hasTable, err = application.Infra.Database.HasTable(context.Background(), &model.Customer{})
+	if err != nil {
+		t.Fatalf("check demo customer schema: %v", err)
+	}
+	if !hasTable {
+		t.Fatal("expected demo customer schema to be created in server mode")
 	}
 
 	if err := application.Core.ConfigManager.Update(func(cfg *config.Config) {

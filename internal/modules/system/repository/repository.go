@@ -15,6 +15,8 @@ type Repository interface {
 	CreateDictionaryItem(context.Context, *model.DictionaryItem) error
 	CreateMediaAsset(context.Context, *model.MediaAsset) error
 	CreateMediaCategory(context.Context, *model.MediaCategory) error
+	CreateMediaUploadChunk(context.Context, *model.MediaUploadChunk) error
+	CreateMediaUploadSession(context.Context, *model.MediaUploadSession) error
 	CreateOperationRecord(context.Context, *model.OperationRecord) error
 	CreateParameter(context.Context, *model.Parameter) error
 	CreateVersion(context.Context, *model.Version) error
@@ -22,6 +24,7 @@ type Repository interface {
 	DeleteDictionaryItem(context.Context, int64, time.Time) error
 	DeleteMediaAsset(context.Context, int64, time.Time) error
 	DeleteMediaCategory(context.Context, int64, time.Time) error
+	DeleteMediaUploadChunks(context.Context, int64) error
 	DeleteOperationRecords(context.Context, []int64) error
 	DeleteParameter(context.Context, int64, time.Time) error
 	DeleteParameters(context.Context, []int64, time.Time) error
@@ -33,6 +36,9 @@ type Repository interface {
 	FindDictionaryItemByID(context.Context, int64) (*model.DictionaryItem, error)
 	FindMediaAssetByID(context.Context, int64) (*model.MediaAsset, error)
 	FindMediaCategoryByID(context.Context, int64) (*model.MediaCategory, error)
+	FindMediaUploadChunk(context.Context, int64, int) (*model.MediaUploadChunk, error)
+	FindMediaUploadSessionByHash(context.Context, string, string, int64, int64) (*model.MediaUploadSession, error)
+	FindMediaUploadSessionByID(context.Context, int64) (*model.MediaUploadSession, error)
 	FindParameterByID(context.Context, int64) (*model.Parameter, error)
 	FindParameterByKey(context.Context, string) (*model.Parameter, error)
 	FindVersionByID(context.Context, int64) (*model.Version, error)
@@ -41,6 +47,7 @@ type Repository interface {
 	ListDictionaryItems(context.Context, int64) ([]model.DictionaryItem, error)
 	ListMediaAssets(context.Context, model.MediaAssetFilter) ([]model.MediaAsset, int64, error)
 	ListMediaCategories(context.Context) ([]model.MediaCategory, error)
+	ListMediaUploadChunks(context.Context, int64) ([]model.MediaUploadChunk, error)
 	ListOperationRecords(context.Context, model.OperationRecordFilter) ([]model.OperationRecord, int64, error)
 	ListParameters(context.Context, model.ParameterFilter) ([]model.Parameter, int64, error)
 	ListVersions(context.Context, model.VersionFilter) ([]model.Version, int64, error)
@@ -49,6 +56,8 @@ type Repository interface {
 	SaveDictionaryItem(context.Context, *model.DictionaryItem) error
 	SaveMediaAsset(context.Context, *model.MediaAsset) error
 	SaveMediaCategory(context.Context, *model.MediaCategory) error
+	SaveMediaUploadChunk(context.Context, *model.MediaUploadChunk) error
+	SaveMediaUploadSession(context.Context, *model.MediaUploadSession) error
 	SaveParameter(context.Context, *model.Parameter) error
 }
 
@@ -78,6 +87,14 @@ func (r *repository) CreateMediaAsset(ctx context.Context, asset *model.MediaAss
 
 func (r *repository) CreateMediaCategory(ctx context.Context, category *model.MediaCategory) error {
 	return r.db.Create(ctx, category)
+}
+
+func (r *repository) CreateMediaUploadChunk(ctx context.Context, chunk *model.MediaUploadChunk) error {
+	return r.db.Create(ctx, chunk)
+}
+
+func (r *repository) CreateMediaUploadSession(ctx context.Context, session *model.MediaUploadSession) error {
+	return r.db.Create(ctx, session)
 }
 
 func (r *repository) CreateOperationRecord(ctx context.Context, record *model.OperationRecord) error {
@@ -128,6 +145,11 @@ func (r *repository) DeleteMediaCategory(ctx context.Context, id int64, deletedA
 		"deleted_at": deletedAt,
 		"updated_at": deletedAt,
 	}, database.Where("id = ?", id), alive())
+	return err
+}
+
+func (r *repository) DeleteMediaUploadChunks(ctx context.Context, sessionID int64) error {
+	_, err := r.db.Delete(ctx, &model.MediaUploadChunk{}, database.Where("session_id = ?", sessionID))
 	return err
 }
 
@@ -229,6 +251,40 @@ func (r *repository) FindMediaCategoryByID(ctx context.Context, id int64) (*mode
 	return &category, nil
 }
 
+func (r *repository) FindMediaUploadChunk(ctx context.Context, sessionID int64, chunkIndex int) (*model.MediaUploadChunk, error) {
+	var chunk model.MediaUploadChunk
+	if err := r.db.First(ctx, &chunk,
+		database.Where("session_id = ?", sessionID),
+		database.Where("chunk_index = ?", chunkIndex),
+	); err != nil {
+		return nil, err
+	}
+	return &chunk, nil
+}
+
+func (r *repository) FindMediaUploadSessionByHash(ctx context.Context, fileHash string, fileName string, categoryID int64, uploadedBy int64) (*model.MediaUploadSession, error) {
+	var session model.MediaUploadSession
+	if err := r.db.First(ctx, &session,
+		database.Where("file_hash = ?", fileHash),
+		database.Where("file_name = ?", fileName),
+		database.Where("category_id = ?", categoryID),
+		database.Where("uploaded_by = ?", uploadedBy),
+		alive(),
+		database.Order("created_at DESC, id DESC"),
+	); err != nil {
+		return nil, err
+	}
+	return &session, nil
+}
+
+func (r *repository) FindMediaUploadSessionByID(ctx context.Context, id int64) (*model.MediaUploadSession, error) {
+	var session model.MediaUploadSession
+	if err := r.db.First(ctx, &session, database.Where("id = ?", id), alive()); err != nil {
+		return nil, err
+	}
+	return &session, nil
+}
+
 func (r *repository) FindParameterByID(ctx context.Context, id int64) (*model.Parameter, error) {
 	var parameter model.Parameter
 	if err := r.db.First(ctx, &parameter, database.Where("id = ?", id), alive()); err != nil {
@@ -308,6 +364,15 @@ func (r *repository) ListMediaAssets(ctx context.Context, filter model.MediaAsse
 	var assets []model.MediaAsset
 	err = r.db.Find(ctx, &assets, opts...)
 	return assets, total, err
+}
+
+func (r *repository) ListMediaUploadChunks(ctx context.Context, sessionID int64) ([]model.MediaUploadChunk, error) {
+	var chunks []model.MediaUploadChunk
+	err := r.db.Find(ctx, &chunks,
+		database.Where("session_id = ?", sessionID),
+		database.Order("chunk_index ASC"),
+	)
+	return chunks, err
 }
 
 func (r *repository) ListOperationRecords(ctx context.Context, filter model.OperationRecordFilter) ([]model.OperationRecord, int64, error) {
@@ -420,6 +485,16 @@ func (r *repository) SaveMediaAsset(ctx context.Context, asset *model.MediaAsset
 func (r *repository) SaveMediaCategory(ctx context.Context, category *model.MediaCategory) error {
 	category.UpdatedAt = time.Now().UTC()
 	return r.db.Save(ctx, category)
+}
+
+func (r *repository) SaveMediaUploadChunk(ctx context.Context, chunk *model.MediaUploadChunk) error {
+	chunk.UpdatedAt = time.Now().UTC()
+	return r.db.Save(ctx, chunk)
+}
+
+func (r *repository) SaveMediaUploadSession(ctx context.Context, session *model.MediaUploadSession) error {
+	session.UpdatedAt = time.Now().UTC()
+	return r.db.Save(ctx, session)
 }
 
 func (r *repository) SaveParameter(ctx context.Context, parameter *model.Parameter) error {

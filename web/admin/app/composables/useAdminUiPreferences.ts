@@ -40,7 +40,7 @@ export const adminAccentPresets: AdminAccentPreset[] = [
     accent40: "#60a5fa",
     accent50: "#3b82f6",
     accent60: "#2563eb",
-    label: "GVA 蓝",
+    label: "经典蓝",
     value: "blue"
   },
   {

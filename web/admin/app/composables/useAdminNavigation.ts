@@ -44,6 +44,7 @@ const baseGroups: AdminNavGroup[] = [
       { icon: "compass", label: "参数管理", to: "/parameters" },
       { icon: "package-check", label: "版本管理", permission: "version:read", to: "/versions" },
       { icon: "image-up", label: "媒体库", permission: "media:read", to: "/media" },
+      { icon: "upload-cloud", label: "断点上传", permission: "media:upload", to: "/media/resumable" },
       { icon: "settings", label: "系统配置", to: "/system" },
       { icon: "activity", label: "服务器状态", to: "/server-info" }
     ]
@@ -70,7 +71,8 @@ export function useAdminNavigation() {
         code: "examples",
         label: "示例",
         items: [
-          { icon: "list-checks", label: "Demo Todo", to: "/todos" }
+          { icon: "list-checks", label: "Demo Todo", to: "/todos" },
+          { icon: "id-card", label: "客户列表", permission: "customer:read", to: "/customers" }
         ]
       }
     ]

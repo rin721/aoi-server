@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import type { SystemOperationRecord, SystemOperationRecordPage } from "~/types/admin"
 
 const api = useAdminApi()
@@ -111,7 +111,7 @@ useHead({
 
 <template>
   <div class="page-grid">
-    <PageHeader title="错误日志" icon="bug" description="按 GVA 错误日志入口补齐后台错误观测视图，数据来自系统操作历史中的异常状态记录。">
+    <PageHeader title="错误日志" icon="bug" description="展示系统操作历史中的异常状态记录，辅助排查后台错误。">
       <template #actions>
         <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
       </template>

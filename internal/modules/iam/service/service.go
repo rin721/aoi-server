@@ -11,6 +11,7 @@ import (
 	"errors"
 	"io"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -228,10 +229,31 @@ type AuditLogFilter = repository.AuditLogFilter
 
 type APITokenFilter = repository.APITokenFilter
 
+type UserListFilter struct {
+	Keyword     string
+	Username    string
+	DisplayName string
+	Email       string
+	RoleCode    string
+	Status      string
+	OrderKey    string
+	Desc        bool
+	Page        int
+	PageSize    int
+}
+
 type OrganizationUser struct {
 	User             model.User `json:"user"`
 	MembershipStatus string     `json:"membershipStatus"`
 	Roles            []string   `json:"roles"`
+}
+
+type OrganizationUserPage struct {
+	Items         []OrganizationUser `json:"items"`
+	Page          int                `json:"page"`
+	PageSize      int                `json:"pageSize"`
+	Total         int64              `json:"total"`
+	StorageStatus string             `json:"storageStatus"`
 }
 
 type APITokenView struct {
@@ -323,7 +345,7 @@ type Service interface {
 	ResetPassword(context.Context, ResetPasswordInput) error
 	SetupMFA(context.Context, Principal) (string, string, error)
 	VerifyMFA(context.Context, Principal, string) error
-	ListUsers(context.Context, Principal) ([]OrganizationUser, error)
+	ListUsers(context.Context, Principal, UserListFilter) (OrganizationUserPage, error)
 	UpdateUser(context.Context, UpdateUserInput) (*OrganizationUser, error)
 	CreateAPIToken(context.Context, CreateAPITokenInput) (CreateAPITokenResult, error)
 	ListAPITokens(context.Context, Principal, APITokenFilter) (APITokenPage, error)
@@ -1067,10 +1089,10 @@ func (s *service) VerifyMFA(ctx context.Context, p Principal, code string) error
 	return s.audit(ctx, s.repo, &p.OrgID, &p.UserID, "mfa.verify", "mfa_factor", "", "", "", nil)
 }
 
-func (s *service) ListUsers(ctx context.Context, p Principal) ([]OrganizationUser, error) {
+func (s *service) ListUsers(ctx context.Context, p Principal, filter UserListFilter) (OrganizationUserPage, error) {
 	memberships, err := s.repo.ListMembershipsByOrg(ctx, p.OrgID)
 	if err != nil {
-		return nil, err
+		return OrganizationUserPage{}, err
 	}
 	out := make([]OrganizationUser, 0, len(memberships))
 	for _, membership := range memberships {
@@ -1079,9 +1101,115 @@ func (s *service) ListUsers(ctx context.Context, p Principal) ([]OrganizationUse
 			continue
 		}
 		roles, _ := s.authz.GetRolesForUser(ctx, userSubject(user.ID), strconv.FormatInt(p.OrgID, 10))
-		out = append(out, OrganizationUser{User: *user, MembershipStatus: membership.Status, Roles: roles})
+		item := OrganizationUser{User: *user, MembershipStatus: membership.Status, Roles: roles}
+		if organizationUserMatches(item, filter) {
+			out = append(out, item)
+		}
 	}
-	return out, nil
+	sortOrganizationUsers(out, filter)
+	page, pageSize := normalizeUserListPage(filter.Page, filter.PageSize)
+	total := int64(len(out))
+	start := (page - 1) * pageSize
+	if start > len(out) {
+		start = len(out)
+	}
+	end := start + pageSize
+	if end > len(out) {
+		end = len(out)
+	}
+	return OrganizationUserPage{
+		Items:         out[start:end],
+		Page:          page,
+		PageSize:      pageSize,
+		Total:         total,
+		StorageStatus: "persisted",
+	}, nil
+}
+
+func normalizeUserListPage(page, pageSize int) (int, int) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
+}
+
+func organizationUserMatches(item OrganizationUser, filter UserListFilter) bool {
+	user := item.User
+	keyword := normalizeCode(filter.Keyword)
+	if keyword != "" && !containsAnyFold(keyword, user.Username, user.DisplayName, user.Email, item.MembershipStatus, strings.Join(item.Roles, " ")) {
+		return false
+	}
+	if username := normalizeCode(filter.Username); username != "" && !strings.Contains(strings.ToLower(user.Username), username) {
+		return false
+	}
+	if displayName := normalizeCode(filter.DisplayName); displayName != "" && !strings.Contains(strings.ToLower(user.DisplayName), displayName) {
+		return false
+	}
+	if email := normalizeCode(filter.Email); email != "" && !strings.Contains(strings.ToLower(user.Email), email) {
+		return false
+	}
+	if status := normalizeCode(filter.Status); status != "" && normalizeCode(item.MembershipStatus) != status {
+		return false
+	}
+	if roleCode := normalizeCode(filter.RoleCode); roleCode != "" && !rolesContain(item.Roles, roleCode) {
+		return false
+	}
+	return true
+}
+
+func containsAnyFold(needle string, values ...string) bool {
+	for _, value := range values {
+		if strings.Contains(strings.ToLower(value), needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func rolesContain(roles []string, roleCode string) bool {
+	for _, role := range roles {
+		normalized := strings.TrimPrefix(normalizeCode(role), "role:")
+		if normalized == roleCode {
+			return true
+		}
+	}
+	return false
+}
+
+func sortOrganizationUsers(items []OrganizationUser, filter UserListFilter) {
+	orderKey := normalizeCode(filter.OrderKey)
+	if orderKey == "" {
+		orderKey = "id"
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		left, right := items[i], items[j]
+		compare := int64(0)
+		switch orderKey {
+		case "username":
+			compare = int64(strings.Compare(strings.ToLower(left.User.Username), strings.ToLower(right.User.Username)))
+		case "displayname", "display_name", "nickname", "nick_name":
+			compare = int64(strings.Compare(strings.ToLower(left.User.DisplayName), strings.ToLower(right.User.DisplayName)))
+		case "email":
+			compare = int64(strings.Compare(strings.ToLower(left.User.Email), strings.ToLower(right.User.Email)))
+		case "status":
+			compare = int64(strings.Compare(strings.ToLower(left.MembershipStatus), strings.ToLower(right.MembershipStatus)))
+		default:
+			compare = left.User.ID - right.User.ID
+		}
+		if compare == 0 {
+			return false
+		}
+		if filter.Desc {
+			return compare > 0
+		}
+		return compare < 0
+	})
 }
 
 func (s *service) UpdateUser(ctx context.Context, input UpdateUserInput) (*OrganizationUser, error) {
@@ -1843,6 +1971,10 @@ var builtinPermissions = []permissionSeed{
 	{Code: "media:update", Name: "Update media", Description: "Update media assets and categories"},
 	{Code: "media:download", Name: "Download media", Description: "Download local media assets"},
 	{Code: "media:delete", Name: "Delete media", Description: "Delete media assets"},
+	{Code: "customer:read", Name: "Read customers", Description: "Read demo customer resources"},
+	{Code: "customer:create", Name: "Create customers", Description: "Create demo customer resources"},
+	{Code: "customer:update", Name: "Update customers", Description: "Update demo customer resources"},
+	{Code: "customer:delete", Name: "Delete customers", Description: "Delete demo customer resources"},
 	{Code: "permission:read", Name: "Read permissions", Description: "Read permissions"},
 	{Code: "permission:sync", Name: "Sync permissions", Description: "Sync permissions from registered APIs"},
 	{Code: "session:read", Name: "Read sessions", Description: "Read sessions"},

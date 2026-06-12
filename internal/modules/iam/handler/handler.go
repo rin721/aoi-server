@@ -393,7 +393,11 @@ func (h *Handler) ListUsers(c web.Context) {
 	if !ok {
 		return
 	}
-	users, err := h.service.ListUsers(c.RequestContext(), principal)
+	filter, ok := parseUserListFilter(c)
+	if !ok {
+		return
+	}
+	users, err := h.service.ListUsers(c.RequestContext(), principal, filter)
 	h.write(c, users, err)
 }
 
@@ -659,6 +663,46 @@ func parseAPITokenFilter(c web.Context) (service.APITokenFilter, bool) {
 		filter.UserID = parsed
 	}
 	return filter, true
+}
+
+func parseUserListFilter(c web.Context) (service.UserListFilter, bool) {
+	query := c.Request().URL.Query()
+	filter := service.UserListFilter{
+		Keyword:     query.Get("keyword"),
+		Username:    query.Get("username"),
+		DisplayName: firstNonEmpty(query.Get("displayName"), query.Get("nickName"), query.Get("nickname")),
+		Email:       query.Get("email"),
+		RoleCode:    query.Get("roleCode"),
+		Status:      query.Get("status"),
+		OrderKey:    query.Get("orderKey"),
+		Desc:        query.Get("desc") == "true" || query.Get("desc") == "1",
+	}
+	if raw := query.Get("page"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			result.BadRequest(c, "invalid page")
+			return service.UserListFilter{}, false
+		}
+		filter.Page = parsed
+	}
+	if raw := query.Get("pageSize"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			result.BadRequest(c, "invalid pageSize")
+			return service.UserListFilter{}, false
+		}
+		filter.PageSize = parsed
+	}
+	return filter, true
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func bind(c web.Context, dest any) bool {

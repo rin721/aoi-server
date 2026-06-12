@@ -62,8 +62,9 @@ executor:
       non_blocking: true
 
 storage:
-  # 媒体库普通上传和本地下载依赖 storage.enabled=true。仅使用外链导入时可以保持禁用。
-  # 本地开发建议使用 basepath + ./data，让媒体对象写入 data/media/...。
+  # 媒体库普通上传、断点上传、分片合并和本地下载依赖 storage.enabled=true。
+  # 仅浏览记录或使用外链导入时可以保持禁用。
+  # 本地开发建议使用 basepath + ./data，让媒体对象写入 data/media/...，临时分片写入 data/media/chunks/...。
   enabled: false
   fs_type: basepath
   base_path: ./data
@@ -71,12 +72,15 @@ storage:
   watch_buffer_size: 100
 
 demo:
+  # Demo 模块包含公开 Todo 与受 IAM 保护的客户资源示例。
   enabled: true
+  # 启动时应用 demo_todos 与 demo_customers 表结构；生产示例应关闭。
   apply_schema_on_start: true
 
 system:
   # 版本管理使用 system_versions 迁移和 IAM version:* 权限，不需要额外运行期开关。
   # 媒体库使用 system_media_categories/system_media_assets 迁移和 IAM media:* 权限。
+  # 断点上传还需要 system_media_upload_sessions/system_media_upload_chunks 迁移。
   seed_defaults_on_start: true
 
 cors:

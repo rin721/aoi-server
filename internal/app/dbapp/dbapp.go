@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rei0721/go-scaffold/internal/modules/demo/model"
@@ -82,13 +83,30 @@ func NewGenerator(driver string) (*sqlgen.Generator, error) {
 	}), nil
 }
 
-// DemoSchemaSQL 生成 Demo Todo 表结构 SQL。
+// DemoSchemaSQL 生成 Demo 示例表结构 SQL。
 func DemoSchemaSQL(driver string) (string, error) {
-	gen, err := NewGenerator(driver)
+	statements, err := demoSchemaStatements(driver)
 	if err != nil {
 		return "", err
 	}
-	return gen.TableIfNotExists(&model.Todo{})
+	return strings.Join(statements, "\n"), nil
+}
+
+func demoSchemaStatements(driver string) ([]string, error) {
+	gen, err := NewGenerator(driver)
+	if err != nil {
+		return nil, err
+	}
+	models := []any{&model.Todo{}, &model.Customer{}}
+	statements := make([]string, 0, len(models))
+	for _, item := range models {
+		sql, err := gen.TableIfNotExists(item)
+		if err != nil {
+			return nil, err
+		}
+		statements = append(statements, sql)
+	}
+	return statements, nil
 }
 
 // DatabaseSQL 生成创建数据库的 SQL。
@@ -117,19 +135,21 @@ func ApplyDatabase(ctx context.Context, db database.Database, driver, name strin
 	return sql, nil
 }
 
-// ApplyDemoSchema 执行 Demo Todo 表结构 SQL，并返回实际生成的语句。
+// ApplyDemoSchema 执行 Demo 示例表结构 SQL，并返回实际生成的语句。
 func ApplyDemoSchema(ctx context.Context, db database.Database, driver string) (string, error) {
 	if db == nil {
 		return "", ErrMissingDatabase
 	}
-	sql, err := DemoSchemaSQL(driver)
+	statements, err := demoSchemaStatements(driver)
 	if err != nil {
 		return "", err
 	}
-	if _, err := db.Exec(ctx, sql); err != nil {
-		return sql, fmt.Errorf("apply demo schema: %w", err)
+	for _, sql := range statements {
+		if _, err := db.Exec(ctx, sql); err != nil {
+			return strings.Join(statements, "\n"), fmt.Errorf("apply demo schema: %w", err)
+		}
 	}
-	return sql, nil
+	return strings.Join(statements, "\n"), nil
 }
 
 // CreateTodo 通过 sqlgen 生成并执行 Demo Todo 创建语句。

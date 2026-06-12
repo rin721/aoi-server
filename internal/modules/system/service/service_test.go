@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -721,6 +722,98 @@ func TestMediaLibraryManagesCategoriesUploadsURLsAndDownloads(t *testing.T) {
 	}
 }
 
+func TestMediaResumableUploadCreatesAssetFromChunks(t *testing.T) {
+	now := time.Date(2026, 6, 12, 16, 0, 0, 0, time.UTC)
+	repo := newMemoryAPIRepo(nil)
+	store := newMemoryMediaStore()
+	svc := New(Config{
+		MediaMaxBytes: 512 * 1024,
+		MediaPrefix:   "media",
+		Now:           func() time.Time { return now },
+	}, WithRepository(repo), WithStorage(store), WithIDGenerator(&sequenceIDGenerator{next: 900}))
+
+	data := bytes.Repeat([]byte("aoi-admin-resumable-upload\n"), 6000)
+	chunkSize := minMediaChunkSize
+	chunkTotal := expectedMediaChunkTotal(int64(len(data)), chunkSize)
+	check, err := svc.CheckMediaResumableUpload(context.Background(), CheckMediaResumableUploadInput{
+		ChunkSize:          chunkSize,
+		ChunkTotal:         chunkTotal,
+		FileHash:           sha256Hex(data),
+		Filename:           "report.txt",
+		SizeBytes:          int64(len(data)),
+		UploadedBy:         7,
+		UploadedByUsername: "admin",
+	})
+	if err != nil {
+		t.Fatalf("CheckMediaResumableUpload() error = %v", err)
+	}
+	if check.Session.Status != model.MediaUploadStatusActive || len(check.MissingChunks) != chunkTotal {
+		t.Fatalf("unexpected check result: %#v", check)
+	}
+
+	for index := 0; index < chunkTotal; index++ {
+		start := int64(index) * chunkSize
+		end := start + chunkSize
+		if end > int64(len(data)) {
+			end = int64(len(data))
+		}
+		chunkData := data[int(start):int(end)]
+		chunk, err := svc.UploadMediaChunk(context.Background(), UploadMediaChunkInput{
+			ChunkHash:  sha256Hex(chunkData),
+			ChunkIndex: index,
+			ChunkTotal: chunkTotal,
+			FileHash:   sha256Hex(data),
+			Reader:     bytes.NewReader(chunkData),
+			SessionID:  check.Session.ID,
+			Size:       int64(len(chunkData)),
+			UploadedBy: 7,
+		})
+		if err != nil {
+			t.Fatalf("UploadMediaChunk(%d) error = %v", index, err)
+		}
+		if chunk.Progress <= 0 {
+			t.Fatalf("expected progress after chunk %d, got %#v", index, chunk)
+		}
+	}
+
+	complete, err := svc.CompleteMediaResumableUpload(context.Background(), CompleteMediaResumableUploadInput{
+		FileHash:   sha256Hex(data),
+		SessionID:  check.Session.ID,
+		UploadedBy: 7,
+	})
+	if err != nil {
+		t.Fatalf("CompleteMediaResumableUpload() error = %v", err)
+	}
+	if complete.Asset.Source != model.MediaSourceResumable || complete.Asset.SizeBytes != int64(len(data)) {
+		t.Fatalf("unexpected completed asset: %#v", complete.Asset)
+	}
+	stored, err := store.ReadFile(complete.Asset.StorageKey)
+	if err != nil {
+		t.Fatalf("stored asset missing: %v", err)
+	}
+	if !bytes.Equal(stored, data) {
+		t.Fatalf("stored asset content mismatch")
+	}
+	if len(repo.mediaChunks) != 0 {
+		t.Fatalf("expected chunk records to be cleaned, got %#v", repo.mediaChunks)
+	}
+
+	again, err := svc.CheckMediaResumableUpload(context.Background(), CheckMediaResumableUploadInput{
+		ChunkSize:  chunkSize,
+		ChunkTotal: chunkTotal,
+		FileHash:   sha256Hex(data),
+		Filename:   "report.txt",
+		SizeBytes:  int64(len(data)),
+		UploadedBy: 7,
+	})
+	if err != nil {
+		t.Fatalf("CheckMediaResumableUpload() completed error = %v", err)
+	}
+	if again.Session.Status != model.MediaUploadStatusCompleted || again.Asset == nil || again.Progress != 100 {
+		t.Fatalf("expected instant completed session, got %#v", again)
+	}
+}
+
 func TestSeedDefaultsCreatesSystemDataIdempotently(t *testing.T) {
 	now := time.Date(2026, 6, 12, 14, 0, 0, 0, time.UTC)
 	repo := newMemoryAPIRepo(nil)
@@ -786,6 +879,8 @@ type memoryAPIRepo struct {
 	items            map[int64]model.DictionaryItem
 	mediaAssets      map[int64]model.MediaAsset
 	mediaCategories  map[int64]model.MediaCategory
+	mediaChunks      map[int64]model.MediaUploadChunk
+	mediaSessions    map[int64]model.MediaUploadSession
 	operationRecords map[int64]model.OperationRecord
 	parameters       map[int64]model.Parameter
 	records          map[string]model.APIRecord
@@ -798,6 +893,8 @@ func newMemoryAPIRepo(records []model.APIRecord) *memoryAPIRepo {
 		items:            make(map[int64]model.DictionaryItem),
 		mediaAssets:      make(map[int64]model.MediaAsset),
 		mediaCategories:  make(map[int64]model.MediaCategory),
+		mediaChunks:      make(map[int64]model.MediaUploadChunk),
+		mediaSessions:    make(map[int64]model.MediaUploadSession),
 		operationRecords: make(map[int64]model.OperationRecord),
 		parameters:       make(map[int64]model.Parameter),
 		records:          make(map[string]model.APIRecord, len(records)),
@@ -831,6 +928,16 @@ func (r *memoryAPIRepo) CreateMediaAsset(_ context.Context, asset *model.MediaAs
 
 func (r *memoryAPIRepo) CreateMediaCategory(_ context.Context, category *model.MediaCategory) error {
 	r.mediaCategories[category.ID] = *category
+	return nil
+}
+
+func (r *memoryAPIRepo) CreateMediaUploadChunk(_ context.Context, chunk *model.MediaUploadChunk) error {
+	r.mediaChunks[chunk.ID] = *chunk
+	return nil
+}
+
+func (r *memoryAPIRepo) CreateMediaUploadSession(_ context.Context, session *model.MediaUploadSession) error {
+	r.mediaSessions[session.ID] = *session
 	return nil
 }
 
@@ -898,6 +1005,15 @@ func (r *memoryAPIRepo) DeleteMediaCategory(_ context.Context, id int64, deleted
 	category.DeletedAt = &deletedAt
 	category.UpdatedAt = deletedAt
 	r.mediaCategories[id] = category
+	return nil
+}
+
+func (r *memoryAPIRepo) DeleteMediaUploadChunks(_ context.Context, sessionID int64) error {
+	for id, chunk := range r.mediaChunks {
+		if chunk.SessionID == sessionID {
+			delete(r.mediaChunks, id)
+		}
+	}
 	return nil
 }
 
@@ -1003,6 +1119,40 @@ func (r *memoryAPIRepo) FindMediaCategoryByID(_ context.Context, id int64) (*mod
 		return nil, database.ErrNotFound
 	}
 	return &category, nil
+}
+
+func (r *memoryAPIRepo) FindMediaUploadChunk(_ context.Context, sessionID int64, chunkIndex int) (*model.MediaUploadChunk, error) {
+	for _, chunk := range r.mediaChunks {
+		if chunk.SessionID == sessionID && chunk.ChunkIndex == chunkIndex {
+			return &chunk, nil
+		}
+	}
+	return nil, database.ErrNotFound
+}
+
+func (r *memoryAPIRepo) FindMediaUploadSessionByHash(_ context.Context, fileHash string, fileName string, categoryID int64, uploadedBy int64) (*model.MediaUploadSession, error) {
+	var found *model.MediaUploadSession
+	for _, session := range r.mediaSessions {
+		if session.DeletedAt != nil || session.FileHash != fileHash || session.FileName != fileName || session.CategoryID != categoryID || session.UploadedBy != uploadedBy {
+			continue
+		}
+		session := session
+		if found == nil || session.CreatedAt.After(found.CreatedAt) || (session.CreatedAt.Equal(found.CreatedAt) && session.ID > found.ID) {
+			found = &session
+		}
+	}
+	if found == nil {
+		return nil, database.ErrNotFound
+	}
+	return found, nil
+}
+
+func (r *memoryAPIRepo) FindMediaUploadSessionByID(_ context.Context, id int64) (*model.MediaUploadSession, error) {
+	session, ok := r.mediaSessions[id]
+	if !ok || session.DeletedAt != nil {
+		return nil, database.ErrNotFound
+	}
+	return &session, nil
 }
 
 func (r *memoryAPIRepo) FindParameterByID(_ context.Context, id int64) (*model.Parameter, error) {
@@ -1128,6 +1278,19 @@ func (r *memoryAPIRepo) ListMediaAssets(_ context.Context, filter model.MediaAss
 		end = len(assets)
 	}
 	return assets[start:end], total, nil
+}
+
+func (r *memoryAPIRepo) ListMediaUploadChunks(_ context.Context, sessionID int64) ([]model.MediaUploadChunk, error) {
+	chunks := make([]model.MediaUploadChunk, 0, len(r.mediaChunks))
+	for _, chunk := range r.mediaChunks {
+		if chunk.SessionID == sessionID {
+			chunks = append(chunks, chunk)
+		}
+	}
+	sort.SliceStable(chunks, func(i, j int) bool {
+		return chunks[i].ChunkIndex < chunks[j].ChunkIndex
+	})
+	return chunks, nil
 }
 
 func (r *memoryAPIRepo) ListOperationRecords(_ context.Context, filter model.OperationRecordFilter) ([]model.OperationRecord, int64, error) {
@@ -1322,6 +1485,22 @@ func (r *memoryAPIRepo) SaveMediaCategory(_ context.Context, category *model.Med
 	return nil
 }
 
+func (r *memoryAPIRepo) SaveMediaUploadChunk(_ context.Context, chunk *model.MediaUploadChunk) error {
+	if _, ok := r.mediaChunks[chunk.ID]; !ok {
+		return database.ErrNotFound
+	}
+	r.mediaChunks[chunk.ID] = *chunk
+	return nil
+}
+
+func (r *memoryAPIRepo) SaveMediaUploadSession(_ context.Context, session *model.MediaUploadSession) error {
+	if _, ok := r.mediaSessions[session.ID]; !ok {
+		return database.ErrNotFound
+	}
+	r.mediaSessions[session.ID] = *session
+	return nil
+}
+
 func (r *memoryAPIRepo) SaveParameter(_ context.Context, parameter *model.Parameter) error {
 	if _, ok := r.parameters[parameter.ID]; !ok {
 		return database.ErrNotFound
@@ -1467,6 +1646,17 @@ func (s *memoryMediaStore) Remove(path string) error {
 		return os.ErrNotExist
 	}
 	delete(s.files, path)
+	return nil
+}
+
+func (s *memoryMediaStore) RemoveAll(path string) error {
+	delete(s.dirs, path)
+	prefix := strings.TrimRight(path, "/") + "/"
+	for key := range s.files {
+		if key == path || strings.HasPrefix(key, prefix) {
+			delete(s.files, key)
+		}
+	}
 	return nil
 }
 

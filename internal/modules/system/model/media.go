@@ -3,8 +3,16 @@ package model
 import "time"
 
 const (
-	MediaSourceUpload = "upload"
-	MediaSourceURL    = "url"
+	MediaSourceResumable = "resumable"
+	MediaSourceUpload    = "upload"
+	MediaSourceURL       = "url"
+)
+
+const (
+	MediaUploadStatusAborted   = "aborted"
+	MediaUploadStatusActive    = "active"
+	MediaUploadStatusCompleted = "completed"
+	MediaUploadStatusExpired   = "expired"
 )
 
 type MediaCategory struct {
@@ -70,4 +78,77 @@ type MediaURLImportResult struct {
 	Items         []MediaAsset `json:"items"`
 	Imported      int          `json:"imported"`
 	StorageStatus string       `json:"storageStatus"`
+}
+
+type MediaUploadSession struct {
+	ID                 int64      `gorm:"column:id;primaryKey" json:"id,string"`
+	CategoryID         int64      `gorm:"column:category_id;not null;index" json:"categoryId,string"`
+	FileHash           string     `gorm:"column:file_hash;size:128;not null;index" json:"fileHash"`
+	FileName           string     `gorm:"column:file_name;size:255;not null" json:"fileName"`
+	DisplayName        string     `gorm:"column:display_name;size:255;not null" json:"displayName"`
+	MIMEType           string     `gorm:"column:mime_type;size:128;not null" json:"mimeType"`
+	Extension          string     `gorm:"column:extension;size:32;not null" json:"extension"`
+	SizeBytes          int64      `gorm:"column:size_bytes;not null" json:"sizeBytes"`
+	ChunkSize          int64      `gorm:"column:chunk_size;not null" json:"chunkSize"`
+	ChunkTotal         int        `gorm:"column:chunk_total;not null" json:"chunkTotal"`
+	Status             string     `gorm:"column:status;size:32;not null;index" json:"status"`
+	FinalAssetID       int64      `gorm:"column:final_asset_id;not null" json:"finalAssetId,string"`
+	UploadedBy         int64      `gorm:"column:uploaded_by;not null;index" json:"uploadedBy,string"`
+	UploadedByUsername string     `gorm:"column:uploaded_by_username;size:128;not null" json:"uploadedByUsername"`
+	ExpiresAt          time.Time  `gorm:"column:expires_at;not null;index" json:"expiresAt"`
+	CompletedAt        *time.Time `gorm:"column:completed_at" json:"completedAt,omitempty"`
+	CreatedAt          time.Time  `gorm:"column:created_at;not null" json:"createdAt"`
+	UpdatedAt          time.Time  `gorm:"column:updated_at;not null" json:"updatedAt"`
+	DeletedAt          *time.Time `gorm:"column:deleted_at" json:"-"`
+}
+
+func (MediaUploadSession) TableName() string { return "system_media_upload_sessions" }
+
+type MediaUploadChunk struct {
+	ID         int64     `gorm:"column:id;primaryKey" json:"id,string"`
+	SessionID  int64     `gorm:"column:session_id;not null;index" json:"sessionId,string"`
+	ChunkIndex int       `gorm:"column:chunk_index;not null" json:"chunkIndex"`
+	ChunkHash  string    `gorm:"column:chunk_hash;size:128;not null" json:"chunkHash"`
+	StorageKey string    `gorm:"column:storage_key;size:512;not null" json:"storageKey"`
+	SizeBytes  int64     `gorm:"column:size_bytes;not null" json:"sizeBytes"`
+	CreatedAt  time.Time `gorm:"column:created_at;not null" json:"createdAt"`
+	UpdatedAt  time.Time `gorm:"column:updated_at;not null" json:"updatedAt"`
+}
+
+func (MediaUploadChunk) TableName() string { return "system_media_upload_chunks" }
+
+type MediaResumableCheckResult struct {
+	Asset             *MediaAsset        `json:"asset,omitempty"`
+	ChunkSize         int64              `json:"chunkSize"`
+	MissingChunks     []int              `json:"missingChunks"`
+	ObjectStorage     string             `json:"objectStorage"`
+	Progress          int                `json:"progress"`
+	Session           MediaUploadSession `json:"session"`
+	StorageStatus     string             `json:"storageStatus"`
+	UploadMaxBytes    int64              `json:"uploadMaxBytes"`
+	UploadMaxMB       int64              `json:"uploadMaxMb"`
+	UploadedChunks    []int              `json:"uploadedChunks"`
+	UploadUnavailable bool               `json:"uploadUnavailable"`
+}
+
+type MediaResumableChunkResult struct {
+	ChunkIndex     int    `json:"chunkIndex"`
+	MissingChunks  []int  `json:"missingChunks"`
+	Progress       int    `json:"progress"`
+	SessionID      int64  `json:"sessionId,string"`
+	Status         string `json:"status"`
+	StorageStatus  string `json:"storageStatus"`
+	UploadedChunks []int  `json:"uploadedChunks"`
+}
+
+type MediaResumableCompleteResult struct {
+	Asset         MediaAsset `json:"asset"`
+	SessionID     int64      `json:"sessionId,string"`
+	StorageStatus string     `json:"storageStatus"`
+}
+
+type MediaResumableAbortResult struct {
+	SessionID     int64  `json:"sessionId,string"`
+	Status        string `json:"status"`
+	StorageStatus string `json:"storageStatus"`
 }

@@ -21,6 +21,7 @@ type MediaObjectStorage interface {
 	ReadFile(string) ([]byte, error)
 	WriteFile(string, []byte, os.FileMode) error
 	Remove(string) error
+	RemoveAll(string) error
 	MkdirAll(string, os.FileMode) error
 	DetectMIMEFromBytes([]byte) (string, error)
 }

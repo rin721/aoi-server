@@ -1,4 +1,4 @@
-# IAM 模块
+﻿# IAM 模块
 
 `internal/modules/iam` 提供企业级本地账号与组织权限管理。模块沿用 `model -> repository -> service -> handler` 分层，底层 JWT、Casbin、goose、bcrypt 和数据库细节通过 `pkg` 或 repository 边界隔离。
 
@@ -13,6 +13,7 @@
 | API Token | 组织内按用户和角色签发长期或定期 Bearer token，服务端只保存 hash 和显示前缀 |
 | 权限 | `pkg/authorization` 封装 Casbin domain RBAC，模型为 `sub, org, obj, act` |
 | 邀请 | 管理员发出邀请，用户通过 token 接受并创建账号或加入组织 |
+| 用户管理 | `/admin/users` 提供筛选分页，按用户名、显示名、邮箱、角色和成员状态查询当前组织成员 |
 | 找回密码 | 生成一次性 reset token，真实通知通道由 `Notifier` 适配 |
 | MFA | `pkg/mfa` 封装 TOTP，密钥加密存储，登录时校验一次性 code |
 | 会话撤销 | 登出、refresh 轮换和管理员撤销都会更新 `iam_sessions.revoked_at` |
@@ -67,6 +68,11 @@ go run ./cmd/main iam bootstrap-admin \
 | `GET /api/v1/me/orgs` | 当前用户组织列表 |
 | `/api/v1/orgs`、`/api/v1/orgs/:orgId/users/*`、`/api/v1/orgs/:orgId/invitations/*`、`/api/v1/orgs/:orgId/roles/*`、`/api/v1/orgs/:orgId/permissions`、`/api/v1/orgs/:orgId/api-tokens`、`/api/v1/orgs/:orgId/sessions`、`/api/v1/orgs/:orgId/audit-logs` | 管理接口，需认证和 Casbin 权限 |
 
+`GET /api/v1/orgs/:orgId/users` 返回分页对象，支持 `keyword`、`username`、
+`displayName`/`nickName`、`email`、`roleCode`、`status`、`page`、`pageSize`。
+本地账号模型暂不包含手机号和头像字段；新增组织成员仍通过邀请流程完成，
+这样用户可以自己设置密码并接受组织角色。
+
 ## API Token 管理
 
 API Token 用于脚本、外部系统或自动化任务调用受保护接口。管理员在后台 `/admin/api-tokens` 为组织成员选择一个已拥有的角色并签发 token；返回的完整 token 只在创建响应和成功弹窗中显示一次，之后列表只保留 `tokenPrefix`，数据库只保存 `TokenHash`。
@@ -84,7 +90,7 @@ API Token 认证仍走 `Authorization: Bearer <token>`，但不会创建 refresh
 - `auth.signing_key`、`auth.refresh_token_pepper`、`auth.mfa_secret_key` 是敏感值，生产必须从 secrets 注入；
 - `auth.refresh_token_pepper` 同时参与 refresh token 和 API Token 的 hash；轮换后既有 refresh token 与 API Token 都会失效；
 - `auth.access_token_ttl_seconds` 和 `auth.refresh_token_ttl_seconds` 控制 token 生命周期；
-- `auth.login_captcha_enabled` 和 `auth.captcha_ttl_seconds` 控制 GVA 风格登录验证码；默认关闭，验证码短期存放在 IAM 服务内存中，不新增表结构；
+- `auth.login_captcha_enabled` 和 `auth.captcha_ttl_seconds` 控制登录验证码；默认关闭，验证码短期存放在 IAM 服务内存中，不新增表结构；
 - `auth.login_max_failures` 和 `auth.login_lock_minutes` 控制账号锁定；
 - `auth.notification_driver` 为 `debug`、`noop` 或 `local` 时，邀请和重置密码接口会返回调试 token/link；生产应使用 `smtp` 或外部系统接管通知，避免在 API 响应中暴露 token；
 - `auth.smtp` 配置 SMTP host、port、账号、发件人和 STARTTLS，用于内置邮件邀请和密码重置通知；

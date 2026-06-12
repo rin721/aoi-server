@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import type { ID, SystemMediaAsset, SystemMediaAssetPage, SystemMediaCategory, SystemMediaCategoryCatalog } from "~/types/admin"
 
 const api = useAdminApi()
@@ -368,7 +368,7 @@ useHead({
 
 <template>
   <div class="page-grid">
-    <PageHeader title="媒体库" icon="image-up" description="按 GVA 媒体库入口管理本地上传文件和外链资源。">
+    <PageHeader title="媒体库" icon="image-up" description="管理本地上传文件和外链资源。">
       <template #actions>
         <AoiButton appearance="soft" icon="refresh-cw" :loading="loading || categoryLoading" @click="refreshAll">刷新</AoiButton>
       </template>

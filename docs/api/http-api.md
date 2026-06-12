@@ -1,4 +1,4 @@
-# HTTP API 文档
+﻿# HTTP API 文档
 
 本文档面向开发者阅读，概述当前服务暴露的 HTTP API。机器可读的完整契约见
 `docs/api/openapi.yaml`。
@@ -81,6 +81,89 @@ Content-Type: application/json
 
 `title`、`description`、`completed` 都是可选字段，只更新请求体中出现的字段。
 
+## 客户资源示例
+
+客户资源示例用于演示登录主体、资源归属、权限码和后台表格页。所有接口都需要：
+
+```http
+Authorization: Bearer <accessToken>
+```
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/v1/demo/customers` | `customer:read` | 分页查询当前主体可见的客户资源，支持 `keyword`、`page`、`pageSize`。 |
+| POST | `/api/v1/demo/customers` | `customer:create` | 创建客户资源，服务端会记录创建者、角色上下文和组织。 |
+| GET | `/api/v1/demo/customers/{id}` | `customer:read` | 读取当前主体可见范围内的单个客户。 |
+| PATCH | `/api/v1/demo/customers/{id}` | `customer:update` | 更新客户名或客户电话。 |
+| DELETE | `/api/v1/demo/customers/{id}` | `customer:delete` | 软删除客户资源。 |
+
+资源可见规则：
+
+- 创建者本人始终可见；
+- 当请求 principal 带有 `roleCode` 时，同组织同角色归属的客户也可见；
+- 普通网页登录 principal 通常不带 `roleCode`，不会因为空角色看到其他人的客户。
+
+### 创建客户
+
+```http
+POST /api/v1/demo/customers
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+```json
+{
+  "customerName": "张三",
+  "customerPhoneData": "13800000000"
+}
+```
+
+### 查询客户
+
+```http
+GET /api/v1/demo/customers?keyword=张三&page=1&pageSize=10
+Authorization: Bearer <accessToken>
+```
+
+响应 `data`：
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "customerName": "张三",
+      "customerPhoneData": "13800000000",
+      "ownerUserId": "10001",
+      "ownerUsername": "admin",
+      "ownerRoleCode": "",
+      "orgId": "10001",
+      "createdAt": "2026-06-12T08:00:00Z",
+      "updatedAt": "2026-06-12T08:00:00Z"
+    }
+  ],
+  "page": 1,
+  "pageSize": 10,
+  "storageStatus": "persisted",
+  "total": 1
+}
+```
+
+### 更新客户
+
+```http
+PATCH /api/v1/demo/customers/1
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+```json
+{
+  "customerName": "李四",
+  "customerPhoneData": "13900000000"
+}
+```
+
 ## 插件接口
 
 插件接口需要 IAM access token，并通过 Casbin 的 `plugin:read` 或 `plugin:proxy` 权限控制。
@@ -121,6 +204,10 @@ Content-Type: application/json
 | DELETE | `/api/v1/system/media/categories/{categoryId}` | `media:update` | 删除空媒体分类；存在子分类或文件时会拒绝。 |
 | GET | `/api/v1/system/media/assets` | `media:read` | 分页查询媒体资源，支持 `categoryId`、`keyword`、`page`、`pageSize`。 |
 | POST | `/api/v1/system/media/assets/upload` | `media:upload` | multipart 普通上传，字段名为 `file`，可选 `categoryId`。 |
+| POST | `/api/v1/system/media/assets/resumable/check` | `media:upload` | 检查或创建断点上传会话，返回已上传分片和缺失分片。 |
+| POST | `/api/v1/system/media/assets/resumable/chunks` | `media:upload` | multipart 上传单个分片，字段名为 `file`。 |
+| POST | `/api/v1/system/media/assets/resumable/complete` | `media:upload` | 校验并合并全部分片，生成媒体库资产。 |
+| POST | `/api/v1/system/media/assets/resumable/abort` | `media:upload` | 中止断点上传会话并清理临时分片。 |
 | POST | `/api/v1/system/media/assets/import-url` | `media:import` | 导入外链媒体记录；只保存 URL，不抓取远程内容。 |
 | PATCH | `/api/v1/system/media/assets/{assetId}` | `media:update` | 更新媒体显示名称。 |
 | GET | `/api/v1/system/media/assets/{assetId}/download` | `media:download` | 鉴权下载本地媒体对象；外链资源应直接打开其 URL。 |
@@ -193,6 +280,83 @@ Content-Type: multipart/form-data
 | `categoryId` | 可选，媒体分类 ID；不传或 `0` 表示全部/根分类。 |
 
 普通上传需要 `storage.enabled=true`。如果 storage 未启用，接口返回 503；外链导入不依赖对象存储。
+
+### 媒体库断点上传
+
+断点上传复用 `media:upload` 权限和 Storage 配置。前端先计算整文件 SHA-256，再按分片计算 SHA-256；服务端会把临时分片写入 `media/chunks/<session-id>/`，完成后校验整文件哈希并合并为普通媒体资产。
+
+1. 检查或创建会话：
+
+```http
+POST /api/v1/system/media/assets/resumable/check
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+```json
+{
+  "categoryId": 0,
+  "fileName": "demo.zip",
+  "fileHash": "<sha256>",
+  "sizeBytes": 2097152,
+  "chunkSize": 1048576,
+  "chunkTotal": 2
+}
+```
+
+响应中的 `uploadedChunks` 和 `missingChunks` 使用从 `0` 开始的分片序号。`status=completed` 且带有 `asset` 时，说明相同文件已经完成，可直接使用该媒体资产。
+
+2. 上传单个分片：
+
+```http
+POST /api/v1/system/media/assets/resumable/chunks
+Authorization: Bearer <accessToken>
+Content-Type: multipart/form-data
+```
+
+表单字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `file` | 必填，当前分片二进制。 |
+| `sessionId` | 必填，会话 ID。 |
+| `fileHash` | 必填，整文件 SHA-256。 |
+| `fileName` | 必填，原始文件名，只作展示和会话匹配。 |
+| `chunkIndex` | 必填，从 `0` 开始。 |
+| `chunkTotal` | 必填，总分片数。 |
+| `chunkHash` | 必填，当前分片 SHA-256。 |
+
+3. 合并分片：
+
+```http
+POST /api/v1/system/media/assets/resumable/complete
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+```json
+{
+  "sessionId": "93001",
+  "fileHash": "<sha256>"
+}
+```
+
+4. 中止会话：
+
+```http
+POST /api/v1/system/media/assets/resumable/abort
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+```json
+{
+  "sessionId": "93001",
+  "fileHash": "<sha256>"
+}
+```
+
+会话默认 24 小时过期。过期后不能继续写入分片，需要重新 `check` 创建会话。断点上传需要 `storage.enabled=true`；如果 storage 未启用，接口返回 503。
 
 ### 导入媒体外链
 
@@ -335,7 +499,7 @@ Content-Type: application/json
 | GET | `/api/v1/orgs` | `org:read` | 查询组织列表。 |
 | POST | `/api/v1/orgs` | `org:create` | 创建组织，并把当前用户设为新组织 owner。 |
 | PATCH | `/api/v1/orgs/{orgId}` | `org:update` | 更新当前组织信息。 |
-| GET | `/api/v1/orgs/{orgId}/users` | `user:read` | 查询当前组织用户。 |
+| GET | `/api/v1/orgs/{orgId}/users` | `user:read` | 分页查询当前组织用户，支持 `keyword`、`username`、`displayName`/`nickName`、`email`、`roleCode`、`status`、`page`、`pageSize`。 |
 | PATCH | `/api/v1/orgs/{orgId}/users/{userId}` | `user:update` | 更新成员状态或角色。 |
 | POST | `/api/v1/orgs/{orgId}/users/invitations` | `user:invite` | 邀请用户加入当前组织。 |
 | GET | `/api/v1/orgs/{orgId}/invitations` | `user:invite` | 查询当前组织邀请。 |
@@ -349,6 +513,17 @@ Content-Type: application/json
 | DELETE | `/api/v1/orgs/{orgId}/api-tokens/{tokenId}` | `api_token:revoke` | 撤销 API Token。 |
 
 路径中的 `{orgId}` 必须与 access token 中的 `orgId` 一致。
+
+### 查询组织用户
+
+用户列表返回分页对象，用于后台 `用户管理` 的筛选表格。`keyword`
+会匹配用户名、显示名、邮箱、成员状态和角色；`status` 可传 `active` 或
+`disabled`；`roleCode` 使用当前组织角色编码，例如 `owner`、`admin` 或
+`member`。
+
+```http
+GET /api/v1/orgs/{orgId}/users?keyword=alice&roleCode=admin&page=1&pageSize=10
+```
 
 ### 创建组织
 

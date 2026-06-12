@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import type { SystemServerDiskInfo, SystemServerInfo } from "~/types/admin"
 
 const api = useAdminApi()
@@ -144,7 +144,7 @@ useHead({
 
 <template>
   <div class="page-grid">
-    <PageHeader title="服务器状态" icon="activity" description="对齐 GVA 服务器信息能力，展示主机 CPU、内存、磁盘以及当前 Go 进程运行快照。">
+    <PageHeader title="服务器状态" icon="activity" description="展示主机 CPU、内存、磁盘以及当前 Go 进程运行快照。">
       <template #actions>
         <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
       </template>

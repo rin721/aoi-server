@@ -64,9 +64,12 @@ type Modules struct {
 //
 // 当 Demo 被配置禁用时，本结构体保持零值，路由层应据此跳过 Demo 接口注册。
 type DemoModule struct {
-	TodoRepository demorepository.TodoRepository
-	TodoService    demoservice.TodoService
-	TodoHandler    *demohandler.TodoHandler
+	TodoRepository     demorepository.TodoRepository
+	TodoService        demoservice.TodoService
+	TodoHandler        *demohandler.TodoHandler
+	CustomerRepository demorepository.CustomerRepository
+	CustomerService    demoservice.CustomerService
+	CustomerHandler    *demohandler.CustomerHandler
 }
 
 type IAMModule struct {

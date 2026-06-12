@@ -1,4 +1,4 @@
-# 维护指南
+﻿# 维护指南
 
 维护工作应保持代码、测试、文档和 AI 运行态一致。
 
@@ -30,6 +30,13 @@
 - API Token 明文只在签发成功时出现一次。排障时不要要求用户把完整 token 贴到 issue、日志或聊天记录中，优先使用 `tokenPrefix`、`tokenId` 和审计日志定位。
 - 调用方泄漏 token、用户被禁用、角色权限收缩或自动化任务下线时，应在 `/admin/api-tokens` 或 `DELETE /api/v1/orgs/{orgId}/api-tokens/{tokenId}` 立即撤销。
 
+## 用户管理维护
+
+- `/admin/users` 与 API Token 签发页都读取 `GET /api/v1/orgs/{orgId}/users`。该接口现在返回分页对象，不再是裸数组；二次开发调用方应读取 `data.items`。
+- 用户列表筛选在 service 层先限定当前组织成员，再按 `keyword`、`username`、`displayName`、`email`、`roleCode`、`status` 过滤。排查“看不到用户”时先确认当前 token 的 `orgId`，再检查角色和成员状态筛选。
+- 本地 IAM 用户模型暂不包含手机号和头像字段。需要这些字段时，应先设计迁移和资料编辑权限，不要只为前端表格临时拼接伪字段。
+- 新增成员仍走邀请流程。生产环境必须使用 SMTP 或外部通知驱动，避免 debug/no-op 响应把邀请 token 暴露给不该看到的人。
+
 ## Review 清单
 
 - 变更是否保持目录边界？
@@ -48,6 +55,14 @@
 ## 媒体库维护
 
 - 发布包含媒体库的代码前，确认 `internal/migrations/20260612000600_create_system_media.sql` 已在目标环境执行，并同步 `media:*` IAM 权限。
-- 普通上传依赖 `storage.enabled=true`。本地建议使用 `storage.fs_type=basepath` 和 `storage.base_path=./data`，避免把对象写到进程工作目录的非预期位置。
+- 发布包含断点上传的代码前，还要确认 `internal/migrations/20260612000700_create_system_media_resumable_uploads.sql` 已执行。
+- 普通上传和断点上传依赖 `storage.enabled=true`。本地建议使用 `storage.fs_type=basepath` 和 `storage.base_path=./data`，避免把对象写到进程工作目录的非预期位置。
+- 断点上传临时分片位于 `media/chunks/<session-id>/`，完成或中止时会尽力清理；排障时可以用 `system_media_upload_sessions.status`、`expires_at`、`final_asset_id` 和 `system_media_upload_chunks.chunk_index` 判断会话进度。
 - URL 导入只保存外链，不下载远程文件。排障时优先检查 `system_media_assets.external`、`url`、`storage_key` 和 storage 配置。
+
+## Demo 客户资源示例
+
+- 客户列表使用 `demo_customers` 表，由 `demo.apply_schema_on_start` 通过 sqlgen 创建，不走 goose 迁移。生产或类生产环境默认应关闭 Demo。
+- 页面 403 时，先确认角色拥有 `customer:read/create/update/delete`；已有环境可通过 `系统管理 -> API 管理 -> 同步权限` 补齐权限字典，再在角色权限页授权。
+- 列表为空但数据库有记录时，检查 `org_id`、`owner_user_id` 和 `owner_role_code`。普通网页登录 principal 不带 `roleCode`，只看自己创建的记录；API Token principal 带角色上下文时，可看到同组织同角色归属的记录。
 - 删除本地媒体资源会先尝试删除对象，再软删除数据库记录；如果 storage 暂不可用，先恢复 storage，再执行删除，避免形成孤儿对象。

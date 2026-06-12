@@ -9,8 +9,8 @@
 | HTTP 服务 | 由 `internal/transport/http` 和 `pkg/httpserver` 实现 |
 | 配置 | 支持 YAML、`.env`、环境变量覆盖、校验和监听重载 |
 | 数据库 | `pkg/database` 支持 SQLite、MySQL、PostgreSQL |
-| Demo 模块 | Todo CRUD，采用 handler/service/repository/model 分层 |
-| IAM 模块 | 本地账号、JWT、组织租户、Casbin 权限、邀请、找回密码、TOTP MFA、会话撤销和审计 |
+| Demo 模块 | 公开 Todo CRUD 与受保护客户资源示例，采用 handler/service/repository/model 分层 |
+| IAM 模块 | 本地账号、JWT、组织租户、Casbin 权限、用户分页筛选、邀请、找回密码、TOTP MFA、会话撤销和审计 |
 | System 模块 | 菜单、API、字典、参数、操作记录、服务器状态、版本发布包和媒体库管理 |
 | 数据库迁移 | `pkg/migrator` 封装 goose，CLI 提供显式迁移命令 |
 | 存储 | 本地文件系统抽象和可选 watcher 辅助能力 |
@@ -29,8 +29,8 @@
 
 ## 运行时默认值
 
-本地默认配置是 `configs/config.yaml`。服务监听 `127.0.0.1:9999`，使用 SQLite `./data/app.db`，关闭 Redis，并启用 Demo Todo 与 IAM 模块。本地默认在服务启动时自动应用 goose 迁移，所以首次打开 `/admin` 可以进入浏览器初始化；生产示例仍关闭自动迁移，应通过 `db migrate up` 显式应用。
+本地默认配置是 `configs/config.yaml`。服务监听 `127.0.0.1:9999`，使用 SQLite `./data/app.db`，关闭 Redis，并启用 Demo 与 IAM 模块。Demo 会提供公开 Todo 和受 IAM 保护的客户资源示例；本地默认在服务启动时自动应用 goose 迁移，所以首次打开 `/admin` 可以进入浏览器初始化；生产示例仍关闭自动迁移，应通过 `db migrate up` 显式应用。
 
-媒体库普通上传依赖 Storage。只导入外链时可以不启用对象存储；如果要上传本地文件，推荐启用 `storage.enabled=true`、`storage.fs_type=basepath`、`storage.base_path=./data`。
+媒体库普通上传和断点上传依赖 Storage。只导入外链时可以不启用对象存储；如果要上传本地文件，推荐启用 `storage.enabled=true`、`storage.fs_type=basepath`、`storage.base_path=./data`。
 
 生产示例位于 `deploy` 目录，默认关闭 Demo 模块。

@@ -29,18 +29,19 @@ import (
 
 // RouterDeps 聚合 HTTP 路由装配所需依赖，允许测试或可选模块传入 nil 以裁剪路由。
 type RouterDeps struct {
-	Mode          string
-	Logger        logger.Logger
-	I18n          i18n.I18n
-	Database      database.Database
-	Middleware    middleware.MiddlewareConfig
-	TodoHandler   *demohandler.TodoHandler
-	IAMHandler    *iamhandler.Handler
-	PluginHandler *pluginhandler.Handler
-	SystemHandler *systemhandler.Handler
-	IAMAuth       middleware.Authenticator
-	IAMAuthz      middleware.Authorizer
-	WebUI         WebUIDeps
+	Mode            string
+	Logger          logger.Logger
+	I18n            i18n.I18n
+	Database        database.Database
+	Middleware      middleware.MiddlewareConfig
+	TodoHandler     *demohandler.TodoHandler
+	CustomerHandler *demohandler.CustomerHandler
+	IAMHandler      *iamhandler.Handler
+	PluginHandler   *pluginhandler.Handler
+	SystemHandler   *systemhandler.Handler
+	IAMAuth         middleware.Authenticator
+	IAMAuthz        middleware.Authorizer
+	WebUI           WebUIDeps
 }
 
 // WebUIDeps 描述管理台静态产物挂载所需配置，避免 transport 层直接依赖应用配置结构。
@@ -78,6 +79,16 @@ func NewRouter(deps RouterDeps) *web.Engine {
 		todos.GET("/:id", deps.TodoHandler.Get)
 		todos.PUT("/:id", deps.TodoHandler.Update)
 		todos.DELETE("/:id", deps.TodoHandler.Delete)
+	}
+	if deps.CustomerHandler != nil {
+		customers := demo.Group("/customers")
+		customers.Use(middleware.Auth(deps.IAMAuth))
+		customers.Use(OperationRecorder(deps.SystemHandler))
+		customers.POST("", middleware.RequirePermission(deps.IAMAuthz, "customer", "create", deps.CustomerHandler.Create))
+		customers.GET("", middleware.RequirePermission(deps.IAMAuthz, "customer", "read", deps.CustomerHandler.List))
+		customers.GET("/:id", middleware.RequirePermission(deps.IAMAuthz, "customer", "read", deps.CustomerHandler.Get))
+		customers.PATCH("/:id", middleware.RequirePermission(deps.IAMAuthz, "customer", "update", deps.CustomerHandler.Update))
+		customers.DELETE("/:id", middleware.RequirePermission(deps.IAMAuthz, "customer", "delete", deps.CustomerHandler.Delete))
 	}
 	if deps.IAMHandler != nil {
 		registerIAMRoutes(v1, deps)
@@ -203,6 +214,10 @@ func registerSystemRoutes(v1 web.Router, deps RouterDeps) {
 	system.DELETE("/media/categories/:categoryId", middleware.RequirePermission(deps.IAMAuthz, "media", "update", deps.SystemHandler.DeleteMediaCategory))
 	system.GET("/media/assets", middleware.RequirePermission(deps.IAMAuthz, "media", "read", deps.SystemHandler.ListMediaAssets))
 	system.POST("/media/assets/upload", middleware.RequirePermission(deps.IAMAuthz, "media", "upload", deps.SystemHandler.UploadMediaAsset))
+	system.POST("/media/assets/resumable/check", middleware.RequirePermission(deps.IAMAuthz, "media", "upload", deps.SystemHandler.CheckMediaResumableUpload))
+	system.POST("/media/assets/resumable/chunks", middleware.RequirePermission(deps.IAMAuthz, "media", "upload", deps.SystemHandler.UploadMediaChunk))
+	system.POST("/media/assets/resumable/complete", middleware.RequirePermission(deps.IAMAuthz, "media", "upload", deps.SystemHandler.CompleteMediaResumableUpload))
+	system.POST("/media/assets/resumable/abort", middleware.RequirePermission(deps.IAMAuthz, "media", "upload", deps.SystemHandler.AbortMediaResumableUpload))
 	system.POST("/media/assets/import-url", middleware.RequirePermission(deps.IAMAuthz, "media", "import", deps.SystemHandler.ImportMediaURLs))
 	system.PATCH("/media/assets/:assetId", middleware.RequirePermission(deps.IAMAuthz, "media", "update", deps.SystemHandler.UpdateMediaAsset))
 	system.GET("/media/assets/:assetId/download", middleware.RequirePermission(deps.IAMAuthz, "media", "download", deps.SystemHandler.DownloadMediaAsset))
@@ -349,6 +364,16 @@ func apiRoutePermission(method string, path string) string {
 		return "plugin:proxy"
 	case strings.HasPrefix(path, "/api/v1/plugins"):
 		return "plugin:read"
+	case path == "/api/v1/demo/customers" && method == http.MethodGet:
+		return "customer:read"
+	case path == "/api/v1/demo/customers" && method == http.MethodPost:
+		return "customer:create"
+	case strings.HasPrefix(path, "/api/v1/demo/customers/") && method == http.MethodDelete:
+		return "customer:delete"
+	case strings.HasPrefix(path, "/api/v1/demo/customers/") && method == http.MethodGet:
+		return "customer:read"
+	case strings.HasPrefix(path, "/api/v1/demo/customers/"):
+		return "customer:update"
 	case path == "/api/v1/system/config":
 		return "config:read"
 	case path == "/api/v1/system/server-info":
@@ -388,6 +413,8 @@ func apiRoutePermission(method string, path string) string {
 	case path == "/api/v1/system/media/assets" && method == http.MethodGet:
 		return "media:read"
 	case path == "/api/v1/system/media/assets/upload":
+		return "media:upload"
+	case strings.HasPrefix(path, "/api/v1/system/media/assets/resumable/"):
 		return "media:upload"
 	case path == "/api/v1/system/media/assets/import-url":
 		return "media:import"

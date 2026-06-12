@@ -271,6 +271,68 @@ func TestCreateOrganizationAddsCurrentUserAsOwner(t *testing.T) {
 	}
 }
 
+func TestListUsersFiltersAndPaginates(t *testing.T) {
+	ctx := context.Background()
+	svc, cleanup := newTestService(t)
+	defer cleanup()
+
+	admin, err := svc.BootstrapAdmin(ctx, BootstrapAdminInput{OrgCode: "acme", Username: "admin", Email: "admin@example.com", Password: "password123"})
+	if err != nil {
+		t.Fatalf("BootstrapAdmin() failed: %v", err)
+	}
+	for _, input := range []struct {
+		email    string
+		username string
+		roleCode string
+	}{
+		{email: "alice@example.com", username: "alice", roleCode: model.RoleMember},
+		{email: "bob@example.com", username: "bob", roleCode: model.RoleAdmin},
+	} {
+		invite, err := svc.InviteUser(ctx, InviteUserInput{Principal: *admin, Email: input.email, RoleCode: input.roleCode})
+		if err != nil {
+			t.Fatalf("InviteUser(%s) failed: %v", input.email, err)
+		}
+		if _, err := svc.AcceptInvitation(ctx, AcceptInvitationInput{Token: invite.Token, Username: input.username, Password: "password123"}); err != nil {
+			t.Fatalf("AcceptInvitation(%s) failed: %v", input.email, err)
+		}
+	}
+
+	all, err := svc.ListUsers(ctx, *admin, UserListFilter{Page: 1, PageSize: 2, Desc: true})
+	if err != nil {
+		t.Fatalf("ListUsers() failed: %v", err)
+	}
+	if all.Total != 3 || len(all.Items) != 2 || all.Page != 1 || all.PageSize != 2 {
+		t.Fatalf("unexpected first page: %#v", all)
+	}
+
+	memberPage, err := svc.ListUsers(ctx, *admin, UserListFilter{RoleCode: model.RoleMember})
+	if err != nil {
+		t.Fatalf("ListUsers(member) failed: %v", err)
+	}
+	if memberPage.Total != 1 || memberPage.Items[0].User.Username != "alice" {
+		t.Fatalf("unexpected member filter page: %#v", memberPage)
+	}
+
+	keywordPage, err := svc.ListUsers(ctx, *admin, UserListFilter{Keyword: "bob"})
+	if err != nil {
+		t.Fatalf("ListUsers(keyword) failed: %v", err)
+	}
+	if keywordPage.Total != 1 || keywordPage.Items[0].User.Email != "bob@example.com" {
+		t.Fatalf("unexpected keyword filter page: %#v", keywordPage)
+	}
+
+	if _, err := svc.UpdateUser(ctx, UpdateUserInput{Principal: *admin, UserID: keywordPage.Items[0].User.ID, Status: ptrString(model.StatusDisabled)}); err != nil {
+		t.Fatalf("UpdateUser(disable bob) failed: %v", err)
+	}
+	disabledPage, err := svc.ListUsers(ctx, *admin, UserListFilter{Status: model.StatusDisabled})
+	if err != nil {
+		t.Fatalf("ListUsers(disabled) failed: %v", err)
+	}
+	if disabledPage.Total != 1 || disabledPage.Items[0].User.Username != "bob" {
+		t.Fatalf("unexpected disabled filter page: %#v", disabledPage)
+	}
+}
+
 func TestMFASetupAndLogin(t *testing.T) {
 	ctx := context.Background()
 	svc, cleanup := newTestService(t)
@@ -404,6 +466,10 @@ func newTestServiceWithSignup(t *testing.T, selfSignupEnabled bool) (Service, fu
 		PublicBaseURL:      "/admin",
 	}, NoopNotifier{})
 	return svc, func() { _ = db.Close() }
+}
+
+func ptrString(value string) *string {
+	return &value
 }
 
 func containsString(values []string, want string) bool {

@@ -1,4 +1,4 @@
-# 新人接手指南
+﻿# 新人接手指南
 
 本文面向刚接触 Go 或刚接手本项目的维护者。目标不是一次读完所有代码，而是先跑起来，再沿一条最小业务链路理解项目。
 
@@ -31,6 +31,10 @@
 10. `internal/modules/demo/service/todo.go`
 11. `internal/modules/demo/repository/todo.go`
 12. `internal/modules/demo/model/todo.go`
+13. `internal/modules/demo/handler/customer.go`
+14. `internal/modules/demo/service/customer.go`
+15. `internal/modules/demo/repository/customer.go`
+16. `internal/modules/demo/model/customer.go`
 
 这条路线会把你带过一遍：命令入口、应用启动、路由注册、HTTP handler、业务服务、数据库访问和模型定义。
 
@@ -59,7 +63,23 @@ curl http://127.0.0.1:9999/health
 curl http://127.0.0.1:9999/ready
 ```
 
-本地默认使用 SQLite `./data/app.db`。Demo Todo 模块默认启用，且 `demo.apply_schema_on_start=true`，所以 Demo 表结构会在服务启动时自动应用。IAM 表结构由 goose 管理，默认 `migration.auto_apply=true`，会随服务启动自动应用；生产或发布窗口仍建议显式执行 `db migrate status` 和 `db migrate up`。
+本地默认使用 SQLite `./data/app.db`。Demo 模块默认启用，且 `demo.apply_schema_on_start=true`，所以 `demo_todos` 和 `demo_customers` 表结构会在服务启动时自动应用。IAM 表结构由 goose 管理，默认 `migration.auto_apply=true`，会随服务启动自动应用；生产或发布窗口仍建议显式执行 `db migrate status` 和 `db migrate up`。
+
+## 在后台试一次客户资源示例
+
+登录 `http://127.0.0.1:9999/admin` 后，进入左侧菜单的 `客户列表`。点击 `新增`，填写客户名和客户电话，保存后会生成一条带创建者、组织和角色上下文的客户记录。
+
+如果页面提示 403，先确认当前角色拥有 `customer:read`、`customer:create`、`customer:update`、`customer:delete`。新环境中 owner 拥有通配权限，admin 会在内置权限种子里获得这些权限；已有环境可以进入 `API 管理` 同步权限，再到 `角色权限` 给角色勾选 `customer:*`。
+
+## 在后台试一次用户管理
+
+登录后台后进入左侧菜单的 `用户`。页面支持按关键字、用户名、显示名、邮箱、角色和成员状态筛选，并以分页对象读取
+`GET /api/v1/orgs/{orgId}/users`。本项目暂不直接创建用户账号，新增成员仍走
+`邀请用户`：填写邮箱和角色后生成邀请，用户通过邀请链接接受并设置自己的密码。
+
+如果用户列表为空，先确认当前组织是否有成员；如果筛选后为空，点击 `重置`
+回到第一页。API Token 签发页也复用同一个用户分页接口，并会读取前 100 个成员
+作为候选用户。
 
 ## 在后台试一次 API Token
 
@@ -86,6 +106,19 @@ storage:
 
 重启服务并应用迁移后，上传文件会写入 `data/media/...`。如果页面提示 `system_media_assets` 表不可用，先执行数据库迁移；如果提示对象存储不可用，检查 `storage.enabled`。
 
+## 在后台试一次断点上传
+
+断点上传入口在 `媒体库` 附近的 `断点上传`。它适合体验大文件分片流程，本项目会用 SHA-256 校验整文件和每个分片，并把完成后的文件写回媒体库。
+
+试用步骤：
+
+1. 确认已经启用 `storage.enabled=true`，并应用 `20260612000600_create_system_media.sql` 与 `20260612000700_create_system_media_resumable_uploads.sql` 迁移。
+2. 登录后台，进入 `断点上传`，点击 `选择文件`。
+3. 页面会先计算文件哈希并创建上传会话，再点击 `上传文件`。
+4. 完成后点击 `查看媒体库`，确认新资产已经出现在媒体列表。
+
+如果中途关闭页面，再次选择同一个文件时，服务端会返回已存在的分片序号，页面会从缺失分片继续。临时分片位于 `data/media/chunks/...`，完成或中止会话时会自动清理。
+
 ## 一条请求怎么走
 
 以 Demo Todo 为例，请求链路是：
@@ -96,6 +129,18 @@ internal/transport/http/router.go
   -> internal/modules/demo/service/todo.go
   -> internal/modules/demo/repository/todo.go
   -> internal/modules/demo/model/todo.go
+  -> pkg/database
+```
+
+客户资源示例的链路类似，但会多一步读取登录 principal，并在 service 层限制资源可见范围：
+
+```text
+internal/transport/http/router.go
+  -> middleware.Auth / RequirePermission(customer:*)
+  -> internal/modules/demo/handler/customer.go
+  -> internal/modules/demo/service/customer.go
+  -> internal/modules/demo/repository/customer.go
+  -> internal/modules/demo/model/customer.go
   -> pkg/database
 ```
 
@@ -132,7 +177,7 @@ internal/transport/http/router.go
 - GORM 的基础 CRUD 和事务；
 - HTTP handler、service、repository 分层。
 
-不要等完全学完 Go 再维护项目。更有效的练习是给 Demo Todo 加一个很小的校验或字段，然后补测试并跑通。
+不要等完全学完 Go 再维护项目。更有效的练习是给 Demo Todo 加一个很小的校验或字段，或者给客户资源示例加一个筛选字段，然后补测试并跑通。
 
 ## 接手维护检查表
 

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import type { ID, SystemParameter, SystemParameterPage } from "~/types/admin"
 
 const api = useAdminApi()
@@ -188,7 +188,7 @@ useHead({
 
 <template>
   <div class="page-grid">
-    <PageHeader title="参数管理" icon="compass" description="维护系统运行期可读取的键值参数，与 GVA 的 sys_params 能力保持同类。">
+    <PageHeader title="参数管理" icon="compass" description="维护系统运行期可读取的键值参数。">
       <template #actions>
         <AoiButton appearance="soft" icon="plus" @click="startCreate">新增</AoiButton>
         <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>

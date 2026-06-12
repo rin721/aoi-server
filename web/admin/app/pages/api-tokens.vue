@@ -99,10 +99,10 @@ async function loadMetadata() {
   metadataLoading.value = true
   try {
     const [userResult, roleResult] = await Promise.all([
-      api.listUsers(auth.currentOrgId),
+      api.listUsers(auth.currentOrgId, { pageSize: 100 }),
       api.listRoles(auth.currentOrgId)
     ])
-    users.value = userResult
+    users.value = userResult.items
     roles.value = roleResult
     alignIssueForm()
   } catch (err) {

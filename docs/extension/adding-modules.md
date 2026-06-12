@@ -34,6 +34,8 @@ System 模块的版本发布包已经覆盖菜单、API 和字典的打包、下
 
 ## 参考：扩展媒体库
 
-System 媒体库把元数据放在 `system_media_assets`，把二进制对象放在 `pkg/storage`。新增图片裁剪、压缩、断点续传或远程抓取时，不要复用 URL 导入的同步请求直接下载外部内容；应先设计任务状态、大小限制、MIME 校验、清理策略和权限码。
+System 媒体库把元数据放在 `system_media_assets`，把断点上传状态放在 `system_media_upload_sessions` 和 `system_media_upload_chunks`，把二进制对象放在 `pkg/storage`。新增图片裁剪、压缩或远程抓取时，不要复用 URL 导入的同步请求直接下载外部内容；应先设计任务状态、大小限制、MIME 校验、清理策略和权限码。
 
 如果其他模块需要挂接媒体资源，优先只保存 `mediaAssetId` 或外链 URL，不要直接拼接 `storage_key` 路径。读取文件应通过 System service 或受保护下载 API 走 IAM 权限和 storage 安全边界。
+
+Demo 模块现在有两个可复用样板：公开 Todo 适合学习最小 CRUD；客户资源示例适合学习后台菜单、IAM 权限、当前 principal、资源归属和分页列表。新增真正业务模块时，优先参考客户资源示例，把可见范围和业务校验放在 service 层，把请求绑定留在 handler 层。

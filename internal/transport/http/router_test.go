@@ -112,6 +112,8 @@ type fakeIAMService struct {
 	initialSetupCalls int
 	signupCalls       int
 	loginCalls        int
+	userListCalls     int
+	lastUserFilter    iamservice.UserListFilter
 }
 
 type permissionAuthorizer map[string]bool
@@ -193,8 +195,10 @@ func (s *fakeIAMService) SetupMFA(context.Context, iamservice.Principal) (string
 	return "", "", nil
 }
 func (s *fakeIAMService) VerifyMFA(context.Context, iamservice.Principal, string) error { return nil }
-func (s *fakeIAMService) ListUsers(context.Context, iamservice.Principal) ([]iamservice.OrganizationUser, error) {
-	return nil, nil
+func (s *fakeIAMService) ListUsers(_ context.Context, _ iamservice.Principal, filter iamservice.UserListFilter) (iamservice.OrganizationUserPage, error) {
+	s.userListCalls++
+	s.lastUserFilter = filter
+	return iamservice.OrganizationUserPage{Items: []iamservice.OrganizationUser{}, Page: 1, PageSize: 10, StorageStatus: "persisted"}, nil
 }
 func (s *fakeIAMService) UpdateUser(context.Context, iamservice.UpdateUserInput) (*iamservice.OrganizationUser, error) {
 	return nil, nil
@@ -378,6 +382,31 @@ func TestNewRouterRateLimitsPublicAuthEndpoints(t *testing.T) {
 	limited := performJSONRouterRequest(router, http.MethodPost, "/api/v1/auth/login", `{"identifier":"owner@example.com","password":"password123"}`)
 	if limited.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected rate limited status %d, got %d body %s", http.StatusTooManyRequests, limited.Code, limited.Body.String())
+	}
+}
+
+func TestNewRouterOrgUsersPassesListFilters(t *testing.T) {
+	iamSvc := &fakeIAMService{}
+	router := newTestRouter(RouterDeps{
+		IAMHandler: iamhandler.New(iamSvc, nil),
+		IAMAuth:    iamSvc,
+		IAMAuthz:   iamSvc,
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/1/users?keyword=alice&username=ali&displayName=Alice&email=alice%40example.com&roleCode=admin&status=active&page=2&pageSize=30&orderKey=username&desc=true", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected users status %d, got %d body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	if iamSvc.userListCalls != 1 {
+		t.Fatalf("expected one ListUsers call, got %d", iamSvc.userListCalls)
+	}
+	filter := iamSvc.lastUserFilter
+	if filter.Keyword != "alice" || filter.Username != "ali" || filter.DisplayName != "Alice" || filter.Email != "alice@example.com" || filter.RoleCode != "admin" || filter.Status != "active" || filter.Page != 2 || filter.PageSize != 30 || filter.OrderKey != "username" || !filter.Desc {
+		t.Fatalf("unexpected user list filter: %#v", filter)
 	}
 }
 

@@ -40,6 +40,9 @@ type Service interface {
 	DeleteParameter(context.Context, int64) error
 	DeleteParameters(context.Context, []int64) error
 	DownloadMediaAsset(context.Context, int64) (MediaDownload, error)
+	AbortMediaResumableUpload(context.Context, AbortMediaResumableUploadInput) (model.MediaResumableAbortResult, error)
+	CheckMediaResumableUpload(context.Context, CheckMediaResumableUploadInput) (model.MediaResumableCheckResult, error)
+	CompleteMediaResumableUpload(context.Context, CompleteMediaResumableUploadInput) (model.MediaResumableCompleteResult, error)
 	ExportVersion(context.Context, ExportVersionInput) (*model.VersionDetail, error)
 	FindParameter(context.Context, int64) (*model.Parameter, error)
 	FindParameterByKey(context.Context, string) (*model.Parameter, error)
@@ -67,6 +70,7 @@ type Service interface {
 	UpdateDictionaryItem(context.Context, int64, UpdateDictionaryItemInput) (*model.DictionaryItem, error)
 	UpdateMediaAsset(context.Context, int64, UpdateMediaAssetInput) (*model.MediaAsset, error)
 	UpdateParameter(context.Context, int64, UpdateParameterInput) (*model.Parameter, error)
+	UploadMediaChunk(context.Context, UploadMediaChunkInput) (model.MediaResumableChunkResult, error)
 	UploadMediaAsset(context.Context, UploadMediaAssetInput) (*model.MediaAsset, error)
 	UpsertMediaCategory(context.Context, UpsertMediaCategoryInput) (*model.MediaCategory, error)
 }
@@ -1436,6 +1440,8 @@ var demoMenu = model.MenuGroup{
 	Order: 90,
 	Items: []model.MenuItem{
 		{Code: "todos", Label: "Demo Todo", Icon: "list-checks", Path: "/todos", Order: 10},
-		{Code: "media", Label: "媒体库", Icon: "image-up", Path: "/media", Permission: "media:read", Order: 20},
+		{Code: "customers", Label: "客户列表", Icon: "id-card", Path: "/customers", Permission: "customer:read", Order: 15},
+		{Code: "media-resumable", Label: "断点上传", Icon: "upload-cloud", Path: "/media/resumable", Permission: "media:upload", Order: 20},
+		{Code: "media", Label: "媒体库", Icon: "image-up", Path: "/media", Permission: "media:read", Order: 30},
 	},
 }

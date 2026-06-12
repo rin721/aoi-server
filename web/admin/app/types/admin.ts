@@ -384,7 +384,7 @@ export type SystemMediaAsset = {
   mimeType: string
   extension: string
   sizeBytes: number
-  source: "upload" | "url"
+  source: "resumable" | "upload" | "url"
   external: boolean
   uploadedBy: ID
   uploadedByUsername: string
@@ -407,6 +407,63 @@ export type SystemMediaAssetPage = {
 export type SystemMediaURLImportResult = {
   imported: number
   items: SystemMediaAsset[]
+  storageStatus: string
+}
+
+export type SystemMediaUploadSession = {
+  id: ID
+  categoryId: ID
+  chunkSize: number
+  chunkTotal: number
+  completedAt?: string
+  createdAt: string
+  displayName: string
+  expiresAt: string
+  extension: string
+  fileHash: string
+  fileName: string
+  finalAssetId: ID
+  mimeType: string
+  sizeBytes: number
+  status: "aborted" | "active" | "completed" | "expired"
+  updatedAt: string
+  uploadedBy: ID
+  uploadedByUsername: string
+}
+
+export type SystemMediaResumableCheckResult = {
+  asset?: SystemMediaAsset
+  chunkSize: number
+  missingChunks: number[]
+  objectStorage: string
+  progress: number
+  session: SystemMediaUploadSession
+  storageStatus: string
+  uploadMaxBytes: number
+  uploadMaxMb: number
+  uploadedChunks: number[]
+  uploadUnavailable: boolean
+}
+
+export type SystemMediaResumableChunkResult = {
+  chunkIndex: number
+  missingChunks: number[]
+  progress: number
+  sessionId: ID
+  status: string
+  storageStatus: string
+  uploadedChunks: number[]
+}
+
+export type SystemMediaResumableCompleteResult = {
+  asset: SystemMediaAsset
+  sessionId: ID
+  storageStatus: string
+}
+
+export type SystemMediaResumableAbortResult = {
+  sessionId: ID
+  status: string
   storageStatus: string
 }
 
@@ -447,6 +504,14 @@ export type OrganizationUser = {
   membershipStatus: Status
   roles: string[]
   user: User
+}
+
+export type OrganizationUserPage = {
+  items: OrganizationUser[]
+  page: number
+  pageSize: number
+  storageStatus: string
+  total: number
 }
 
 export type Role = {
@@ -594,6 +659,26 @@ export type Todo = {
   completed: boolean
   createdAt: string
   updatedAt: string
+}
+
+export type DemoCustomer = {
+  id: number
+  customerName: string
+  customerPhoneData: string
+  ownerUserId: ID
+  ownerUsername: string
+  ownerRoleCode: string
+  orgId: ID
+  createdAt: string
+  updatedAt: string
+}
+
+export type DemoCustomerPage = {
+  items: DemoCustomer[]
+  page: number
+  pageSize: number
+  storageStatus: string
+  total: number
 }
 
 export type MFASetupPayload = {

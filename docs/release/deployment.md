@@ -1,4 +1,4 @@
-# 部署说明
+﻿# 部署说明
 
 当前部署能力是生产风格示例，不是 v1 发布保证。真实环境使用前需要审查配置、密钥、数据库选择和回滚策略。
 
@@ -61,4 +61,4 @@ webui:
   public_base_url: ${WEBUI_PUBLIC_BASE_URL}
 ```
 
-手动发布非 Docker 产物时，需要先在 `web/admin` 执行 `pnpm generate`，再将 `.output/public` 随服务一起部署。`pnpm build` 只作为构建检查，不替代静态托管产物。后台 UI 参考 Gin-Vue-Admin 的布局和交互模式，但不发布其代码生成、编程辅助或插件市场能力。
+手动发布非 Docker 产物时，需要先在 `web/admin` 执行 `pnpm generate`，再将 `.output/public` 随服务一起部署。`pnpm build` 只作为构建检查，不替代静态托管产物。后台 UI 使用左侧导航、顶部工具栏、访问标签、筛选表格和管理抽屉；当前不发布代码生成、编程辅助或插件市场能力。

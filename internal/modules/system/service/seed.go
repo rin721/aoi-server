@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"context"
@@ -90,7 +90,7 @@ var builtinParameterSeeds = []parameterSeed{
 		Description: "当前后台结构参考来源。",
 		Key:         "system.reference",
 		Name:        "系统参考",
-		Value:       "gin-vue-admin-parity",
+		Value:       "admin-template-parity",
 	},
 }
 

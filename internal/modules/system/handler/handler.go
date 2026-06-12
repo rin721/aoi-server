@@ -114,6 +114,20 @@ type updateMediaAssetRequest struct {
 	DisplayName string `json:"displayName" binding:"required"`
 }
 
+type checkMediaResumableUploadRequest struct {
+	CategoryID systemID `json:"categoryId"`
+	ChunkSize  int64    `json:"chunkSize"`
+	ChunkTotal int      `json:"chunkTotal"`
+	FileHash   string   `json:"fileHash" binding:"required"`
+	FileName   string   `json:"fileName" binding:"required"`
+	SizeBytes  int64    `json:"sizeBytes" binding:"required"`
+}
+
+type mediaResumableSessionRequest struct {
+	FileHash  string   `json:"fileHash" binding:"required"`
+	SessionID systemID `json:"sessionId" binding:"required"`
+}
+
 type systemID int64
 
 func New(service service.Service, authorizer middleware.Authorizer, logger logger.Logger) *Handler {
@@ -674,6 +688,107 @@ func (h *Handler) UploadMediaAsset(c web.Context) {
 	writeCreated(c, asset, err, h.writeError)
 }
 
+func (h *Handler) CheckMediaResumableUpload(c web.Context) {
+	principal, ok := requirePrincipal(c)
+	if !ok {
+		return
+	}
+	var req checkMediaResumableUploadRequest
+	if !bind(c, &req) {
+		return
+	}
+	check, err := h.service.CheckMediaResumableUpload(c.RequestContext(), service.CheckMediaResumableUploadInput{
+		CategoryID:         int64(req.CategoryID),
+		ChunkSize:          req.ChunkSize,
+		ChunkTotal:         req.ChunkTotal,
+		FileHash:           req.FileHash,
+		Filename:           req.FileName,
+		SizeBytes:          req.SizeBytes,
+		UploadedBy:         principal.UserID,
+		UploadedByUsername: principal.Username,
+	})
+	writeOK(c, check, err, h.writeError)
+}
+
+func (h *Handler) UploadMediaChunk(c web.Context) {
+	principal, ok := requirePrincipal(c)
+	if !ok {
+		return
+	}
+	req := c.Request()
+	if err := req.ParseMultipartForm(32 << 20); err != nil {
+		result.BadRequest(c, err.Error())
+		return
+	}
+	file, header, err := req.FormFile("file")
+	if err != nil {
+		result.BadRequest(c, "missing file")
+		return
+	}
+	defer file.Close()
+	sessionID, ok := parseInt64Form(c, "sessionId", 0)
+	if !ok || sessionID <= 0 {
+		result.BadRequest(c, "invalid sessionId")
+		return
+	}
+	chunkIndex, ok := parseIntForm(c, "chunkIndex", -1)
+	if !ok || chunkIndex < 0 {
+		result.BadRequest(c, "invalid chunkIndex")
+		return
+	}
+	chunkTotal, ok := parseIntForm(c, "chunkTotal", 0)
+	if !ok {
+		return
+	}
+	chunk, err := h.service.UploadMediaChunk(c.RequestContext(), service.UploadMediaChunkInput{
+		ChunkHash:          req.FormValue("chunkHash"),
+		ChunkIndex:         chunkIndex,
+		ChunkTotal:         chunkTotal,
+		FileHash:           req.FormValue("fileHash"),
+		Filename:           req.FormValue("fileName"),
+		Reader:             file,
+		SessionID:          sessionID,
+		Size:               header.Size,
+		UploadedBy:         principal.UserID,
+		UploadedByUsername: principal.Username,
+	})
+	writeCreated(c, chunk, err, h.writeError)
+}
+
+func (h *Handler) CompleteMediaResumableUpload(c web.Context) {
+	principal, ok := requirePrincipal(c)
+	if !ok {
+		return
+	}
+	var req mediaResumableSessionRequest
+	if !bind(c, &req) {
+		return
+	}
+	complete, err := h.service.CompleteMediaResumableUpload(c.RequestContext(), service.CompleteMediaResumableUploadInput{
+		FileHash:   req.FileHash,
+		SessionID:  int64(req.SessionID),
+		UploadedBy: principal.UserID,
+	})
+	writeCreated(c, complete, err, h.writeError)
+}
+
+func (h *Handler) AbortMediaResumableUpload(c web.Context) {
+	principal, ok := requirePrincipal(c)
+	if !ok {
+		return
+	}
+	var req mediaResumableSessionRequest
+	if !bind(c, &req) {
+		return
+	}
+	abort, err := h.service.AbortMediaResumableUpload(c.RequestContext(), service.AbortMediaResumableUploadInput{
+		FileHash:   req.FileHash,
+		SessionID:  int64(req.SessionID),
+		UploadedBy: principal.UserID,
+	})
+	writeOK(c, abort, err, h.writeError)
+}
+
 func (h *Handler) ImportMediaURLs(c web.Context) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
@@ -851,6 +966,19 @@ func parseInt64Form(c web.Context, name string, fallback int64) (int64, bool) {
 		return fallback, true
 	}
 	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		result.BadRequest(c, "invalid "+name)
+		return 0, false
+	}
+	return value, true
+}
+
+func parseIntForm(c web.Context, name string, fallback int) (int, bool) {
+	raw := strings.TrimSpace(c.Request().FormValue(name))
+	if raw == "" {
+		return fallback, true
+	}
+	value, err := strconv.Atoi(raw)
 	if err != nil {
 		result.BadRequest(c, "invalid "+name)
 		return 0, false

@@ -21,8 +21,10 @@ func TestDemoSchemaSQLUsesSQLGenDDL(t *testing.T) {
 	}
 	for _, want := range []string{
 		`CREATE TABLE IF NOT EXISTS "demo_todos"`,
+		`CREATE TABLE IF NOT EXISTS "demo_customers"`,
 		`"id" INTEGER PRIMARY KEY AUTOINCREMENT`,
 		`"title" TEXT NOT NULL`,
+		`"customer_name" TEXT NOT NULL`,
 		`"deleted_at"`,
 	} {
 		if !strings.Contains(sql, want) {
@@ -60,6 +62,13 @@ func TestTodoOperationsUseSQLGenCRUD(t *testing.T) {
 	}
 	if !hasTable {
 		t.Fatal("expected demo_todos table to exist")
+	}
+	hasTable, err = db.HasTable(ctx, &model.Customer{})
+	if err != nil {
+		t.Fatalf("HasTable(Customer) error = %v", err)
+	}
+	if !hasTable {
+		t.Fatal("expected demo_customers table to exist")
 	}
 
 	createSQL, err := CreateTodo(ctx, db, string(database.DriverSQLite), TodoCreateInput{

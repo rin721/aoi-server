@@ -2,6 +2,8 @@
   ApiErrorPayload,
   APITokenPage,
   CaptchaChallenge,
+  DemoCustomer,
+  DemoCustomerPage,
   AuditLog,
   CreateAPITokenResult,
   HealthStatus,
@@ -13,6 +15,7 @@
   NotificationDelivery,
   Organization,
   OrganizationUser,
+  OrganizationUserPage,
   Permission,
   PluginHealthStatus,
   PluginManifest,
@@ -32,6 +35,10 @@
   SystemMediaAssetPage,
   SystemMediaCategory,
   SystemMediaCategoryCatalog,
+  SystemMediaResumableAbortResult,
+  SystemMediaResumableCheckResult,
+  SystemMediaResumableChunkResult,
+  SystemMediaResumableCompleteResult,
   SystemMediaURLImportResult,
   SystemOperationRecordPage,
   SystemParameter,
@@ -194,6 +201,10 @@ export function useAdminApi() {
       request<Role>(`/api/v1/orgs/${orgId}/roles`, { body, method: "POST" }),
     createTodo: (body: { completed?: boolean, description?: string, title: string }) =>
       request<Todo>("/api/v1/demo/todos", { body, method: "POST" }),
+    createDemoCustomer: (body: { customerName: string, customerPhoneData: string }) =>
+      request<DemoCustomer>("/api/v1/demo/customers", { body, method: "POST" }),
+    deleteDemoCustomer: (id: number) =>
+      request<{ deleted: boolean }>(`/api/v1/demo/customers/${id}`, { method: "DELETE" }),
     deleteTodo: (id: number) => request<{ deleted: boolean }>(`/api/v1/demo/todos/${id}`, { method: "DELETE" }),
     forgotPassword: (email: string) =>
       request<NotificationDelivery>("/api/v1/auth/password/forgot", { auth: false, body: { email }, method: "POST" }),
@@ -248,6 +259,12 @@ export function useAdminApi() {
       request<SystemVersionImportResult>("/api/v1/system/versions/import", { body: { versionData }, method: "POST" }),
     importSystemMediaURLs: (body: { categoryId?: ID | number, items?: Array<{ name?: string, url: string }>, text?: string }) =>
       request<SystemMediaURLImportResult>("/api/v1/system/media/assets/import-url", { body, method: "POST" }),
+    abortSystemMediaResumableUpload: (body: { fileHash: string, sessionId: ID | number }) =>
+      request<SystemMediaResumableAbortResult>("/api/v1/system/media/assets/resumable/abort", { body, method: "POST" }),
+    checkSystemMediaResumableUpload: (body: { categoryId?: ID | number, chunkSize?: number, chunkTotal?: number, fileHash: string, fileName: string, sizeBytes: number }) =>
+      request<SystemMediaResumableCheckResult>("/api/v1/system/media/assets/resumable/check", { body, method: "POST" }),
+    completeSystemMediaResumableUpload: (body: { fileHash: string, sessionId: ID | number }) =>
+      request<SystemMediaResumableCompleteResult>("/api/v1/system/media/assets/resumable/complete", { body, method: "POST" }),
     createSystemDictionaryItem: (dictionaryId: ID, body: { extra?: string, label: string, sort?: number, status?: string, value: string }) =>
       request<SystemDictionaryItem>(`/api/v1/system/dictionaries/${dictionaryId}/items`, { body, method: "POST" }),
     saveSystemMediaCategory: (body: { id?: ID | number, name: string, parentId?: ID | number, sort?: number }) =>
@@ -299,8 +316,23 @@ export function useAdminApi() {
       }
       return request<SystemMediaAsset>("/api/v1/system/media/assets/upload", { body, method: "POST" })
     },
+    uploadSystemMediaChunk: (file: Blob, metadata: { chunkHash: string, chunkIndex: number, chunkTotal: number, fileHash: string, fileName: string, sessionId: ID | number }) => {
+      const body = new FormData()
+      body.append("file", file)
+      body.append("chunkHash", metadata.chunkHash)
+      body.append("chunkIndex", String(metadata.chunkIndex))
+      body.append("chunkTotal", String(metadata.chunkTotal))
+      body.append("fileHash", metadata.fileHash)
+      body.append("fileName", metadata.fileName)
+      body.append("sessionId", String(metadata.sessionId))
+      return request<SystemMediaResumableChunkResult>("/api/v1/system/media/assets/resumable/chunks", { body, method: "POST" })
+    },
+    getDemoCustomer: (id: number) => request<DemoCustomer>(`/api/v1/demo/customers/${id}`),
+    listDemoCustomers: (query: { keyword?: string, page?: number, pageSize?: number } = {}) =>
+      request<DemoCustomerPage>("/api/v1/demo/customers", { query }),
     listTodos: () => request<Todo[]>("/api/v1/demo/todos"),
-    listUsers: (orgId: ID) => request<OrganizationUser[]>(`/api/v1/orgs/${orgId}/users`),
+    listUsers: (orgId: ID, query: { desc?: boolean, displayName?: string, email?: string, keyword?: string, orderKey?: string, page?: number, pageSize?: number, roleCode?: string, status?: string, username?: string } = {}) =>
+      request<OrganizationUserPage>(`/api/v1/orgs/${orgId}/users`, { query }),
     login: (body: LoginRequest) => request<TokenPair>("/api/v1/auth/login", { auth: false, body, method: "POST" }),
     logout: () => request<{ loggedOut: boolean }>("/api/v1/auth/logout", { method: "POST", retryAuth: false }),
     refreshSession: (refreshToken: string) =>
@@ -320,6 +352,8 @@ export function useAdminApi() {
       request<Organization>(`/api/v1/orgs/${orgId}`, { body, method: "PATCH" }),
     updateRole: (orgId: ID, roleId: ID, body: { description?: string, name?: string, permissions?: string[] }) =>
       request<Role>(`/api/v1/orgs/${orgId}/roles/${roleId}`, { body, method: "PATCH" }),
+    updateDemoCustomer: (id: number, body: { customerName?: string, customerPhoneData?: string }) =>
+      request<DemoCustomer>(`/api/v1/demo/customers/${id}`, { body, method: "PATCH" }),
     updateTodo: (id: number, body: { completed?: boolean, description?: string, title?: string }) =>
       request<Todo>(`/api/v1/demo/todos/${id}`, { body, method: "PUT" }),
     updateUser: (orgId: ID, userId: ID, body: { roles?: string[], status?: string }) =>

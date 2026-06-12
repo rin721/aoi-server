@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import type { AuditLog } from "~/types/admin"
 
 const api = useAdminApi()
@@ -79,7 +79,7 @@ useHead({
 
 <template>
   <div class="page-grid">
-    <PageHeader title="登录日志" icon="log-in" description="按 GVA 登录日志入口展示当前组织的登录审计记录，数据来自 IAM audit log 的 auth.login 事件。">
+    <PageHeader title="登录日志" icon="log-in" description="展示当前组织的登录审计记录，数据来自 IAM audit log 的 auth.login 事件。">
       <template #actions>
         <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
       </template>

@@ -165,11 +165,17 @@ func NewDemoModule(db database.Database, log logger.Logger) DemoModule {
 	todoRepo := demorepository.NewTodoRepository(db)
 	todoService := demoservice.NewTodoService(db, todoRepo)
 	todoHandler := demohandler.NewTodoHandler(todoService, log)
+	customerRepo := demorepository.NewCustomerRepository(db)
+	customerService := demoservice.NewCustomerService(db, customerRepo)
+	customerHandler := demohandler.NewCustomerHandler(customerService, log)
 
 	return DemoModule{
-		TodoRepository: todoRepo,
-		TodoService:    todoService,
-		TodoHandler:    todoHandler,
+		TodoRepository:     todoRepo,
+		TodoService:        todoService,
+		TodoHandler:        todoHandler,
+		CustomerRepository: customerRepo,
+		CustomerService:    customerService,
+		CustomerHandler:    customerHandler,
 	}
 }
 

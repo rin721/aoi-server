@@ -1,4 +1,4 @@
-# AI Workspace
+﻿# AI Workspace
 
 This directory is the isolated AI operating layer for `go-scaffold`. It gives
 future Codex sessions a fast path into the repo without mixing agent notes into
@@ -10,8 +10,8 @@ application packages.
 - `tooling.md`: installed AI, GitHub, lint, and security tools.
 - `prompts.md`: reusable prompts for common development tasks.
 - `handoff-template.md`: compact handoff format for long-running work.
-- `gin-vue-admin-parity.md`: persistent task book, status board, visual
-  reference notes, and handoff point for incremental Gin-Vue-Admin parity work.
+- `admin-template-parity.md`: persistent task book, status board, visual
+  reference notes, and handoff point for incremental 上游样板 parity work.
 
 ## Default Workflow
 
@@ -34,6 +34,6 @@ govulncheck ./...
 gosec ./...
 osv-scanner scan source .
 ```
-## GVA 平替任务书
+## 上游样板 平替任务书
 
-`gin-vue-admin-parity.md` 是当前逐步平替 Gin-Vue-Admin demo 的持久化任务书。每个切片开始前先记录研究计划和视觉证据；版本管理和媒体库切片已记录 GVA demo 截图、上游源码入口、本地实现边界和验证计划。
+`admin-template-parity.md` 是当前逐步完善后台功能的持久化任务书。每个切片开始前先记录研究计划和视觉证据；版本管理、媒体库、断点上传和客户资源示例切片已记录外部研究入口、上游源码入口、本地实现边界和验证计划。

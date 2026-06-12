@@ -2,7 +2,9 @@
 
 版本管理发布包使用 `system_versions` 数据表和既有 IAM 权限，不新增 YAML 或环境变量配置项。启用该能力只需要执行数据库迁移，并给角色分配 `version:*` 相关权限。
 
-媒体库使用 `system_media_categories`、`system_media_assets` 数据表和既有 Storage 配置。只浏览记录或导入外链时不需要对象存储；普通上传、本地下载和本地对象删除需要 `storage.enabled=true`，推荐本地使用 `storage.fs_type=basepath`、`storage.base_path=./data`，文件会写入 `data/media/...`。
+媒体库使用 `system_media_categories`、`system_media_assets`、`system_media_upload_sessions` 和 `system_media_upload_chunks` 数据表，并复用既有 Storage 配置。只浏览记录或导入外链时不需要对象存储；普通上传、断点上传、本地下载和本地对象删除需要 `storage.enabled=true`，推荐本地使用 `storage.fs_type=basepath`、`storage.base_path=./data`，最终文件会写入 `data/media/YYYY/MM/...`，断点上传临时分片会写入 `data/media/chunks/...`。
+
+客户资源示例使用 `demo_customers` 表和 IAM `customer:*` 权限，不新增 YAML 或环境变量配置项。它跟随 `demo.enabled` 启用，跟随 `demo.apply_schema_on_start` 创建示例表。
 
 # 配置说明
 
@@ -77,11 +79,11 @@ DB_HOST
 - SQLite 路径为 `./data/app.db`；
 - Redis 默认关闭；
 - JSON-RPC 独立入口默认关闭，启用后默认监听 `127.0.0.1:10099`；
-- Demo 模块默认开启；
+- Demo 模块默认开启，包含公开 Todo 与受保护客户资源示例；
 - System 模块默认在启动时幂等补齐内置字典和系统参数；表未迁移时自动跳过，已有数据不覆盖；
 - IAM 模块默认开启；
 - IAM 登录验证码默认关闭；开启 `RIN_APP_AUTH_LOGIN_CAPTCHA_ENABLED=true` 后，`RIN_APP_AUTH_CAPTCHA_TTL_SECONDS` 控制验证码有效期，默认 120 秒；
-- Admin WebUI 默认不在主导航显示 Demo Todo，可在构建前设置 `NUXT_PUBLIC_SHOW_DEMO_TODO=true` 打开；
+- Admin WebUI 默认不在主导航显示 Demo Todo 的静态兜底入口，可在构建前设置 `NUXT_PUBLIC_SHOW_DEMO_TODO=true` 打开；登录后的客户列表入口来自服务端菜单和 `customer:read` 权限；
 - 示例配置开启自助注册，并使用 `debug` 通知驱动返回邀请和重置密码调试链接；
 - 插件默认关闭；启用后会读取 `plugins.manifests` 中的 JSON/YAML manifest；
 - 迁移默认随本地服务启动自动执行，用于首次启动后直接进入浏览器初始化；需要手动检查或生产发布时仍可通过 `db migrate up` 显式应用。
@@ -114,6 +116,6 @@ Nuxt 侧运行时配置保持最小化：
 | --- | --- | --- |
 | `NUXT_APP_BASE_URL` | `/admin/` | Nuxt 静态资源和路由 baseURL，需要与 Go `webui.mount_path` 对齐。 |
 | `NUXT_PUBLIC_API_BASE_URL` | 空字符串 | API 前缀；空值表示同源调用 Go API。 |
-| `NUXT_PUBLIC_SHOW_DEMO_TODO` | `false` | 是否在后台导航中显示 Demo Todo。 |
+| `NUXT_PUBLIC_SHOW_DEMO_TODO` | `false` | 是否在后台导航兜底菜单中显示 Demo Todo。客户列表由服务端菜单返回。 |
 
 用于 Go 静态托管时，先在 `web/admin` 执行 `pnpm generate`，确保 `.output/public/index.html` 存在。`pnpm build` 保留为构建检查，不替代静态产物生成。

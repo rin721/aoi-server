@@ -65,6 +65,9 @@ func TestApplyDemoSchemaForTrigger(t *testing.T) {
 			if got := hasDemoTodoTable(t, db); got != tt.hasTable {
 				t.Fatalf("HasTable(Todo) = %v, want %v", got, tt.hasTable)
 			}
+			if got := hasDemoCustomerTable(t, db); got != tt.hasTable {
+				t.Fatalf("HasTable(Customer) = %v, want %v", got, tt.hasTable)
+			}
 		})
 	}
 }
@@ -78,6 +81,9 @@ func TestApplyDemoSchemaKeepsServerStartDefault(t *testing.T) {
 	}
 	if !hasDemoTodoTable(t, db) {
 		t.Fatal("ApplyDemoSchema() should create the demo todo table")
+	}
+	if !hasDemoCustomerTable(t, db) {
+		t.Fatal("ApplyDemoSchema() should create the demo customer table")
 	}
 }
 
@@ -118,8 +124,14 @@ func TestNewModulesRespectsDemoConfig(t *testing.T) {
 			if got := modules.Demo.TodoHandler != nil; got != tt.wantHandler {
 				t.Fatalf("TodoHandler present = %v, want %v", got, tt.wantHandler)
 			}
+			if got := modules.Demo.CustomerHandler != nil; got != tt.wantHandler {
+				t.Fatalf("CustomerHandler present = %v, want %v", got, tt.wantHandler)
+			}
 			if got := hasDemoTodoTable(t, db); got != tt.wantTable {
 				t.Fatalf("HasTable(Todo) = %v, want %v", got, tt.wantTable)
+			}
+			if got := hasDemoCustomerTable(t, db); got != tt.wantTable {
+				t.Fatalf("HasTable(Customer) = %v, want %v", got, tt.wantTable)
 			}
 		})
 	}
@@ -160,6 +172,15 @@ func hasDemoTodoTable(t *testing.T, db database.Database) bool {
 	hasTable, err := db.HasTable(nil, &model.Todo{})
 	if err != nil {
 		t.Fatalf("HasTable(Todo) error = %v", err)
+	}
+	return hasTable
+}
+
+func hasDemoCustomerTable(t *testing.T, db database.Database) bool {
+	t.Helper()
+	hasTable, err := db.HasTable(nil, &model.Customer{})
+	if err != nil {
+		t.Fatalf("HasTable(Customer) error = %v", err)
 	}
 	return hasTable
 }
