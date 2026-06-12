@@ -128,10 +128,15 @@ export function useAdminUiPreferences() {
 
     const root = document.documentElement
     root.classList.toggle("dark", dark)
+    root.dataset.aoiColorfulNav = "false"
     root.dataset.aoiAdminDensity = state.density
     root.dataset.aoiAdminReducedMotion = String(state.reducedMotion)
     root.dataset.aoiContrast = state.contrast ? "high" : "normal"
     root.dataset.aoiAdminWatermark = String(state.watermark)
+    root.style.setProperty("--aoi-user-bg-image", "none")
+    root.style.setProperty("--aoi-user-bg-opacity", "0")
+    root.style.setProperty("--aoi-user-bg-blur", "0px")
+    root.style.setProperty("--aoi-user-bg-dim", "0")
     root.style.setProperty("--aoi-accent-10", preset.accent10)
     root.style.setProperty("--aoi-accent-20", preset.accent20)
     root.style.setProperty("--aoi-accent-40", preset.accent40)

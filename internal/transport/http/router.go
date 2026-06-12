@@ -124,6 +124,7 @@ func registerIAMRoutes(v1 web.Router, deps RouterDeps) {
 	auth.GET("/setup/status", deps.IAMHandler.SetupStatus)
 	auth.POST("/setup/initial-admin", deps.IAMHandler.InitialAdminSetup)
 	auth.POST("/signup", deps.IAMHandler.Signup)
+	auth.GET("/captcha", deps.IAMHandler.Captcha)
 	auth.POST("/login", deps.IAMHandler.Login)
 	auth.POST("/refresh", deps.IAMHandler.Refresh)
 	auth.POST("/password/forgot", deps.IAMHandler.ForgotPassword)
@@ -261,6 +262,7 @@ func catalogAPIRoutes(routes []web.RouteInfo) []systemmodel.APIEntry {
 		}
 		permission := apiRoutePermission(route.Method, route.Path)
 		entries = append(entries, systemmodel.APIEntry{
+			Access:      apiRouteAccess(route.Path, permission),
 			Code:        strings.ToLower(route.Method + " " + route.Path),
 			Group:       apiRouteGroup(route.Path),
 			Method:      route.Method,
@@ -271,6 +273,31 @@ func catalogAPIRoutes(routes []web.RouteInfo) []systemmodel.APIEntry {
 		})
 	}
 	return entries
+}
+
+func apiRouteAccess(path string, permission string) string {
+	if permission != "" {
+		return systemmodel.APIAccessPermission
+	}
+	if publicAPIRoute(path) {
+		return systemmodel.APIAccessPublic
+	}
+	return systemmodel.APIAccessAuthenticated
+}
+
+func publicAPIRoute(path string) bool {
+	switch path {
+	case "/api/v1/auth/setup/status",
+		"/api/v1/auth/setup/initial-admin",
+		"/api/v1/auth/signup",
+		"/api/v1/auth/captcha",
+		"/api/v1/auth/login",
+		"/api/v1/auth/refresh",
+		"/api/v1/auth/password/forgot",
+		"/api/v1/auth/password/reset":
+		return true
+	}
+	return strings.HasPrefix(path, "/api/v1/invitations/")
 }
 
 func apiRouteGroup(path string) string {

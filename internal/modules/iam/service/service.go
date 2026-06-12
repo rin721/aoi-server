@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -36,6 +37,8 @@ var (
 	ErrInvalidToken     = errors.New("invalid iam token")
 	ErrAccountLocked    = errors.New("account locked")
 	ErrAccountDisabled  = errors.New("account disabled")
+	ErrCaptchaRequired  = errors.New("captcha code required")
+	ErrCaptchaInvalid   = errors.New("invalid captcha code")
 	ErrSessionRevoked   = errors.New("session revoked")
 	ErrInvitationClosed = errors.New("invitation is not available")
 	ErrSignupDisabled   = errors.New("self signup is disabled")
@@ -48,6 +51,8 @@ type Config struct {
 	MFASecretKey       string
 	LoginMaxFailures   int
 	LoginLockDuration  time.Duration
+	CaptchaEnabled     bool
+	CaptchaTTL         time.Duration
 	InvitationTTL      time.Duration
 	PasswordResetTTL   time.Duration
 	NotificationDriver string
@@ -80,12 +85,21 @@ type TokenPair struct {
 }
 
 type LoginInput struct {
-	Identifier string
-	Password   string
-	OrgCode    string
-	MFACode    string
-	UserAgent  string
-	IPAddress  string
+	CaptchaCode string
+	CaptchaID   string
+	Identifier  string
+	Password    string
+	OrgCode     string
+	MFACode     string
+	UserAgent   string
+	IPAddress   string
+}
+
+type CaptchaChallenge struct {
+	CaptchaID string    `json:"captchaId,omitempty"`
+	Enabled   bool      `json:"enabled"`
+	ExpiresAt time.Time `json:"expiresAt,omitempty"`
+	Image     string    `json:"image,omitempty"`
 }
 
 type SignupInput struct {
@@ -236,6 +250,7 @@ type Service interface {
 	SetupStatus(context.Context) (SetupStatus, error)
 	InitialAdminSetup(context.Context, InitialAdminSetupInput) (TokenPair, error)
 	Signup(context.Context, SignupInput) (TokenPair, error)
+	Captcha(context.Context) (CaptchaChallenge, error)
 	Login(context.Context, LoginInput) (TokenPair, error)
 	Refresh(context.Context, RefreshInput) (TokenPair, error)
 	Logout(context.Context, Principal) error
@@ -277,6 +292,9 @@ type service struct {
 	ids      utils.IDGenerator
 	cfg      Config
 	notifier Notifier
+
+	captchaMu         sync.Mutex
+	captchaChallenges map[string]captchaState
 }
 
 func New(db database.Database, repo repository.Repository, crypto passwordcrypto.Crypto, tokens token.Manager, authz authorization.Enforcer, ids utils.IDGenerator, cfg Config, notifier Notifier) Service {
@@ -288,6 +306,9 @@ func New(db database.Database, repo repository.Repository, crypto passwordcrypto
 	}
 	if cfg.LoginLockDuration <= 0 {
 		cfg.LoginLockDuration = 15 * time.Minute
+	}
+	if cfg.CaptchaTTL <= 0 {
+		cfg.CaptchaTTL = 2 * time.Minute
 	}
 	if cfg.InvitationTTL <= 0 {
 		cfg.InvitationTTL = 24 * time.Hour
@@ -307,7 +328,17 @@ func New(db database.Database, repo repository.Repository, crypto passwordcrypto
 	if notifier == nil {
 		notifier = NoopNotifier{}
 	}
-	return &service{db: db, repo: repo, crypto: crypto, tokens: tokens, authz: authz, ids: ids, cfg: cfg, notifier: notifier}
+	return &service{
+		db:                db,
+		repo:              repo,
+		crypto:            crypto,
+		tokens:            tokens,
+		authz:             authz,
+		ids:               ids,
+		cfg:               cfg,
+		notifier:          notifier,
+		captchaChallenges: make(map[string]captchaState),
+	}
 }
 
 func (s *service) BootstrapAdmin(ctx context.Context, input BootstrapAdminInput) (*Principal, error) {
@@ -533,6 +564,9 @@ func (s *service) Login(ctx context.Context, input LoginInput) (TokenPair, error
 	identifier := strings.TrimSpace(strings.ToLower(input.Identifier))
 	if identifier == "" || input.Password == "" {
 		return TokenPair{}, ErrUnauthorized
+	}
+	if err := s.validateLoginCaptcha(input.CaptchaID, input.CaptchaCode); err != nil {
+		return TokenPair{}, err
 	}
 	user, err := s.repo.FindUserByIdentifier(ctx, identifier)
 	if err != nil {

@@ -274,11 +274,12 @@ func (h *Handler) ListOperationRecords(c web.Context) {
 		return
 	}
 	records, err := h.service.ListOperationRecords(c.RequestContext(), service.OperationRecordFilter{
-		Method:   values.Get("method"),
-		Page:     page,
-		PageSize: pageSize,
-		Path:     values.Get("path"),
-		Status:   status,
+		Method:      values.Get("method"),
+		Page:        page,
+		PageSize:    pageSize,
+		Path:        values.Get("path"),
+		Status:      status,
+		StatusClass: values.Get("statusClass"),
 	})
 	writeOK(c, records, err, h.writeError)
 }

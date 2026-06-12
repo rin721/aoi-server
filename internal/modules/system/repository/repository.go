@@ -283,6 +283,15 @@ func operationRecordOptions(filter model.OperationRecordFilter) []database.Query
 	}
 	if filter.Status > 0 {
 		opts = append(opts, database.Where("status = ?", filter.Status))
+		return opts
+	}
+	switch strings.ToLower(strings.TrimSpace(filter.StatusClass)) {
+	case "4xx":
+		opts = append(opts, database.Where("status >= ? AND status < ?", 400, 500))
+	case "5xx":
+		opts = append(opts, database.Where("status >= ? AND status < ?", 500, 600))
+	case "error":
+		opts = append(opts, database.Where("status >= ?", 400))
 	}
 	return opts
 }

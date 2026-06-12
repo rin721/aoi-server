@@ -27,10 +27,19 @@ export type ReadyStatus = {
 export type ID = string
 
 export type LoginRequest = {
+  captchaCode?: string
+  captchaId?: string
   identifier: string
   mfaCode?: string
   orgCode?: string
   password: string
+}
+
+export type CaptchaChallenge = {
+  captchaId?: string
+  enabled: boolean
+  expiresAt?: string
+  image?: string
 }
 
 export type SignupRequest = {
@@ -66,6 +75,7 @@ export type SystemMenuGroup = {
 }
 
 export type SystemAPIEntry = {
+  access: "authenticated" | "permission" | "public"
   code: string
   description: string
   group: string

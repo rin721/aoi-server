@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -306,6 +307,47 @@ func TestMFASetupAndLogin(t *testing.T) {
 	code, _ = mfa.GenerateTOTPCode(secret, time.Now())
 	if _, err := svc.Login(ctx, LoginInput{Identifier: "admin@example.com", Password: "password123", OrgCode: "acme", MFACode: code}); err != nil {
 		t.Fatalf("MFA login failed: %v", err)
+	}
+}
+
+func TestLoginCaptchaWhenEnabled(t *testing.T) {
+	svc, cleanup := newTestService(t)
+	defer cleanup()
+	impl := svc.(*service)
+	impl.cfg.CaptchaEnabled = true
+	impl.cfg.CaptchaTTL = time.Minute
+	ctx := context.Background()
+
+	if _, err := svc.BootstrapAdmin(ctx, BootstrapAdminInput{OrgCode: "acme", Username: "admin", Email: "admin@example.com", Password: "password123"}); err != nil {
+		t.Fatalf("BootstrapAdmin() failed: %v", err)
+	}
+
+	challenge, err := svc.Captcha(ctx)
+	if err != nil {
+		t.Fatalf("Captcha() error = %v", err)
+	}
+	if !challenge.Enabled || challenge.CaptchaID == "" || !strings.HasPrefix(challenge.Image, "data:image/svg+xml;base64,") {
+		t.Fatalf("unexpected captcha challenge: %#v", challenge)
+	}
+	if _, err := svc.Login(ctx, LoginInput{Identifier: "admin@example.com", Password: "password123", OrgCode: "acme"}); !errors.Is(err, ErrCaptchaRequired) {
+		t.Fatalf("expected captcha required error, got %v", err)
+	}
+	if _, err := svc.Login(ctx, LoginInput{CaptchaID: challenge.CaptchaID, CaptchaCode: "bad", Identifier: "admin@example.com", Password: "password123", OrgCode: "acme"}); !errors.Is(err, ErrCaptchaInvalid) {
+		t.Fatalf("expected captcha invalid error, got %v", err)
+	}
+
+	challenge, err = svc.Captcha(ctx)
+	if err != nil {
+		t.Fatalf("Captcha() second error = %v", err)
+	}
+	impl.captchaMu.Lock()
+	answer := impl.captchaChallenges[challenge.CaptchaID].answer
+	impl.captchaMu.Unlock()
+	if answer == "" {
+		t.Fatal("expected captcha answer to be stored")
+	}
+	if _, err := svc.Login(ctx, LoginInput{CaptchaID: challenge.CaptchaID, CaptchaCode: answer, Identifier: "admin@example.com", Password: "password123", OrgCode: "acme"}); err != nil {
+		t.Fatalf("Login() with captcha failed: %v", err)
 	}
 }
 

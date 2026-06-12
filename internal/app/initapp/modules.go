@@ -228,6 +228,8 @@ func NewIAMModule(core Core, infra Infrastructure) (IAMModule, error) {
 		MFASecretKey:       authCfg.MFASecretKey,
 		LoginMaxFailures:   authCfg.LoginMaxFailures,
 		LoginLockDuration:  time.Duration(authCfg.LoginLockMinutes) * time.Minute,
+		CaptchaEnabled:     authCfg.LoginCaptchaEnabled,
+		CaptchaTTL:         time.Duration(authCfg.CaptchaTTLSeconds) * time.Second,
 		InvitationTTL:      time.Duration(authCfg.InvitationTTLSeconds) * time.Second,
 		PasswordResetTTL:   time.Duration(authCfg.PasswordResetTTLSeconds) * time.Second,
 		NotificationDriver: authCfg.NotificationDriver,
@@ -298,9 +300,32 @@ func NewSystemModule(core Core, infra Infrastructure, iam IAMModule) SystemModul
 		RuntimeConfig: SystemConfigSnapshot(core.Config),
 		StartTime:     time.Now().UTC(),
 	}, options...)
+	seedSystemDefaults(core, service)
 	return SystemModule{
 		Service: service,
 		Handler: systemhandler.New(service, iam.Service, core.Logger),
+	}
+}
+
+func seedSystemDefaults(core Core, service systemservice.Service) {
+	if core.Config == nil || service == nil || !core.Config.System.SeedDefaultsOnStartValue() {
+		return
+	}
+	result, err := service.SeedDefaults(context.Background())
+	if err != nil {
+		if core.Logger != nil {
+			core.Logger.Warn("system defaults seed failed", "error", err)
+		}
+		return
+	}
+	if core.Logger != nil {
+		core.Logger.Info(
+			"system defaults seed completed",
+			"storage", result.StorageStatus,
+			"dictionaries", result.DictionariesCreated,
+			"dictionary_items", result.DictionaryItemsCreated,
+			"parameters", result.ParametersCreated,
+		)
 	}
 }
 
@@ -494,6 +519,8 @@ func SystemConfigSnapshot(configSnapshot *config.Config) systemmodel.ConfigSnaps
 				secretConfigItem("auth.mfa_secret_key", "MFA 密钥", cfg.Auth.MFASecretKey),
 				configItem("auth.login_max_failures", "登录失败锁定次数", cfg.Auth.LoginMaxFailures),
 				configItem("auth.login_lock_minutes", "锁定时长(分钟)", cfg.Auth.LoginLockMinutes),
+				configItem("auth.login_captcha_enabled", "登录验证码", cfg.Auth.LoginCaptchaEnabled),
+				configItem("auth.captcha_ttl_seconds", "验证码 TTL(秒)", cfg.Auth.CaptchaTTLSeconds),
 				configItem("auth.invitation_ttl_seconds", "邀请 TTL(秒)", cfg.Auth.InvitationTTLSeconds),
 				configItem("auth.password_reset_ttl_seconds", "重置 TTL(秒)", cfg.Auth.PasswordResetTTLSeconds),
 				configItem("auth.notification_driver", "通知驱动", cfg.Auth.NotificationDriver),

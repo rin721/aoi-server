@@ -17,6 +17,10 @@ Sources:
   lists are arranged as operational widgets rather than marketing cards.
 - Styling: the demo keeps backgrounds mostly solid white, uses thin borders, and
   avoids blurred or translucent surfaces inside core management workflows.
+- Visual pollution to avoid while replacing GVA incrementally: front-site
+  background images, colorful navigation gradients, translucent glass panels,
+  large marketing gradients, decorative blur, high-opacity watermark patterns,
+  and low-contrast table/header text.
 
 ## Visual Review Rule
 
@@ -24,6 +28,15 @@ For future parity work, use screenshot or browser-based visual inspection before
 and after implementation whenever a frontend change affects the UI, or a backend
 change affects an admin workflow that users can see. Record the route, viewport,
 and remaining risk in the handoff or final note.
+
+Required minimum viewports for Aoi Admin visual work:
+
+- Desktop: `1440x900`.
+- Mobile: `390x844`.
+
+When the local admin account requires MFA, record the blocked route and continue
+with visual checks that do not require authenticated state until the code is
+available.
 
 ## Backend Reference
 
@@ -45,6 +58,16 @@ renaming the backend wholesale:
 - `config` maps to `internal/config`.
 - `middleware` maps to `internal/middleware`.
 - `utils` maps to reusable packages under `pkg`.
+
+Do not rename this repository to match GVA's folder names wholesale. The parity
+target is the responsibility split: router catalog, API handler, service domain
+rules, repository persistence, typed request/response shapes, initialization,
+middleware, and reusable utilities.
+
+GVA's router initialization separates public routes from private routes guarded
+by JWT and Casbin. In this scaffold, the equivalent information is expressed in
+the API catalog as `access=public|authenticated|permission` while the concrete
+middleware remains in `internal/transport/http` and `internal/middleware`.
 
 ## Incremental Replacement Order
 
@@ -103,3 +126,35 @@ renaming the backend wholesale:
   host CPU/RAM/disk metrics plus Go runtime, memory, GC, OS, uptime, and build
   metadata, wires the server-driven menu and role permission matrix, and adds
   `/admin/server-info`.
+- 2026-06-12: Admin visual pollution hardening after visual comparison with
+  GVA dashboard and menu-management pages: the admin runtime now clears legacy
+  Aoi background/colorful-nav variables, and the admin CSS baseline uses a
+  restrained GVA-like palette with solid panels, thin borders, low shadows,
+  denser tables, muted login branding, semantic API method badges, isolated
+  admin surface tokens, and desktop/mobile visual checks.
+- 2026-06-12: GVA `source`/`initialize` parity slice: the System module can
+  seed default dictionaries and parameters during startup through
+  `system.seed_defaults_on_start`. The seed is idempotent, skips unavailable
+  tables, and never overwrites existing user-edited parameter values.
+- 2026-06-12: Login log parity slice after inspecting GVA
+  `#/layout/admin/loginLog`: the demo currently exposes the menu item and tab
+  but keeps dashboard content in the work surface, so this scaffold implements a
+  usable `/admin/login-logs` page backed by IAM `auth.login` audit records and
+  adds the server-driven menu entry under Security Audit.
+- 2026-06-12: Error log parity slice after inspecting GVA
+  `#/layout/admin/errorLog`: the public demo currently renders the unassigned
+  route/permission page for the admin account, so this scaffold implements a
+  usable `/admin/error-logs` page over `system_operation_records`. The backend
+  keeps the existing operation-record table and adds optional `statusClass`
+  filtering (`4xx`, `5xx`, or `error`) to `/api/v1/system/operation-records`;
+  exact `status` filters still take priority when supplied.
+- 2026-06-12: API catalog access-mode parity slice based on GVA's public vs
+  JWT/Casbin-protected router groups: route catalog entries now expose
+  `access` as `public`, `authenticated`, or `permission`, and the API management
+  page can summarize and filter by that access mode without changing the
+  append-only `system_apis` schema.
+- 2026-06-12: Login captcha parity slice based on the GVA demo login screen:
+  IAM now exposes public `GET /api/v1/auth/captcha`, validates optional
+  `captchaId`/`captchaCode` during login when `auth.login_captcha_enabled=true`,
+  keeps short-lived challenges in service memory, and renders the admin login
+  captcha row only when the backend reports it enabled.

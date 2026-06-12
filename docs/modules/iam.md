@@ -49,6 +49,7 @@ go run ./cmd/main iam bootstrap-admin \
 
 | 路由 | 说明 |
 | --- | --- |
+| `GET /api/v1/auth/captcha` | 获取登录验证码开关、图片和 `captchaId`；关闭时返回 `enabled=false` |
 | `POST /api/v1/auth/login` | 登录；MFA 开启后需要 `mfaCode` |
 | `POST /api/v1/auth/signup` | 自助注册并创建首个组织 owner |
 | `GET /api/v1/auth/setup/status` | 查询是否需要首次初始化管理员 |
@@ -73,6 +74,7 @@ go run ./cmd/main iam bootstrap-admin \
 - `auth.self_signup_enabled` 控制公开自助注册入口；
 - `auth.signing_key`、`auth.refresh_token_pepper`、`auth.mfa_secret_key` 是敏感值，生产必须从 secrets 注入；
 - `auth.access_token_ttl_seconds` 和 `auth.refresh_token_ttl_seconds` 控制 token 生命周期；
+- `auth.login_captcha_enabled` 和 `auth.captcha_ttl_seconds` 控制 GVA 风格登录验证码；默认关闭，验证码短期存放在 IAM 服务内存中，不新增表结构；
 - `auth.login_max_failures` 和 `auth.login_lock_minutes` 控制账号锁定；
 - `auth.notification_driver` 为 `debug`、`noop` 或 `local` 时，邀请和重置密码接口会返回调试 token/link；生产应使用 `smtp` 或外部系统接管通知，避免在 API 响应中暴露 token；
 - `auth.smtp` 配置 SMTP host、port、账号、发件人和 STARTTLS，用于内置邮件邀请和密码重置通知；

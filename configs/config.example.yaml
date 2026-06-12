@@ -72,6 +72,9 @@ demo:
   enabled: true
   apply_schema_on_start: true
 
+system:
+  seed_defaults_on_start: true
+
 cors:
   enabled: true
   allow_origins:
@@ -107,6 +110,8 @@ auth:
   mfa_secret_key: ${AUTH_MFA_SECRET_KEY:dev-mfa-secret-key-change-me-32}
   login_max_failures: 5
   login_lock_minutes: 15
+  login_captcha_enabled: false
+  captcha_ttl_seconds: 120
   invitation_ttl_seconds: 86400
   password_reset_ttl_seconds: 1800
   notification_driver: debug

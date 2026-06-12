@@ -24,6 +24,7 @@ func TestCopyConfigCoversAllFieldsAndDeepCopiesSlices(t *testing.T) {
 	got.I18n.Supported[0] = "ja-JP"
 	got.Executor.Pools[0].Name = "changed"
 	*got.Demo.Enabled = false
+	*got.System.SeedDefaultsOnStart = false
 	got.CORS.AllowOrigins[0] = "https://changed.example.com"
 	got.CORS.AllowMethods[0] = "PATCH"
 	got.CORS.AllowHeaders[0] = "X-Changed"
@@ -38,6 +39,9 @@ func TestCopyConfigCoversAllFieldsAndDeepCopiesSlices(t *testing.T) {
 	}
 	if *src.Demo.Enabled == *got.Demo.Enabled {
 		t.Fatal("copyConfig() shares Demo.Enabled pointer with source")
+	}
+	if *src.System.SeedDefaultsOnStart == *got.System.SeedDefaultsOnStart {
+		t.Fatal("copyConfig() shares System.SeedDefaultsOnStart pointer with source")
 	}
 	if src.CORS.AllowOrigins[0] == got.CORS.AllowOrigins[0] {
 		t.Fatal("copyConfig() shares CORS.AllowOrigins slice with source")
@@ -274,6 +278,7 @@ func TestOverrideWithEnvUsesEnvnameTagsForNonDatabaseConfigs(t *testing.T) {
 	setTaggedEnv(t, WebUIConfig{}, "Enabled", "false")
 	setTaggedEnv(t, WebUIConfig{}, "MountPath", "/console")
 	setTaggedEnv(t, WebUIConfig{}, "DistDir", "./web/dist")
+	setTaggedEnv(t, SystemConfig{}, "SeedDefaultsOnStart", "false")
 
 	OverrideWithEnv(cfg)
 
@@ -320,6 +325,9 @@ func TestOverrideWithEnvUsesEnvnameTagsForNonDatabaseConfigs(t *testing.T) {
 	}
 	if cfg.WebUI.EnabledValue() || cfg.WebUI.MountPath != "/console" || cfg.WebUI.DistDir != "./web/dist" {
 		t.Fatalf("WebUI override mismatch: %#v", cfg.WebUI)
+	}
+	if cfg.System.SeedDefaultsOnStartValue() {
+		t.Fatalf("System.SeedDefaultsOnStart = true, want false")
 	}
 }
 
@@ -452,6 +460,9 @@ func testCompleteConfig() *Config {
 		Demo: DemoConfig{
 			Enabled:            boolPtr(true),
 			ApplySchemaOnStart: boolPtr(true),
+		},
+		System: SystemConfig{
+			SeedDefaultsOnStart: boolPtr(true),
 		},
 		CORS: CORSConfig{
 			Enabled:          true,

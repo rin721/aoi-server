@@ -226,6 +226,7 @@ docker build -t go-scaffold:local .
 | `GET /api/v1/demo/todos/:id` | 读取单个 Demo Todo |
 | `PUT /api/v1/demo/todos/:id` | 更新单个 Demo Todo |
 | `DELETE /api/v1/demo/todos/:id` | 删除单个 Demo Todo |
+| `GET /api/v1/auth/captcha` | 获取可选 IAM 登录验证码 |
 | `POST /api/v1/auth/login` | IAM 登录 |
 | `POST /api/v1/auth/refresh` | IAM refresh token 轮换 |
 | `POST /api/v1/auth/logout` | IAM 登出并撤销当前会话 |

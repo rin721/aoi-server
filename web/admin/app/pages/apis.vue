@@ -6,6 +6,7 @@ const groups = ref<SystemAPIGroup[]>([])
 const query = ref("")
 const method = ref("")
 const groupCode = ref("")
+const accessMode = ref("")
 const loading = ref(false)
 const syncing = ref(false)
 const syncingPermissions = ref(false)
@@ -18,6 +19,9 @@ const unsyncedCount = computed(() => Math.max(totalCount.value - syncedCount.val
 const protectedCount = computed(() => groups.value.reduce((count, group) => count + group.items.filter((entry) => Boolean(entry.permission)).length, 0))
 const registeredPermissionCount = computed(() => groups.value.reduce((count, group) => count + group.items.filter((entry) => entry.permission && entry.permissionRegistered).length, 0))
 const unregisteredPermissionCount = computed(() => Math.max(protectedCount.value - registeredPermissionCount.value, 0))
+const publicCount = computed(() => groups.value.reduce((count, group) => count + group.items.filter((entry) => entry.access === "public").length, 0))
+const authenticatedCount = computed(() => groups.value.reduce((count, group) => count + group.items.filter((entry) => entry.access === "authenticated").length, 0))
+const permissionCount = computed(() => groups.value.reduce((count, group) => count + group.items.filter((entry) => entry.access === "permission").length, 0))
 
 const groupOptions = computed(() => [
   { label: "全部分组", value: "" },
@@ -31,6 +35,13 @@ const methodOptions = [
   { label: "PATCH", value: "PATCH" },
   { label: "PUT", value: "PUT" },
   { label: "DELETE", value: "DELETE" }
+]
+
+const accessOptions = [
+  { label: "全部访问属性", value: "" },
+  { label: "公开接口", value: "public" },
+  { label: "登录后接口", value: "authenticated" },
+  { label: "权限接口", value: "permission" }
 ]
 
 const filteredGroups = computed(() => {
@@ -103,6 +114,9 @@ function matchesAPI(entry: SystemAPIEntry, keyword: string) {
   if (method.value && entry.method !== method.value) {
     return false
   }
+  if (accessMode.value && entry.access !== accessMode.value) {
+    return false
+  }
   if (!keyword) {
     return true
   }
@@ -112,6 +126,7 @@ function matchesAPI(entry: SystemAPIEntry, keyword: string) {
     entry.group,
     entry.method,
     entry.path,
+    accessLabel(entry.access),
     entry.permission || "",
     entry.synced ? "synced 已同步" : "unsynced 未同步",
     entry.permissionRegistered ? "registered 已登记" : "unregistered 未登记"
@@ -120,6 +135,25 @@ function matchesAPI(entry: SystemAPIEntry, keyword: string) {
 
 function methodClass(value: string) {
   return `api-method api-method--${value.toLowerCase()}`
+}
+
+function accessLabel(value: SystemAPIEntry["access"]) {
+  switch (value) {
+    case "public":
+      return "公开"
+    case "permission":
+      return "权限"
+    default:
+      return "登录"
+  }
+}
+
+function accessClass(value: SystemAPIEntry["access"]) {
+  return {
+    "badge--success": value === "public",
+    "badge--warning": value === "authenticated",
+    "badge--neutral": value === "permission"
+  }
 }
 
 onMounted(load)
@@ -147,6 +181,9 @@ useHead({
         <h2>接口目录</h2>
         <div class="api-summary">
           <span class="badge">{{ totalCount }} 个</span>
+          <span class="badge badge--success">{{ publicCount }} 公开</span>
+          <span class="badge badge--warning">{{ authenticatedCount }} 登录</span>
+          <span class="badge">{{ permissionCount }} 权限</span>
           <span class="badge badge--success">{{ syncedCount }} 已同步</span>
           <span v-if="unsyncedCount" class="badge badge--warning">{{ unsyncedCount }} 未同步</span>
           <span class="badge badge--success">{{ registeredPermissionCount }} 权限已登记</span>
@@ -167,6 +204,12 @@ useHead({
           :options="methodOptions"
           @update:model-value="method = $event"
         />
+        <AoiSelect
+          :model-value="accessMode"
+          label="访问属性"
+          :options="accessOptions"
+          @update:model-value="accessMode = $event"
+        />
       </div>
 
       <div class="api-groups">
@@ -184,6 +227,7 @@ useHead({
                 <tr>
                   <th>Method</th>
                   <th>Path</th>
+                  <th>访问</th>
                   <th>权限</th>
                   <th>登记</th>
                   <th>同步</th>
@@ -194,6 +238,9 @@ useHead({
                 <tr v-for="entry in group.items" :key="entry.code">
                   <td data-label="Method"><span :class="methodClass(entry.method)">{{ entry.method }}</span></td>
                   <td class="mono api-table__path" data-label="Path">{{ entry.path }}</td>
+                  <td data-label="访问">
+                    <span :class="['badge', accessClass(entry.access)]">{{ accessLabel(entry.access) }}</span>
+                  </td>
                   <td data-label="权限">
                     <span v-if="entry.permission" class="badge">{{ entry.permission }}</span>
                     <span v-else class="muted">未绑定权限</span>
@@ -294,28 +341,28 @@ useHead({
 }
 
 .api-method--get {
-  background: #ecfdf5;
-  border-color: #bbf7d0;
-  color: #047857;
+  background: var(--aoi-intent-success-soft-bg);
+  border-color: var(--aoi-intent-success-border);
+  color: var(--aoi-intent-success-color);
 }
 
 .api-method--post {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1d4ed8;
+  background: var(--aoi-intent-info-soft-bg);
+  border-color: var(--aoi-intent-info-border);
+  color: var(--aoi-intent-info-color);
 }
 
 .api-method--patch,
 .api-method--put {
-  background: #fff7ed;
-  border-color: #fed7aa;
-  color: #c2410c;
+  background: var(--aoi-intent-warning-soft-bg);
+  border-color: var(--aoi-intent-warning-border);
+  color: var(--aoi-intent-warning-color);
 }
 
 .api-method--delete {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #b91c1c;
+  background: var(--aoi-intent-danger-soft-bg);
+  border-color: var(--aoi-intent-danger-border);
+  color: var(--aoi-intent-danger-color);
 }
 
 .api-empty {

@@ -42,6 +42,8 @@ main.go
 
 IAM 表结构由 goose 迁移管理。默认 `migration.auto_apply=false`，应通过 `db migrate up` 显式应用；如果显式开启自动迁移，`internal/app/initapp` 会在模块装配前运行迁移。
 
+System 模块在装配时会读取 `system.seed_defaults_on_start`。默认开启时，它会幂等补齐 `system.status`、`http.method`、`operation.result` 三组内置字典，以及 `admin.title`、`admin.home_path`、`system.reference` 三个系统参数。这个过程会跳过未迁移或不可用的 system 表，并且不会覆盖已经存在的参数值。
+
 ## HTTP 启动
 
 HTTP 服务由 `pkg/httpserver` 包装。端口绑定错误会同步返回。

@@ -64,6 +64,9 @@ demo:
   enabled: false
   apply_schema_on_start: false
 
+system:
+  seed_defaults_on_start: ${SYSTEM_SEED_DEFAULTS_ON_START:true}
+
 auth:
   enabled: true
   self_signup_enabled: false
@@ -78,6 +81,8 @@ auth:
   mfa_secret_key: ${AUTH_MFA_SECRET_KEY}
   login_max_failures: 5
   login_lock_minutes: 15
+  login_captcha_enabled: ${AUTH_LOGIN_CAPTCHA_ENABLED:false}
+  captcha_ttl_seconds: ${AUTH_CAPTCHA_TTL_SECONDS:120}
   invitation_ttl_seconds: 86400
   password_reset_ttl_seconds: 1800
   notification_driver: smtp

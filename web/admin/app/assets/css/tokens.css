@@ -18,6 +18,7 @@
   --aoi-surface: rgba(255, 255, 255, 0.86);
   --aoi-surface-solid: #ffffff;
   --aoi-surface-muted: #f2f8fa;
+  --aoi-surface-soft: color-mix(in srgb, var(--aoi-surface-muted) 72%, var(--aoi-surface-solid));
   --aoi-border: rgba(24, 72, 84, 0.12);
   --aoi-text: #17262b;
   --aoi-text-muted: #60737b;
@@ -215,6 +216,7 @@
   --aoi-z-dialog: 100;
   --aoi-z-loading: 120;
   --aoi-z-cursor: 140;
+  --aoi-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", "Cascadia Mono", monospace;
   --aoi-motion-fast: 120ms;
   --aoi-motion-base: 220ms;
   --aoi-motion-slow: 360ms;
@@ -267,6 +269,7 @@
   --aoi-surface: rgba(22, 33, 36, 0.86);
   --aoi-surface-solid: #162124;
   --aoi-surface-muted: #1d2a2e;
+  --aoi-surface-soft: color-mix(in srgb, var(--aoi-surface-muted) 76%, var(--aoi-surface-solid));
   --aoi-border: rgba(192, 241, 248, 0.14);
   --aoi-text: #eefcff;
   --aoi-text-muted: #a1bac2;

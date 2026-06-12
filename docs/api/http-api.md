@@ -130,6 +130,7 @@ Content-Type: application/json
 | GET | `/api/v1/auth/setup/status` | 查询是否需要首次初始化管理员。 |
 | POST | `/api/v1/auth/setup/initial-admin` | 空 IAM 用户表时创建首个组织 owner，并返回登录令牌。 |
 | POST | `/api/v1/auth/signup` | 自助注册，创建组织、首个 owner 和登录令牌。 |
+| GET | `/api/v1/auth/captcha` | 获取登录验证码开关、图片和 `captchaId`；验证码关闭时返回 `enabled=false`。 |
 | POST | `/api/v1/auth/login` | 登录并签发 access token 与 refresh token。 |
 | POST | `/api/v1/auth/refresh` | 使用 refresh token 刷新令牌。 |
 | POST | `/api/v1/auth/password/forgot` | 创建密码重置通知；debug/noop/local 通知驱动会返回调试 token/link，smtp 不返回 token。 |
@@ -143,13 +144,15 @@ Content-Type: application/json
   "identifier": "admin@example.com",
   "password": "secret",
   "orgCode": "acme",
+  "captchaId": "captcha-id",
+  "captchaCode": "7",
   "mfaCode": "123456"
 }
 ```
 
 必填字段：`identifier`、`password`。
 
-`orgCode` 可用于指定登录组织；开启 MFA 后需要 `mfaCode`。
+`orgCode` 可用于指定登录组织；开启登录验证码后，先调用 `GET /api/v1/auth/captcha` 并在登录时提交 `captchaId` 与 `captchaCode`；开启 MFA 后需要 `mfaCode`。
 
 成功响应的 `data` 为：
 

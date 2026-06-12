@@ -33,7 +33,7 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
-  async function login(payload: { identifier: string, mfaCode?: string, orgCode?: string, password: string }) {
+  async function login(payload: { captchaCode?: string, captchaId?: string, identifier: string, mfaCode?: string, orgCode?: string, password: string }) {
     loading.value = true
     try {
       applyTokenPair(await api.login(payload))

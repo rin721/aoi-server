@@ -150,6 +150,12 @@ func TestListMenusIncludesSystemMenuCatalog(t *testing.T) {
 	if !menuItemExists(groups, "system", "server-info", "/server-info", "server:read") {
 		t.Fatalf("expected server info entry, got %#v", groups)
 	}
+	if !menuItemExists(groups, "security", "login-logs", "/login-logs", "audit:read") {
+		t.Fatalf("expected login log entry, got %#v", groups)
+	}
+	if !menuItemExists(groups, "security", "error-logs", "/error-logs", "operation:read") {
+		t.Fatalf("expected error log entry, got %#v", groups)
+	}
 }
 
 func TestListConfigReturnsRuntimeSnapshotClone(t *testing.T) {
@@ -381,6 +387,60 @@ func TestOperationRecordManagementPersistsFiltersAndDeletesRecords(t *testing.T)
 	}
 }
 
+func TestOperationRecordStatusClassFilters(t *testing.T) {
+	now := time.Date(2026, 6, 12, 10, 30, 0, 0, time.UTC)
+	repo := newMemoryAPIRepo(nil)
+	svc := New(Config{Now: func() time.Time { return now }},
+		WithRepository(repo),
+		WithIDGenerator(&sequenceIDGenerator{next: 400}),
+	)
+	for _, item := range []OperationRecordInput{
+		{IPAddress: "127.0.0.1", Method: "GET", Path: "/api/v1/ok", Status: 200, UserID: 1, Username: "admin"},
+		{IPAddress: "127.0.0.1", Method: "GET", Path: "/api/v1/not-found", Status: 404, UserID: 1, Username: "admin"},
+		{ErrorMessage: "boom", IPAddress: "127.0.0.1", Method: "POST", Path: "/api/v1/error", Status: 503, UserID: 1, Username: "admin"},
+	} {
+		if err := svc.RecordOperation(context.Background(), item); err != nil {
+			t.Fatalf("RecordOperation() error = %v", err)
+		}
+	}
+
+	page, err := svc.ListOperationRecords(context.Background(), OperationRecordFilter{Page: 1, PageSize: 10, StatusClass: "5xx"})
+	if err != nil {
+		t.Fatalf("ListOperationRecords(5xx) error = %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].Status != 503 {
+		t.Fatalf("expected only 5xx records, got %#v", page)
+	}
+
+	page, err = svc.ListOperationRecords(context.Background(), OperationRecordFilter{Page: 1, PageSize: 10, StatusClass: "error"})
+	if err != nil {
+		t.Fatalf("ListOperationRecords(error) error = %v", err)
+	}
+	if page.Total != 2 || len(page.Items) != 2 {
+		t.Fatalf("expected all error records, got %#v", page)
+	}
+
+	page, err = svc.ListOperationRecords(context.Background(), OperationRecordFilter{Page: 1, PageSize: 10, StatusClass: "4xx"})
+	if err != nil {
+		t.Fatalf("ListOperationRecords(4xx) error = %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].Status != 404 {
+		t.Fatalf("expected only 4xx records, got %#v", page)
+	}
+
+	page, err = svc.ListOperationRecords(context.Background(), OperationRecordFilter{Page: 1, PageSize: 10, Status: 404, StatusClass: "5xx"})
+	if err != nil {
+		t.Fatalf("ListOperationRecords(exact status) error = %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].Status != 404 {
+		t.Fatalf("expected exact status to win over status class, got %#v", page)
+	}
+
+	if _, err = svc.ListOperationRecords(context.Background(), OperationRecordFilter{Page: 1, PageSize: 10, StatusClass: "2xx"}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid status class error, got %v", err)
+	}
+}
+
 func TestParameterManagementCreatesFiltersUpdatesFindsAndDeletes(t *testing.T) {
 	now := time.Date(2026, 6, 12, 11, 0, 0, 0, time.UTC)
 	repo := newMemoryAPIRepo(nil)
@@ -447,6 +507,66 @@ func TestParameterManagementCreatesFiltersUpdatesFindsAndDeletes(t *testing.T) {
 	}
 	if page.Total != 0 || len(page.Items) != 0 {
 		t.Fatalf("expected parameter to be soft deleted, got %#v", page)
+	}
+}
+
+func TestSeedDefaultsCreatesSystemDataIdempotently(t *testing.T) {
+	now := time.Date(2026, 6, 12, 14, 0, 0, 0, time.UTC)
+	repo := newMemoryAPIRepo(nil)
+	svc := New(Config{Now: func() time.Time { return now }},
+		WithRepository(repo),
+		WithIDGenerator(&sequenceIDGenerator{next: 700}),
+	)
+
+	result, err := svc.SeedDefaults(context.Background())
+	if err != nil {
+		t.Fatalf("SeedDefaults() error = %v", err)
+	}
+	if result.StorageStatus != "persisted" || result.DictionariesCreated != 3 || result.DictionaryItemsCreated != 9 || result.ParametersCreated != 3 {
+		t.Fatalf("unexpected seed result: %#v", result)
+	}
+
+	catalog, err := svc.ListDictionaries(context.Background())
+	if err != nil {
+		t.Fatalf("ListDictionaries() error = %v", err)
+	}
+	if catalog.Total != 3 || !dictionaryItemExists(catalog, "system.status", model.DictionaryStatusActive) || !dictionaryItemExists(catalog, "http.method", "DELETE") {
+		t.Fatalf("expected seeded dictionaries and items, got %#v", catalog)
+	}
+	title, err := svc.FindParameterByKey(context.Background(), "admin.title")
+	if err != nil {
+		t.Fatalf("FindParameterByKey(admin.title) error = %v", err)
+	}
+	customTitle := "Custom Admin"
+	if _, err := svc.UpdateParameter(context.Background(), title.ID, UpdateParameterInput{Value: &customTitle}); err != nil {
+		t.Fatalf("UpdateParameter(admin.title) error = %v", err)
+	}
+
+	again, err := svc.SeedDefaults(context.Background())
+	if err != nil {
+		t.Fatalf("SeedDefaults() second error = %v", err)
+	}
+	if again.DictionariesCreated != 0 || again.DictionaryItemsCreated != 0 || again.ParametersCreated != 0 {
+		t.Fatalf("expected second seed to be idempotent, got %#v", again)
+	}
+	title, err = svc.FindParameterByKey(context.Background(), "admin.title")
+	if err != nil {
+		t.Fatalf("FindParameterByKey(admin.title) second error = %v", err)
+	}
+	if title.Value != customTitle {
+		t.Fatalf("expected seed to preserve customized parameter, got %#v", title)
+	}
+}
+
+func TestSeedDefaultsWithoutRepositoryReportsUnavailable(t *testing.T) {
+	svc := New(Config{})
+
+	result, err := svc.SeedDefaults(context.Background())
+	if err != nil {
+		t.Fatalf("SeedDefaults() error = %v", err)
+	}
+	if result.StorageStatus != "unavailable" || result.DictionariesCreated != 0 || result.ParametersCreated != 0 {
+		t.Fatalf("unexpected seed result without repository: %#v", result)
 	}
 }
 
@@ -658,8 +778,25 @@ func (r *memoryAPIRepo) ListOperationRecords(_ context.Context, filter model.Ope
 		if path != "" && !strings.Contains(record.Path, path) {
 			continue
 		}
-		if filter.Status > 0 && record.Status != filter.Status {
-			continue
+		if filter.Status > 0 {
+			if record.Status != filter.Status {
+				continue
+			}
+		} else {
+			switch strings.ToLower(strings.TrimSpace(filter.StatusClass)) {
+			case "4xx":
+				if record.Status < 400 || record.Status >= 500 {
+					continue
+				}
+			case "5xx":
+				if record.Status < 500 || record.Status >= 600 {
+					continue
+				}
+			case "error":
+				if record.Status < 400 {
+					continue
+				}
+			}
 		}
 		records = append(records, record)
 	}
@@ -852,6 +989,20 @@ func menuItemExists(groups []model.MenuGroup, groupCode string, itemCode string,
 		}
 		for _, item := range group.Items {
 			if item.Code == itemCode && item.Path == path && item.Permission == permission {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func dictionaryItemExists(catalog model.DictionaryCatalog, code string, value string) bool {
+	for _, dictionary := range catalog.Items {
+		if dictionary.Code != code {
+			continue
+		}
+		for _, item := range dictionary.Items {
+			if item.Value == value {
 				return true
 			}
 		}

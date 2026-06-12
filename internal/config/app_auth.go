@@ -13,6 +13,7 @@ const (
 	DefaultCasbinReloadIntervalSeconds = 300
 	DefaultLoginMaxFailures            = 5
 	DefaultLoginLockMinutes            = 15
+	DefaultCaptchaTTLSeconds           = 120
 	DefaultMFAIssuer                   = "go-scaffold"
 	DefaultNotificationDriver          = "debug"
 	DefaultPasswordMinLength           = 8
@@ -32,6 +33,8 @@ type AuthConfig struct {
 	MFASecretKey                string               `mapstructure:"mfa_secret_key" envname:"AUTH_MFA_SECRET_KEY" json:"mfa_secret_key" yaml:"mfa_secret_key" toml:"mfa_secret_key"`
 	LoginMaxFailures            int                  `mapstructure:"login_max_failures" envname:"AUTH_LOGIN_MAX_FAILURES" json:"login_max_failures" yaml:"login_max_failures" toml:"login_max_failures"`
 	LoginLockMinutes            int                  `mapstructure:"login_lock_minutes" envname:"AUTH_LOGIN_LOCK_MINUTES" json:"login_lock_minutes" yaml:"login_lock_minutes" toml:"login_lock_minutes"`
+	LoginCaptchaEnabled         bool                 `mapstructure:"login_captcha_enabled" envname:"AUTH_LOGIN_CAPTCHA_ENABLED" json:"login_captcha_enabled" yaml:"login_captcha_enabled" toml:"login_captcha_enabled"`
+	CaptchaTTLSeconds           int                  `mapstructure:"captcha_ttl_seconds" envname:"AUTH_CAPTCHA_TTL_SECONDS" json:"captcha_ttl_seconds" yaml:"captcha_ttl_seconds" toml:"captcha_ttl_seconds"`
 	InvitationTTLSeconds        int                  `mapstructure:"invitation_ttl_seconds" envname:"AUTH_INVITATION_TTL_SECONDS" json:"invitation_ttl_seconds" yaml:"invitation_ttl_seconds" toml:"invitation_ttl_seconds"`
 	PasswordResetTTLSeconds     int                  `mapstructure:"password_reset_ttl_seconds" envname:"AUTH_PASSWORD_RESET_TTL_SECONDS" json:"password_reset_ttl_seconds" yaml:"password_reset_ttl_seconds" toml:"password_reset_ttl_seconds"`
 	NotificationDriver          string               `mapstructure:"notification_driver" envname:"AUTH_NOTIFICATION_DRIVER" json:"notification_driver" yaml:"notification_driver" toml:"notification_driver"`
@@ -94,6 +97,9 @@ func (c *AuthConfig) Validate() error {
 	if c.LoginMaxFailures <= 0 || c.LoginLockMinutes <= 0 {
 		return fmt.Errorf("login lock policy values must be positive")
 	}
+	if c.LoginCaptchaEnabled && c.CaptchaTTLSeconds <= 0 {
+		return fmt.Errorf("captcha_ttl_seconds must be positive when login captcha is enabled")
+	}
 	if c.PasswordPolicy.MinLength <= 0 {
 		return fmt.Errorf("password policy min_length must be positive")
 	}
@@ -126,6 +132,9 @@ func (c *AuthConfig) ApplyDefaults() {
 	}
 	if c.LoginLockMinutes == 0 {
 		c.LoginLockMinutes = DefaultLoginLockMinutes
+	}
+	if c.CaptchaTTLSeconds == 0 {
+		c.CaptchaTTLSeconds = DefaultCaptchaTTLSeconds
 	}
 	if c.InvitationTTLSeconds == 0 {
 		c.InvitationTTLSeconds = DefaultInvitationTTLSeconds

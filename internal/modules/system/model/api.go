@@ -5,6 +5,10 @@ import "time"
 const (
 	APIStatusActive = "active"
 	APIStatusStale  = "stale"
+
+	APIAccessAuthenticated = "authenticated"
+	APIAccessPermission    = "permission"
+	APIAccessPublic        = "public"
 )
 
 type APIRecord struct {

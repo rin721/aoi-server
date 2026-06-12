@@ -44,6 +44,7 @@ type Service interface {
 	ListParameters(context.Context, ParameterFilter) (model.ParameterPage, error)
 	RecordOperation(context.Context, OperationRecordInput) error
 	RegisterAPIs([]model.APIEntry)
+	SeedDefaults(context.Context) (SeedResult, error)
 	SyncAPIs(context.Context) (model.APISyncResult, error)
 	SyncPermissions(context.Context) (model.PermissionSyncResult, error)
 	UpdateDictionary(context.Context, int64, UpdateDictionaryInput) (*model.Dictionary, error)
@@ -117,11 +118,12 @@ type OperationRecordInput struct {
 }
 
 type OperationRecordFilter struct {
-	Method   string
-	Page     int
-	PageSize int
-	Path     string
-	Status   int
+	Method      string
+	Page        int
+	PageSize    int
+	Path        string
+	Status      int
+	StatusClass string
 }
 
 type ParameterFilter struct {
@@ -701,12 +703,20 @@ func (s *service) ListOperationRecords(ctx context.Context, input OperationRecor
 	if status < 0 || status > 999 {
 		return result, ErrInvalidInput
 	}
+	statusClass, err := normalizeOperationStatusClass(input.StatusClass)
+	if err != nil {
+		return result, err
+	}
+	if status > 0 {
+		statusClass = ""
+	}
 	records, total, err := s.repo.ListOperationRecords(ctx, model.OperationRecordFilter{
-		Method:   strings.ToUpper(strings.TrimSpace(input.Method)),
-		Page:     page,
-		PageSize: pageSize,
-		Path:     strings.TrimSpace(input.Path),
-		Status:   status,
+		Method:      strings.ToUpper(strings.TrimSpace(input.Method)),
+		Page:        page,
+		PageSize:    pageSize,
+		Path:        strings.TrimSpace(input.Path),
+		Status:      status,
+		StatusClass: statusClass,
 	})
 	if err != nil {
 		if repository.IsStorageUnavailable(err) {
@@ -718,6 +728,21 @@ func (s *service) ListOperationRecords(ctx context.Context, input OperationRecor
 	result.StorageStatus = "persisted"
 	result.Total = total
 	return result, nil
+}
+
+func normalizeOperationStatusClass(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "all":
+		return "", nil
+	case "4xx", "client-error", "client_error":
+		return "4xx", nil
+	case "5xx", "server-error", "server_error":
+		return "5xx", nil
+	case "error", "errors":
+		return "error", nil
+	default:
+		return "", ErrInvalidInput
+	}
 }
 
 func (s *service) DeleteOperationRecords(ctx context.Context, ids []int64) error {
@@ -745,6 +770,9 @@ func (s *service) DeleteOperationRecords(ctx context.Context, ids []int64) error
 
 func (s *service) RegisterAPIs(entries []model.APIEntry) {
 	cloned := append([]model.APIEntry(nil), entries...)
+	for i := range cloned {
+		cloned[i].Access = normalizeAPIAccess(cloned[i])
+	}
 	sortAPIs(cloned)
 
 	s.mu.Lock()
@@ -941,6 +969,7 @@ func groupAPIs(entries []model.APIEntry) []model.APIGroup {
 			group = "other"
 		}
 		entry.Group = group
+		entry.Access = normalizeAPIAccess(entry)
 		byGroup[group] = append(byGroup[group], entry)
 	}
 
@@ -960,6 +989,21 @@ func groupAPIs(entries []model.APIEntry) []model.APIGroup {
 		return apiGroupOrder(groups[i].Code) < apiGroupOrder(groups[j].Code)
 	})
 	return groups
+}
+
+func normalizeAPIAccess(entry model.APIEntry) string {
+	switch strings.ToLower(strings.TrimSpace(entry.Access)) {
+	case model.APIAccessPublic:
+		return model.APIAccessPublic
+	case model.APIAccessAuthenticated:
+		return model.APIAccessAuthenticated
+	case model.APIAccessPermission:
+		return model.APIAccessPermission
+	}
+	if normalizePermissionCode(entry.Permission) != "" {
+		return model.APIAccessPermission
+	}
+	return model.APIAccessAuthenticated
 }
 
 func (s *service) applySyncMetadata(ctx context.Context, entries []model.APIEntry) error {
@@ -1329,8 +1373,10 @@ var baseMenus = []model.MenuGroup{
 		Order: 20,
 		Items: []model.MenuItem{
 			{Code: "sessions", Label: "会话", Icon: "monitor-check", Path: "/sessions", Permission: "session:read", Order: 10},
-			{Code: "audit-logs", Label: "审计日志", Icon: "scroll-text", Path: "/audit-logs", Permission: "audit:read", Order: 20},
-			{Code: "security", Label: "安全", Icon: "lock-keyhole", Path: "/security", Order: 30},
+			{Code: "login-logs", Label: "登录日志", Icon: "log-in", Path: "/login-logs", Permission: "audit:read", Order: 20},
+			{Code: "audit-logs", Label: "审计日志", Icon: "scroll-text", Path: "/audit-logs", Permission: "audit:read", Order: 30},
+			{Code: "error-logs", Label: "错误日志", Icon: "bug", Path: "/error-logs", Permission: "operation:read", Order: 40},
+			{Code: "security", Label: "安全", Icon: "lock-keyhole", Path: "/security", Order: 50},
 		},
 	},
 	{

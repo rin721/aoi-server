@@ -784,6 +784,16 @@ a {
   --aoi-admin-topbar-height: 58px;
   --aoi-admin-tabs-height: 42px;
   --aoi-admin-page-max-width: 1480px;
+  --aoi-admin-bg: #f5f7fb;
+  --aoi-admin-surface: #ffffff;
+  --aoi-admin-surface-muted: #f8fafc;
+  --aoi-admin-border: #e5e7eb;
+  --aoi-admin-border-soft: #eef2f7;
+  --aoi-admin-text: #111827;
+  --aoi-admin-text-muted: #6b7280;
+  --aoi-admin-icon: #4b5563;
+  --aoi-admin-hover: #f1f5f9;
+  --aoi-admin-shadow: 0 1px 2px rgba(15, 23, 42, .04);
 }
 
 :root[data-aoi-admin-density="compact"] {
@@ -793,6 +803,19 @@ a {
   --aoi-control-height-md: 34px;
   --aoi-control-height-lg: 38px;
   --aoi-icon-button-size: 34px;
+}
+
+:root.dark {
+  --aoi-admin-bg: #0f172a;
+  --aoi-admin-surface: #111827;
+  --aoi-admin-surface-muted: #182235;
+  --aoi-admin-border: #263244;
+  --aoi-admin-border-soft: #1f2a3a;
+  --aoi-admin-text: #f8fafc;
+  --aoi-admin-text-muted: #cbd5e1;
+  --aoi-admin-icon: #cbd5e1;
+  --aoi-admin-hover: #1e293b;
+  --aoi-admin-shadow: none;
 }
 
 :root[data-aoi-admin-reduced-motion="true"] *,
@@ -811,18 +834,44 @@ a {
       color-mix(in srgb, var(--aoi-accent-60) 8%, transparent) 76px 78px,
       transparent 78px 152px
     );
-  opacity: 1;
+  opacity: .24;
+}
+
+:where(.admin-shell, .auth-layout) {
+  --aoi-bg: var(--aoi-admin-bg);
+  --aoi-surface: var(--aoi-admin-surface);
+  --aoi-surface-solid: var(--aoi-admin-surface);
+  --aoi-surface-muted: var(--aoi-admin-surface-muted);
+  --aoi-surface-soft: color-mix(in srgb, var(--aoi-admin-surface-muted) 78%, var(--aoi-admin-surface));
+  --aoi-card-bg: var(--aoi-admin-surface);
+  --aoi-control-bg: var(--aoi-admin-surface);
+  --aoi-border: var(--aoi-admin-border);
+  --aoi-text: var(--aoi-admin-text);
+  --aoi-text-muted: var(--aoi-admin-text-muted);
+  --aoi-icon: var(--aoi-admin-icon);
+  --aoi-shadow-sm: var(--aoi-admin-shadow);
+  --aoi-shadow-md: 0 10px 30px rgba(15, 23, 42, .08);
+  --aoi-state-hover: color-mix(in srgb, var(--aoi-active-color) 8%, var(--aoi-admin-surface));
+  --aoi-state-active: color-mix(in srgb, var(--aoi-active-color) 12%, var(--aoi-admin-surface));
+  --aoi-intent-primary-soft-bg: color-mix(in srgb, var(--aoi-active-color) 10%, var(--aoi-admin-surface));
+  --aoi-intent-primary-border: color-mix(in srgb, var(--aoi-active-color) 34%, var(--aoi-admin-border));
+  --md-sys-color-surface: var(--aoi-admin-surface);
+  --md-sys-color-on-surface: var(--aoi-admin-text);
+  --md-sys-color-surface-container-low: var(--aoi-admin-surface-muted);
+  --md-sys-color-surface-container: var(--aoi-admin-surface);
+  --md-sys-color-outline: var(--aoi-admin-border);
 }
 
 .admin-shell {
   display: grid;
   min-height: 100vh;
   grid-template-columns: var(--aoi-admin-sidebar-width) minmax(0, 1fr);
-  background: color-mix(in srgb, var(--aoi-bg) 88%, #eef3f8);
+  background: var(--aoi-admin-bg);
+  color: var(--aoi-admin-text);
 }
 
 :root.dark .admin-shell {
-  background: var(--aoi-bg);
+  background: var(--aoi-admin-bg);
 }
 
 .admin-sidebar {
@@ -833,10 +882,10 @@ a {
   height: 100vh;
   min-width: 0;
   flex-direction: column;
-  border-right: 1px solid var(--aoi-border);
-  background: var(--aoi-surface-solid);
+  border-right: 1px solid var(--aoi-admin-border);
+  background: var(--aoi-admin-surface);
   box-shadow: none;
-  padding: 14px 12px;
+  padding: 12px 8px;
   transition:
     width var(--aoi-motion-base) var(--aoi-ease-out),
     padding var(--aoi-motion-base) var(--aoi-ease-out);
@@ -854,7 +903,8 @@ a {
   gap: 10px;
   overflow: hidden;
   border-radius: var(--aoi-radius-control);
-  padding: 6px;
+  color: var(--aoi-admin-text);
+  padding: 8px 6px;
 }
 
 .admin-brand-mark,
@@ -882,7 +932,7 @@ a {
 }
 
 .admin-sidebar__brand-copy small {
-  color: var(--aoi-text-muted);
+  color: var(--aoi-admin-text-muted);
   font-size: 12px;
 }
 
@@ -894,9 +944,9 @@ a {
 
 .admin-sidebar__nav {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   overflow-y: auto;
-  padding-top: 18px;
+  padding-top: 14px;
 }
 
 .admin-sidebar__group {
@@ -905,8 +955,8 @@ a {
 }
 
 .admin-sidebar__group-label {
-  margin: 0 8px 4px;
-  color: var(--aoi-text-muted);
+  margin: 0 10px 4px;
+  color: var(--aoi-admin-text-muted);
   font-size: 11px;
   font-weight: 840;
   text-transform: uppercase;
@@ -919,9 +969,9 @@ a {
   align-items: center;
   gap: 10px;
   border-radius: var(--aoi-radius-control);
-  color: var(--aoi-text-muted);
+  color: var(--aoi-admin-text-muted);
   font-weight: 760;
-  padding: 0 10px;
+  padding: 0 12px;
   transition:
     background var(--aoi-motion-fast) var(--aoi-ease-out),
     color var(--aoi-motion-fast) var(--aoi-ease-out),
@@ -929,13 +979,13 @@ a {
 }
 
 .admin-sidebar__item:hover {
-  background: var(--aoi-state-hover);
+  background: var(--aoi-admin-hover);
   color: var(--aoi-active-color);
 }
 
 .admin-sidebar__item--active {
   background: var(--aoi-active-color);
-  color: var(--aoi-surface-solid);
+  color: #ffffff;
   box-shadow: none;
 }
 
@@ -957,8 +1007,8 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid var(--aoi-border);
-  background: var(--aoi-surface-solid);
+  border-bottom: 1px solid var(--aoi-admin-border);
+  background: var(--aoi-admin-surface);
   padding: 0 clamp(14px, 2.4vw, 28px);
 }
 
@@ -978,7 +1028,7 @@ a {
 
 .admin-topbar__title span,
 .admin-topbar__user small {
-  color: var(--aoi-text-muted);
+  color: var(--aoi-admin-text-muted);
   font-size: 12px;
 }
 
@@ -993,7 +1043,7 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--aoi-text-muted);
+  color: var(--aoi-admin-text-muted);
   font-size: 12px;
   font-weight: 820;
 }
@@ -1001,10 +1051,10 @@ a {
 .admin-topbar__org select {
   height: 34px;
   min-width: 190px;
-  border: 1px solid var(--aoi-border);
+  border: 1px solid var(--aoi-admin-border);
   border-radius: var(--aoi-radius-control);
-  background: var(--aoi-surface-solid);
-  color: var(--aoi-text);
+  background: var(--aoi-admin-surface);
+  color: var(--aoi-admin-text);
   padding: 0 8px;
 }
 
@@ -1017,8 +1067,8 @@ a {
   align-items: center;
   gap: 6px;
   overflow-x: auto;
-  border-bottom: 1px solid var(--aoi-border);
-  background: var(--aoi-surface-solid);
+  border-bottom: 1px solid var(--aoi-admin-border);
+  background: var(--aoi-admin-surface);
   padding: 5px clamp(14px, 2.4vw, 28px);
 }
 
@@ -1028,9 +1078,10 @@ a {
   min-height: 30px;
   align-items: center;
   gap: 6px;
-  border: 1px solid transparent;
-  border-radius: var(--aoi-radius-control);
-  color: var(--aoi-text-muted);
+  border: 1px solid var(--aoi-admin-border);
+  border-radius: var(--aoi-radius-xs);
+  background: var(--aoi-admin-surface-muted);
+  color: var(--aoi-admin-text-muted);
   font-size: 12px;
   font-weight: 760;
   padding: 0 8px;
@@ -1038,7 +1089,7 @@ a {
 
 .admin-tabs__item--active {
   border-color: var(--aoi-intent-primary-border);
-  background: var(--aoi-intent-primary-soft-bg);
+  background: color-mix(in srgb, var(--aoi-active-color) 8%, var(--aoi-admin-surface));
   color: var(--aoi-active-color);
 }
 
@@ -1063,37 +1114,39 @@ a {
   width: min(100%, var(--aoi-admin-page-max-width));
   min-width: 0;
   margin: 0 auto;
-  padding: 22px clamp(16px, 3vw, 34px) 54px;
+  padding: 20px clamp(16px, 2.4vw, 30px) 54px;
 }
 
 .auth-layout {
   display: grid;
   min-height: 100vh;
   place-items: center;
+  background: var(--aoi-admin-bg);
+  color: var(--aoi-admin-text);
   padding: 24px;
 }
 
 .auth-card {
   display: grid;
-  width: min(100%, 1040px);
-  min-height: 590px;
-  grid-template-columns: minmax(280px, .95fr) minmax(320px, 1fr);
+  width: min(100%, 960px);
+  min-height: 540px;
+  grid-template-columns: minmax(260px, .82fr) minmax(320px, 1fr);
   overflow: hidden;
-  border: 1px solid var(--aoi-border);
+  border: 1px solid var(--aoi-admin-border);
   border-radius: var(--aoi-radius-card);
-  background: var(--aoi-surface-solid);
-  box-shadow: var(--aoi-shadow-md);
+  background: var(--aoi-admin-surface);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, .08);
 }
 
 .auth-card__visual {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  border-right: 1px solid var(--aoi-admin-border);
   background:
-    radial-gradient(circle at 24% 20%, rgba(255, 255, 255, .26), transparent 24%),
-    linear-gradient(135deg, #0f68d8, #3b82f6 48%, #21c7b8);
-  color: white;
-  padding: 34px;
+    linear-gradient(180deg, color-mix(in srgb, var(--aoi-active-color) 8%, var(--aoi-admin-surface)), var(--aoi-admin-surface-muted));
+  color: var(--aoi-admin-text);
+  padding: 32px;
 }
 
 .auth-card__brand {
@@ -1102,7 +1155,8 @@ a {
 }
 
 .auth-card__visual .auth-card__mark {
-  background: rgba(255, 255, 255, .18);
+  background: var(--aoi-active-color);
+  color: #ffffff;
 }
 
 .auth-card__visual h1 {
@@ -1114,31 +1168,31 @@ a {
 .auth-card__visual p {
   max-width: 28rem;
   margin: 12px 0 0;
-  color: rgba(255, 255, 255, .84);
+  color: var(--aoi-admin-text-muted);
   line-height: 1.8;
 }
 
 .auth-card__visual-panel {
   display: grid;
   gap: 10px;
-  border: 1px solid rgba(255, 255, 255, .22);
+  border: 1px solid var(--aoi-admin-border);
   border-radius: var(--aoi-radius-card);
-  background: rgba(255, 255, 255, .14);
+  background: var(--aoi-admin-surface);
+  color: var(--aoi-admin-text-muted);
   padding: 18px;
-  backdrop-filter: blur(18px);
 }
 
 .auth-card__visual-line {
   width: 64%;
   height: 8px;
   border-radius: var(--aoi-radius-round);
-  background: rgba(255, 255, 255, .42);
+  background: color-mix(in srgb, var(--aoi-active-color) 18%, transparent);
 }
 
 .auth-card__visual-code {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
-  opacity: .9;
+  opacity: 1;
 }
 
 .auth-card__form {
@@ -1174,10 +1228,10 @@ a {
 
 .admin-card {
   min-width: 0;
-  border: 1px solid var(--aoi-border);
+  border: 1px solid var(--aoi-admin-border);
   border-radius: var(--aoi-radius-card);
-  background: var(--aoi-surface-solid);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  background: var(--aoi-admin-surface);
+  box-shadow: var(--aoi-admin-shadow);
 }
 
 .admin-card__header {
@@ -1186,7 +1240,8 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid var(--aoi-border);
+  border-bottom: 1px solid var(--aoi-admin-border);
+  background: var(--aoi-admin-surface);
   padding: 12px 14px;
 }
 
@@ -1219,7 +1274,7 @@ a {
 }
 
 .stat-card__label {
-  color: var(--aoi-text-muted);
+  color: var(--aoi-admin-text-muted);
   font-size: 12px;
   font-weight: 780;
 }
@@ -1234,7 +1289,7 @@ a {
 
 .stat-card__meta {
   overflow: hidden;
-  color: var(--aoi-text-muted);
+  color: var(--aoi-admin-text-muted);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1256,7 +1311,8 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
   gap: 10px;
   align-items: end;
-  border-bottom: 1px solid var(--aoi-border);
+  border-bottom: 1px solid var(--aoi-admin-border);
+  background: var(--aoi-admin-surface);
   padding: 12px 14px;
 }
 
@@ -1294,21 +1350,21 @@ a {
   overflow-x: auto;
   width: 100%;
   overscroll-behavior-x: contain;
-  scrollbar-color: color-mix(in srgb, var(--aoi-text-muted) 34%, transparent) transparent;
-  box-shadow: inset -18px 0 18px -20px color-mix(in srgb, var(--aoi-text) 44%, transparent);
+  scrollbar-color: color-mix(in srgb, var(--aoi-admin-text-muted) 34%, transparent) transparent;
+  box-shadow: none;
 }
 
 .data-table {
   width: 100%;
   min-width: 680px;
   border-collapse: collapse;
-  background: var(--aoi-surface-solid);
+  background: var(--aoi-admin-surface);
 }
 
 .data-table th,
 .data-table td {
-  border-bottom: 1px solid var(--aoi-border);
-  padding: 11px 12px;
+  border-bottom: 1px solid var(--aoi-admin-border-soft);
+  padding: 10px 12px;
   text-align: left;
   vertical-align: middle;
   white-space: nowrap;
@@ -1320,14 +1376,19 @@ a {
 }
 
 .data-table th {
-  color: var(--aoi-text-muted);
+  background: var(--aoi-admin-surface-muted);
+  color: color-mix(in srgb, var(--aoi-admin-text) 78%, var(--aoi-admin-text-muted));
   font-size: 12px;
   font-weight: 820;
   white-space: nowrap;
 }
 
 .data-table td {
-  color: var(--aoi-text);
+  color: var(--aoi-admin-text);
+}
+
+.data-table tbody tr:hover {
+  background: var(--aoi-admin-hover);
 }
 
 .data-table td:last-child {
@@ -1355,7 +1416,7 @@ a {
 }
 
 .muted {
-  color: var(--aoi-text-muted);
+  color: var(--aoi-admin-text-muted, var(--aoi-text-muted));
 }
 
 .mono {
@@ -1366,10 +1427,10 @@ a {
   display: inline-flex;
   min-height: 24px;
   align-items: center;
-  border: 1px solid var(--aoi-border);
+  border: 1px solid var(--aoi-admin-border, var(--aoi-border));
   border-radius: var(--aoi-radius-round);
-  background: color-mix(in srgb, var(--aoi-surface-muted) 76%, var(--aoi-surface-solid));
-  color: var(--aoi-text);
+  background: color-mix(in srgb, var(--aoi-admin-surface-muted, var(--aoi-surface-muted)) 76%, var(--aoi-admin-surface, var(--aoi-surface-solid)));
+  color: var(--aoi-admin-text, var(--aoi-text));
   font-size: 12px;
   font-weight: 760;
   padding: 2px 9px;
@@ -1415,8 +1476,8 @@ a {
   display: none;
   height: var(--aoi-mobile-nav-height);
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-top: 1px solid var(--aoi-border);
-  background: var(--aoi-surface-solid);
+  border-top: 1px solid var(--aoi-admin-border);
+  background: var(--aoi-admin-surface);
 }
 
 .admin-mobile-nav__item {
@@ -1424,7 +1485,7 @@ a {
   min-width: 0;
   place-items: center;
   align-content: center;
-  color: var(--aoi-text-muted);
+  color: var(--aoi-admin-text-muted);
   font-size: 11px;
   font-weight: 760;
   gap: 2px;
@@ -1464,8 +1525,8 @@ a {
   height: 100%;
   flex-direction: column;
   overflow-y: auto;
-  border-left: 1px solid var(--aoi-border);
-  background: var(--aoi-surface-solid);
+  border-left: 1px solid var(--aoi-admin-border);
+  background: var(--aoi-admin-surface);
   box-shadow: -10px 0 28px rgba(10, 24, 38, .12);
   padding: 18px;
 }
@@ -1489,13 +1550,13 @@ a {
 
 .admin-settings-drawer__header span {
   margin-top: 4px;
-  color: var(--aoi-text-muted);
+  color: var(--aoi-admin-text-muted);
 }
 
 .admin-settings-drawer__section {
   display: grid;
   gap: 10px;
-  border-bottom: 1px solid var(--aoi-border);
+  border-bottom: 1px solid var(--aoi-admin-border);
   padding: 18px 0;
 }
 
@@ -1515,10 +1576,10 @@ a {
   min-height: 38px;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--aoi-border);
+  border: 1px solid var(--aoi-admin-border);
   border-radius: var(--aoi-radius-control);
-  background: var(--aoi-surface-solid);
-  color: var(--aoi-text);
+  background: var(--aoi-admin-surface);
+  color: var(--aoi-admin-text);
   cursor: pointer;
   font: inherit;
   font-weight: 760;

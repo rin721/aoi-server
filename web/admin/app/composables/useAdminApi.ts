@@ -1,5 +1,6 @@
 ﻿import type {
   ApiErrorPayload,
+  CaptchaChallenge,
   AuditLog,
   HealthStatus,
   ID,
@@ -148,6 +149,7 @@ export function useAdminApi() {
     deleteTodo: (id: number) => request<{ deleted: boolean }>(`/api/v1/demo/todos/${id}`, { method: "DELETE" }),
     forgotPassword: (email: string) =>
       request<NotificationDelivery>("/api/v1/auth/password/forgot", { auth: false, body: { email }, method: "POST" }),
+    getAuthCaptcha: () => request<CaptchaChallenge>("/api/v1/auth/captcha", { auth: false }),
     getHealth: () => request<HealthStatus>("/health", { auth: false }),
     getMe: () => request<User>("/api/v1/me"),
     getReady: () => request<ReadyStatus>("/ready", { auth: false }),
@@ -179,7 +181,7 @@ export function useAdminApi() {
     listSystemAPIs: () => request<SystemAPIGroup[]>("/api/v1/system/apis"),
     listSystemDictionaries: () => request<SystemDictionaryCatalog>("/api/v1/system/dictionaries"),
     listSystemMenus: () => request<SystemMenuGroup[]>("/api/v1/system/menus"),
-    listSystemOperationRecords: (query: { method?: string, page?: number, pageSize?: number, path?: string, status?: number | string } = {}) =>
+    listSystemOperationRecords: (query: { method?: string, page?: number, pageSize?: number, path?: string, status?: number | string, statusClass?: string } = {}) =>
       request<SystemOperationRecordPage>("/api/v1/system/operation-records", { query }),
     listSystemParameters: (query: { endCreatedAt?: string, key?: string, name?: string, page?: number, pageSize?: number, startCreatedAt?: string } = {}) =>
       request<SystemParameterPage>("/api/v1/system/parameters", { query }),

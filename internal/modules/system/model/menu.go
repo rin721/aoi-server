@@ -27,6 +27,7 @@ type APIGroup struct {
 }
 
 type APIEntry struct {
+	Access               string     `json:"access"`
 	Code                 string     `json:"code"`
 	Group                string     `json:"group"`
 	Method               string     `json:"method"`

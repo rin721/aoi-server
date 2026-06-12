@@ -11,11 +11,12 @@ type OperationRecordPage struct {
 }
 
 type OperationRecordFilter struct {
-	Method   string
-	Page     int
-	PageSize int
-	Path     string
-	Status   int
+	Method      string
+	Page        int
+	PageSize    int
+	Path        string
+	Status      int
+	StatusClass string
 }
 
 type OperationRecord struct {

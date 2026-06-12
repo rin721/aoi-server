@@ -259,6 +259,25 @@ paths:
                 $ref: "#/components/schemas/ErrorResult"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/v1/auth/captcha:
+    get:
+      tags: [IAM 认证]
+      summary: 获取登录验证码
+      security: []
+      responses:
+        "200":
+          description: 登录验证码状态与图片。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Result"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CaptchaChallenge"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/v1/auth/login:
     post:
       tags: [IAM 认证]
@@ -2733,6 +2752,12 @@ components:
       type: object
       required: [identifier, password]
       properties:
+        captchaId:
+          type: string
+          description: 验证码开启时由 `/api/v1/auth/captcha` 返回。
+        captchaCode:
+          type: string
+          description: 验证码开启时填写用户看到的验证码答案。
         identifier:
           type: string
           description: 用户名或邮箱。
@@ -2743,6 +2768,20 @@ components:
           type: string
         mfaCode:
           type: string
+    CaptchaChallenge:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+        captchaId:
+          type: string
+        image:
+          type: string
+          description: SVG data URL；验证码关闭时为空。
+        expiresAt:
+          type: string
+          format: date-time
     SignupRequest:
       type: object
       required: [orgCode, orgName, username, email, password]

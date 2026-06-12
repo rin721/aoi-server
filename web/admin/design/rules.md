@@ -31,6 +31,7 @@ Keep `design/` focused on constraints that guide future implementation. Do not a
 - Button-style navigation uses `AoiButton` or `AoiIconButton` with `to`/`href`.
 - Use `app/assets/css/tokens.css` tokens and shared structure rules in `app/assets/css/main.css`.
 - Prefer semantic tokens such as panel/card/control/nav/state/danger variables over one-off color literals.
+- Admin status badges, method labels, and table states must use semantic intent tokens instead of page-local color literals so light, dark, and high-contrast modes stay readable.
 - Use domain-specific radius tokens: `--aoi-radius-container`, `--aoi-radius-card`, `--aoi-radius-control`, `--aoi-radius-field`, `--aoi-radius-choice`, `--aoi-radius-nav-indicator`, and `--aoi-radius-round`. Reserve `999px` for navigation indicators, single-line pill controls, and true round/circular affordances; wide input/select fields must use capped field radii instead of control radii.
 - Preserve responsive behavior, visible focus states, keyboard access, touch targets, text contrast, and `prefers-reduced-motion`.
 - Icons should come from the local Lucide collection through `@nuxt/icon`.
@@ -42,6 +43,9 @@ Keep `design/` focused on constraints that guide future implementation. Do not a
 - Mobile uses a compact top bar and 56px bottom nav with four primary destinations: dashboard, organizations, users, and roles.
 - Data pages use a filter strip, action toolbar, responsive table, empty/loading/error states, and dialogs or drawers for mutation workflows.
 - Settings stay in a right-side drawer with local appearance preferences persisted under `aoi.admin.ui.v1`.
+- Admin workflow surfaces must stay visually quiet: solid page backgrounds, solid white or dark panels, thin borders, low shadows, dense tables, and no glass/blur/orb/marketing decoration in core management pages.
+- Admin runtime must isolate itself from legacy Aoi presentation settings. User background images, colorful navigation, scroll decoration, and other front-site preferences must not leak into authenticated admin workflows.
+- Login and setup pages may show a branded side panel, but it should remain a restrained product shell rather than a promotional hero.
 
 ## Viewport And Lazy Loading Rules
 
@@ -79,6 +83,7 @@ Keep `design/` focused on constraints that guide future implementation. Do not a
 - Browser-local settings are presentation preferences only and must not be sent to the backend.
 - Browser-local stores must hydrate only on the client, recover from damaged `localStorage`, and avoid SSR crashes.
 - Admin local preferences must never persist credentials, tokens, or private API payloads.
+- Gin-Vue-Admin backend parity maps into this repository's existing layers: `api/v1` and router behavior belong in `internal/transport/http` plus module handlers, request validation and transactions belong in module services, persistence belongs in repositories, and reusable infrastructure remains under `pkg`.
 
 ## Local State Rules
 
@@ -98,4 +103,5 @@ Keep `design/` focused on constraints that guide future implementation. Do not a
 - After Nuxt config, server route, runtime config, or build-sensitive changes, run `pnpm build`.
 - Before handing off Go-hosted admin changes, run `pnpm generate` and confirm `web/admin/.output/public/index.html` exists.
 - Visible UI changes must be checked with Browser/visual inspection at desktop and mobile widths. Use at least `1440x900` and `390x844`, and record the inspected routes, viewport sizes, and any remaining visual risk in the final handoff.
+- Backend changes that alter an admin workflow, menu, table, form, permission surface, or response shape must also receive Browser/visual inspection of the affected frontend route before handoff.
 - There is currently no committed lint script; do not claim lint was run unless a lint script is added or provided.

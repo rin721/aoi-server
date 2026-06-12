@@ -100,6 +100,7 @@ const (
 	AppCORSName      = "cors"
 	AppRPCName       = "rpc"
 	AppAuthName      = "auth"
+	AppSystemName    = "system"
 	AppMigrationName = "migration"
 	AppWebUIName     = "webui"
 	AppPluginsName   = "plugins"

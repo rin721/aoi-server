@@ -75,6 +75,7 @@ type apiCatalogGroup struct {
 }
 
 type apiCatalogItem struct {
+	Access     string `json:"access"`
 	Method     string `json:"method"`
 	Path       string `json:"path"`
 	Permission string `json:"permission"`
@@ -121,6 +122,10 @@ func (a permissionAuthorizer) Authorize(_ context.Context, _ iamservice.Principa
 
 func (s *fakeIAMService) BootstrapAdmin(context.Context, iamservice.BootstrapAdminInput) (*iamservice.Principal, error) {
 	return nil, nil
+}
+
+func (s *fakeIAMService) Captcha(context.Context) (iamservice.CaptchaChallenge, error) {
+	return iamservice.CaptchaChallenge{Enabled: false}, nil
 }
 func (s *fakeIAMService) SetupStatus(context.Context) (iamservice.SetupStatus, error) {
 	s.setupStatusCalls++
@@ -377,6 +382,7 @@ func TestOpenAPICoversIAMProductRoutes(t *testing.T) {
 		"/api/v1/auth/setup/status:",
 		"/api/v1/auth/setup/initial-admin:",
 		"/api/v1/auth/signup:",
+		"/api/v1/auth/captcha:",
 		"/api/v1/orgs/{orgId}:",
 		"/api/v1/orgs/{orgId}/users/{userId}:",
 		"/api/v1/orgs/{orgId}/invitations:",
@@ -403,6 +409,7 @@ func TestOpenAPICoversIAMProductRoutes(t *testing.T) {
 func TestNewRouterSystemMenusRequireAuthAndFilterPermissions(t *testing.T) {
 	auth := &fakeIAMService{}
 	systemHandler := systemhandler.New(systemservice.New(systemservice.Config{DemoEnabled: true}), permissionAuthorizer{
+		"audit:read":      true,
 		"dictionary:read": true,
 		"config:read":     true,
 		"org:read":        true,
@@ -448,6 +455,12 @@ func TestNewRouterSystemMenusRequireAuthAndFilterPermissions(t *testing.T) {
 	}
 	if !menuContains(body, "system", "operation-records") {
 		t.Fatalf("expected operation history menu in %#v", body.Data)
+	}
+	if !menuContains(body, "security", "login-logs") {
+		t.Fatalf("expected login log menu in %#v", body.Data)
+	}
+	if !menuContains(body, "security", "error-logs") {
+		t.Fatalf("expected error log menu in %#v", body.Data)
 	}
 	if !menuContains(body, "system", "parameters") {
 		t.Fatalf("expected parameter management menu in %#v", body.Data)
@@ -501,6 +514,12 @@ func TestNewRouterSystemAPIsRequirePermissionAndListCatalog(t *testing.T) {
 	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/apis", "permission:read") {
 		t.Fatalf("expected system api catalog to include itself with permission: %#v", body.Data)
 	}
+	if !apiCatalogAccess(body, http.MethodGet, "/api/v1/system/apis", "permission") {
+		t.Fatalf("expected system api route to require permission in API catalog: %#v", body.Data)
+	}
+	if !apiCatalogAccess(body, http.MethodGet, "/api/v1/system/menus", "authenticated") {
+		t.Fatalf("expected system menu route to require authentication in API catalog: %#v", body.Data)
+	}
 	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/config", "config:read") {
 		t.Fatalf("expected system api catalog to include config with permission: %#v", body.Data)
 	}
@@ -542,6 +561,30 @@ func TestNewRouterSystemAPIsRequirePermissionAndListCatalog(t *testing.T) {
 	}
 	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/menus", "") {
 		t.Fatalf("expected system api catalog to include menus: %#v", body.Data)
+	}
+}
+
+func TestAPIRouteAccessClassifiesPublicAuthenticatedAndPermissionRoutes(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		permission string
+		want       string
+	}{
+		{name: "login is public", path: "/api/v1/auth/login", want: "public"},
+		{name: "captcha is public", path: "/api/v1/auth/captcha", want: "public"},
+		{name: "invitation accept is public", path: "/api/v1/invitations/:token/accept", want: "public"},
+		{name: "logout is authenticated", path: "/api/v1/auth/logout", want: "authenticated"},
+		{name: "me is authenticated", path: "/api/v1/me", want: "authenticated"},
+		{name: "permission route wins", path: "/api/v1/system/apis", permission: "permission:read", want: "permission"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := apiRouteAccess(tt.path, tt.permission); got != tt.want {
+				t.Fatalf("apiRouteAccess(%q, %q) = %q, want %q", tt.path, tt.permission, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -790,6 +833,17 @@ func apiGroupsContain(groups []apiCatalogGroup, method string, path string, perm
 	for _, group := range groups {
 		for _, item := range group.Items {
 			if item.Method == method && item.Path == path && item.Permission == permission {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func apiCatalogAccess(body apiCatalogResponse, method string, path string, access string) bool {
+	for _, group := range body.Data {
+		for _, item := range group.Items {
+			if item.Method == method && item.Path == path && item.Access == access {
 				return true
 			}
 		}

@@ -23,10 +23,12 @@ func New(service service.Service, logger logger.Logger) *Handler {
 }
 
 type loginRequest struct {
-	Identifier string `json:"identifier" binding:"required"`
-	Password   string `json:"password" binding:"required"`
-	OrgCode    string `json:"orgCode"`
-	MFACode    string `json:"mfaCode"`
+	CaptchaCode string `json:"captchaCode"`
+	CaptchaID   string `json:"captchaId"`
+	Identifier  string `json:"identifier" binding:"required"`
+	Password    string `json:"password" binding:"required"`
+	OrgCode     string `json:"orgCode"`
+	MFACode     string `json:"mfaCode"`
 }
 
 type signupRequest struct {
@@ -161,14 +163,21 @@ func (h *Handler) Login(c web.Context) {
 		return
 	}
 	pair, err := h.service.Login(c.RequestContext(), service.LoginInput{
-		Identifier: req.Identifier,
-		Password:   req.Password,
-		OrgCode:    req.OrgCode,
-		MFACode:    req.MFACode,
-		UserAgent:  c.GetHeader("User-Agent"),
-		IPAddress:  c.ClientIP(),
+		CaptchaCode: req.CaptchaCode,
+		CaptchaID:   req.CaptchaID,
+		Identifier:  req.Identifier,
+		Password:    req.Password,
+		OrgCode:     req.OrgCode,
+		MFACode:     req.MFACode,
+		UserAgent:   c.GetHeader("User-Agent"),
+		IPAddress:   c.ClientIP(),
 	})
 	h.write(c, pair, err)
+}
+
+func (h *Handler) Captcha(c web.Context) {
+	challenge, err := h.service.Captcha(c.RequestContext())
+	h.write(c, challenge, err)
 }
 
 func (h *Handler) Refresh(c web.Context) {
@@ -608,7 +617,7 @@ func (h *Handler) writeCreated(c web.Context, data any, err error) {
 
 func (h *Handler) writeError(c web.Context, err error) {
 	switch {
-	case errors.Is(err, service.ErrInvalidInput):
+	case errors.Is(err, service.ErrInvalidInput), errors.Is(err, service.ErrCaptchaRequired), errors.Is(err, service.ErrCaptchaInvalid):
 		result.BadRequest(c, err.Error())
 	case errors.Is(err, service.ErrUnauthorized), errors.Is(err, service.ErrMFARequired), errors.Is(err, service.ErrInvalidToken), errors.Is(err, service.ErrAccountLocked), errors.Is(err, service.ErrAccountDisabled), errors.Is(err, service.ErrSessionRevoked):
 		result.Unauthorized(c, err.Error())
