@@ -24,6 +24,7 @@
   Result,
   Role,
   Session,
+  SessionPage,
   SignupRequest,
   SetupStatus,
   SystemAPIGroup,
@@ -239,8 +240,8 @@ export function useAdminApi() {
         query: options.query
       }),
     listRoles: (orgId: ID) => request<Role[]>(`/api/v1/orgs/${orgId}/roles`),
-    listSessions: (orgId: ID, userId?: ID | null) =>
-      request<Session[]>(`/api/v1/orgs/${orgId}/sessions`, { query: userId ? { userId } : undefined }),
+    listSessions: (orgId: ID, query: { desc?: boolean, ipAddress?: string, keyword?: string, orderKey?: string, page?: number, pageSize?: number, scope?: string, status?: string, userId?: ID | null } = {}) =>
+      request<SessionPage>(`/api/v1/orgs/${orgId}/sessions`, { query }),
     listSystemAPIs: () => request<SystemAPIGroup[]>("/api/v1/system/apis"),
     listSystemDictionaries: () => request<SystemDictionaryCatalog>("/api/v1/system/dictionaries"),
     listSystemMenus: () => request<SystemMenuGroup[]>("/api/v1/system/menus"),

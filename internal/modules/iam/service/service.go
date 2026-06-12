@@ -275,6 +275,26 @@ type OrganizationUserPage struct {
 	StorageStatus string             `json:"storageStatus"`
 }
 
+type SessionListFilter struct {
+	Keyword   string
+	UserID    int64
+	IPAddress string
+	Status    string
+	Scope     string
+	OrderKey  string
+	Desc      bool
+	Page      int
+	PageSize  int
+}
+
+type SessionPage struct {
+	Items         []model.Session `json:"items"`
+	Page          int             `json:"page"`
+	PageSize      int             `json:"pageSize"`
+	Total         int64           `json:"total"`
+	StorageStatus string          `json:"storageStatus"`
+}
+
 type APITokenView struct {
 	ID                int64      `json:"id,string"`
 	OrgID             int64      `json:"orgId,string"`
@@ -373,7 +393,7 @@ type Service interface {
 	CreateRole(context.Context, CreateRoleInput) (*model.Role, error)
 	UpdateRole(context.Context, UpdateRoleInput) (*model.Role, error)
 	ListPermissions(context.Context, Principal) ([]model.Permission, error)
-	ListSessions(context.Context, Principal, int64) ([]model.Session, error)
+	ListSessions(context.Context, Principal, SessionListFilter) (SessionPage, error)
 	RevokeSession(context.Context, Principal, int64) error
 	ListAuditLogs(context.Context, Principal, AuditLogFilter) ([]model.AuditLog, error)
 	RecordAudit(context.Context, Principal, string, string, string, string, string, map[string]any) error
@@ -1303,6 +1323,85 @@ func sortOrganizationUsers(items []OrganizationUser, filter UserListFilter) {
 	})
 }
 
+func sessionMatches(session model.Session, filter SessionListFilter, now time.Time) bool {
+	status := sessionStatus(session, now)
+	keyword := normalizeCode(filter.Keyword)
+	if keyword != "" && !containsAnyFold(
+		keyword,
+		strconv.FormatInt(session.ID, 10),
+		strconv.FormatInt(session.UserID, 10),
+		session.IPAddress,
+		session.UserAgent,
+		status,
+	) {
+		return false
+	}
+	if ipAddress := normalizeCode(filter.IPAddress); ipAddress != "" && !strings.Contains(strings.ToLower(session.IPAddress), ipAddress) {
+		return false
+	}
+	if filterStatus := normalizeCode(filter.Status); filterStatus != "" && status != filterStatus {
+		return false
+	}
+	return true
+}
+
+func sessionStatus(session model.Session, now time.Time) string {
+	if session.RevokedAt != nil {
+		return "revoked"
+	}
+	if !session.ExpiresAt.IsZero() && !session.ExpiresAt.After(now) {
+		return "expired"
+	}
+	return "active"
+}
+
+func sortSessions(items []model.Session, filter SessionListFilter) {
+	orderKey := normalizeCode(filter.OrderKey)
+	if orderKey == "" {
+		orderKey = "created_at"
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		left, right := items[i], items[j]
+		compare := int64(0)
+		switch orderKey {
+		case "user_id", "userid":
+			compare = left.UserID - right.UserID
+		case "ip", "ip_address", "ipaddress":
+			compare = int64(strings.Compare(strings.ToLower(left.IPAddress), strings.ToLower(right.IPAddress)))
+		case "expires_at", "expiresat":
+			compare = compareTime(left.ExpiresAt, right.ExpiresAt)
+		case "last_used_at", "lastusedat":
+			compare = compareTime(sessionLastUsedAt(left), sessionLastUsedAt(right))
+		default:
+			compare = compareTime(left.CreatedAt, right.CreatedAt)
+		}
+		if compare == 0 {
+			return false
+		}
+		if filter.Desc {
+			return compare > 0
+		}
+		return compare < 0
+	})
+}
+
+func sessionLastUsedAt(session model.Session) time.Time {
+	if session.LastUsedAt != nil {
+		return *session.LastUsedAt
+	}
+	return session.CreatedAt
+}
+
+func compareTime(left, right time.Time) int64 {
+	if left.Equal(right) {
+		return 0
+	}
+	if left.After(right) {
+		return 1
+	}
+	return -1
+}
+
 func (s *service) UpdateUser(ctx context.Context, input UpdateUserInput) (*OrganizationUser, error) {
 	membership, err := s.repo.FindMembershipAnyStatus(ctx, input.Principal.OrgID, input.UserID)
 	if err != nil {
@@ -1535,11 +1634,51 @@ func (s *service) ListPermissions(ctx context.Context, _ Principal) ([]model.Per
 	return s.repo.ListPermissions(ctx)
 }
 
-func (s *service) ListSessions(ctx context.Context, p Principal, userID int64) ([]model.Session, error) {
-	if userID == 0 {
-		userID = p.UserID
+func (s *service) ListSessions(ctx context.Context, p Principal, filter SessionListFilter) (SessionPage, error) {
+	var (
+		sessions []model.Session
+		err      error
+	)
+	if normalizeCode(filter.Scope) == "org" && filter.UserID == 0 {
+		sessions, err = s.repo.ListSessionsByOrg(ctx, p.OrgID)
+	} else {
+		userID := filter.UserID
+		if userID == 0 {
+			userID = p.UserID
+		}
+		sessions, err = s.repo.ListSessionsByUser(ctx, userID)
 	}
-	return s.repo.ListSessionsByUser(ctx, userID)
+	if err != nil {
+		return SessionPage{}, err
+	}
+	now := s.now()
+	out := make([]model.Session, 0, len(sessions))
+	for _, session := range sessions {
+		if session.OrgID != p.OrgID {
+			continue
+		}
+		if sessionMatches(session, filter, now) {
+			out = append(out, session)
+		}
+	}
+	sortSessions(out, filter)
+	page, pageSize := normalizeListPage(filter.Page, filter.PageSize)
+	total := int64(len(out))
+	start := (page - 1) * pageSize
+	if start > len(out) {
+		start = len(out)
+	}
+	end := start + pageSize
+	if end > len(out) {
+		end = len(out)
+	}
+	return SessionPage{
+		Items:         out[start:end],
+		Page:          page,
+		PageSize:      pageSize,
+		Total:         total,
+		StorageStatus: "persisted",
+	}, nil
 }
 
 func (s *service) RevokeSession(ctx context.Context, p Principal, sessionID int64) error {

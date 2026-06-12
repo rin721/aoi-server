@@ -629,16 +629,16 @@ Authorization: Bearer <accessToken>
 
 | 方法 | 路径 | 权限对象/动作 | 说明 |
 | --- | --- | --- | --- |
-| GET | `/api/v1/orgs/{orgId}/sessions` | `session:read` | 查询当前用户或指定用户的会话。 |
+| GET | `/api/v1/orgs/{orgId}/sessions` | `session:read` | 分页查询会话，支持 `scope`、`keyword`、`userId`、`ipAddress`、`status`、`page`、`pageSize`。 |
 | DELETE | `/api/v1/orgs/{orgId}/sessions/{sessionId}` | `session:revoke` | 撤销当前组织中的会话。 |
 
-查询会话时可以传入可选查询参数：
+会话列表返回分页对象。未传 `scope` 和 `userId` 时查询当前用户会话；
+`scope=org` 查询当前组织范围，指定 `userId` 时仍会限定当前组织。`status`
+可传 `active`、`revoked` 或 `expired`。
 
 ```http
-GET /api/v1/orgs/10001/sessions?userId=10002
+GET /api/v1/orgs/10001/sessions?scope=org&status=active&page=1&pageSize=10
 ```
-
-未传 `userId` 时查询当前用户的会话。
 
 ## IAM 审计接口
 

@@ -555,16 +555,11 @@ func (h *Handler) ListSessions(c web.Context) {
 	if !ok {
 		return
 	}
-	userID := int64(0)
-	if raw := c.Request().URL.Query().Get("userId"); raw != "" {
-		parsed, err := strconv.ParseInt(raw, 10, 64)
-		if err != nil {
-			result.BadRequest(c, "invalid userId")
-			return
-		}
-		userID = parsed
+	filter, ok := parseSessionListFilter(c)
+	if !ok {
+		return
 	}
-	sessions, err := h.service.ListSessions(c.RequestContext(), principal, userID)
+	sessions, err := h.service.ListSessions(c.RequestContext(), principal, filter)
 	h.write(c, sessions, err)
 }
 
@@ -725,6 +720,43 @@ func parseOrganizationListFilter(c web.Context) (service.OrganizationListFilter,
 			return service.OrganizationListFilter{}, false
 		}
 		filter.PageSize = parsed
+	}
+	return filter, true
+}
+
+func parseSessionListFilter(c web.Context) (service.SessionListFilter, bool) {
+	query := c.Request().URL.Query()
+	filter := service.SessionListFilter{
+		Keyword:   query.Get("keyword"),
+		IPAddress: firstNonEmpty(query.Get("ipAddress"), query.Get("ip")),
+		Status:    query.Get("status"),
+		Scope:     query.Get("scope"),
+		OrderKey:  query.Get("orderKey"),
+		Desc:      query.Get("desc") == "true" || query.Get("desc") == "1",
+	}
+	if raw := query.Get("page"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			result.BadRequest(c, "invalid page")
+			return service.SessionListFilter{}, false
+		}
+		filter.Page = parsed
+	}
+	if raw := query.Get("pageSize"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			result.BadRequest(c, "invalid pageSize")
+			return service.SessionListFilter{}, false
+		}
+		filter.PageSize = parsed
+	}
+	if raw := query.Get("userId"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			result.BadRequest(c, "invalid userId")
+			return service.SessionListFilter{}, false
+		}
+		filter.UserID = parsed
 	}
 	return filter, true
 }

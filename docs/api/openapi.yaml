@@ -1305,16 +1305,71 @@ paths:
       - $ref: "#/components/parameters/OrgID"
     get:
       tags: [IAM 会话]
-      summary: 查询当前用户或指定用户的会话
+      summary: 分页查询会话
       parameters:
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [self, org]
+          description: 查询范围；默认当前用户，org 表示当前组织。
+        - name: keyword
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 关键字，匹配会话 ID、用户 ID、IP、设备和状态。
         - name: userId
           in: query
           required: false
           schema:
             type: string
+          description: 按用户 ID 筛选，仍会限定当前组织。
+        - name: ipAddress
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 按 IP 地址模糊筛选。
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, revoked, expired]
+          description: 按会话状态筛选。
+        - name: orderKey
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [created_at, last_used_at, expires_at, user_id, ip_address]
+          description: 排序字段，默认 created_at。
+        - name: desc
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: 是否倒序。
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: 页码，默认 1。
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: 每页数量，默认 10，最大 100。
       responses:
         "200":
-          description: 会话列表。
+          description: 分页会话列表。
           content:
             application/json:
               schema:
@@ -1323,9 +1378,7 @@ paths:
                   - type: object
                     properties:
                       data:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/Session"
+                        $ref: "#/components/schemas/SessionPage"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -4960,6 +5013,23 @@ components:
         updatedAt:
           type: string
           format: date-time
+    SessionPage:
+      type: object
+      required: [items, page, pageSize, total, storageStatus]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Session"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+        storageStatus:
+          type: string
     AuditLog:
       type: object
       required: [id, action, resource, resourceId, ipAddress, userAgent, metadata, createdAt]

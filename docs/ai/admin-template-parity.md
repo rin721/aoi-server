@@ -89,7 +89,7 @@ Last checked: 2026-06-12.
 
 ### Route And Feature Board
 
-| Status | Upstream area | Local target | Research gate | Notes |
+| Status | External area | Local target | Research gate | Notes |
 | --- | --- | --- | --- | --- |
 | [done] | Admin shell, left menu, visited tabs, dense table styling | `web/admin/app` layout and shared CSS | Visual before/after required for every future UI slice | Keep low-noise 管理后台式 management style. |
 | [done] | Dashboard baseline | `/admin` | Re-check demo dashboard before major dashboard redesign | Local dashboard is service/IAM-focused, not plugin-market focused. |
@@ -98,7 +98,7 @@ Last checked: 2026-06-12.
 | [done] | Role authorization matrix | `/admin/roles` | Re-check 外部后台 role page before editing permission UX | Local implementation maps to Casbin domain RBAC. |
 | [done] | User management | `/admin/users` and IAM APIs | External route/source checked on 2026-06-12 | First pass added list filters, pagination, and compact role/status operations without exposing source wording. |
 | [done] | Organization/tenant management | `/admin/organizations` | Research closest external permission pages before changing | Added organization filters, pagination, and compact management UI. |
-| [audit] | Session/security/MFA pages | `/admin/sessions`, `/admin/security` | Visual and workflow check required before UI changes | Keep token and MFA behavior local; do not copy insecure demo shortcuts. |
+| [done] | Session/security/MFA pages | `/admin/sessions`, `/admin/security` | Visual and workflow check required before UI changes | Added organization-scoped session paging, security summary, and MFA polish. |
 | [done] | Dictionary management | `/admin/dictionaries`, system dictionary APIs | External page optional unless changing item editing UX | Persisted dictionaries and items are implemented. |
 | [done] | Operation history | `/admin/operation-records` | Re-check demo before adding advanced filters/export | Persisted protected request records are implemented. |
 | [done] | Parameter management | `/admin/parameters` | External page optional unless adding batch/import/export | Persisted parameter CRUD is implemented. |
@@ -118,7 +118,7 @@ Last checked: 2026-06-12.
 
 ### Next Slice Protocol
 
-Preferred next slice: Session/security/MFA pages audit, unless the user redirects
+Preferred next slice: Template config/code generator/form generator/export template audit, unless the user redirects
 to another external admin area.
 
 Before implementation:
@@ -155,6 +155,91 @@ Validation floor:
 - Run `pnpm typecheck` for changed `web/admin` TypeScript/Vue code.
 - For visible UI work, visually inspect desktop `1440x900` and mobile
   `390x844` routes with Browser and record results here or in the final note.
+
+### Active Slice: Session Security Management
+
+Status: `[done]` started and completed on 2026-06-13.
+
+Research completed before implementation:
+
+- External login-log page was not accessible to the current demo account; it
+  returned the no-route/no-permission state. No captcha was shown.
+- External source inspection showed the login-log management shape: inline
+  filters for username and status, a dense table with IP, success/failure
+  status, details, browser/device, login time, row delete, batch delete, and
+  pagination.
+- External profile page was also not accessible to the current demo account.
+  Source inspection showed a profile card, editable basic information, and a
+  password-change dialog. Local IAM does not yet expose profile edit or
+  password-change endpoints, so this slice will not add those account mutation
+  surfaces.
+
+Local implementation plan:
+
+- Preserve local JWT/refresh-session and TOTP design. Do not add password
+  change, avatar, phone, or email editing in this slice because those need
+  dedicated validation and notification flows.
+- Extend `GET /api/v1/orgs/:orgId/sessions` from a bare array to a paginated
+  object. Keep no-query calls scoped to the current user for compatibility;
+  add `scope=org` for organization-wide session management.
+- Filter sessions by current organization in service code even when `userId`
+  is supplied, closing the cross-organization listing gap.
+- Support `keyword`, `userId`, `ipAddress`, `status`, `scope`, `orderKey`,
+  `desc`, `page`, and `pageSize` query fields. Status values are `active`,
+  `revoked`, and `expired`.
+- Update `/admin/sessions` into a compact management surface with context
+  warning, filters, status badges, pagination, and revoke actions. Keep revoke
+  disabled for revoked or expired sessions.
+- Polish `/admin/security` so it presents account security state, MFA setup,
+  and a clear link to session management without adding unsupported profile
+  mutations.
+- Update API, OpenAPI, IAM, onboarding, maintenance, and overview docs.
+
+Validation plan:
+
+- Add focused IAM service and HTTP router tests for session filtering,
+  organization scoping, pagination, and query parsing.
+- Run `go test ./internal/modules/iam/... ./internal/transport/http -count=1 -mod=readonly`.
+- Run `pnpm --dir web/admin typecheck`.
+- Parse `docs/api/openapi.yaml`.
+- Visually inspect `/admin/sessions` and `/admin/security` at `1440x900` and
+  `390x844`, checking filter wrapping, table scroll containment, MFA fields,
+  and text overlap.
+
+Implementation completed:
+
+- Extended `GET /api/v1/orgs/:orgId/sessions` to return `SessionPage` with
+  `scope`, `keyword`, `userId`, `ipAddress`, `status`, `orderKey`, `desc`,
+  `page`, and `pageSize` query support.
+- Kept no-query calls scoped to the current user for compatibility, and added
+  `scope=org` for organization-wide session management.
+- Fixed the service boundary so session listing always filters by the
+  principal's current organization, including when `userId` is supplied.
+- Added IAM service and HTTP router tests for session filtering, pagination,
+  organization scoping, and query parsing.
+- Reworked `/admin/sessions` into a compact management page with filters,
+  status badges, pagination, current-session indication, and revoke actions.
+- Reworked `/admin/security` into an account security summary with current
+  organization, current session, token expiry, MFA state, session-management
+  entry, and MFA setup/verification flow.
+- Updated API docs, OpenAPI, IAM module docs, onboarding, maintenance, and
+  overview notes.
+
+Validation completed:
+
+- `go test ./internal/modules/iam/... ./internal/transport/http -count=1 -mod=readonly`
+- `pnpm --dir web/admin typecheck`
+- `docs/api/openapi.yaml` parsed successfully with PyYAML.
+- Local visual evidence saved:
+  `tmp/ai/sessions-desktop-1440-final.png`,
+  `tmp/ai/sessions-mobile-390-final.png`,
+  `tmp/ai/security-desktop-1440-final.png`, and
+  `tmp/ai/security-mobile-390-final.png`.
+- Visual notes: desktop session table keeps action visible without page-level
+  horizontal overflow; long session/user IDs are truncated instead of
+  polluting adjacent cells; mobile filters stack vertically and table overflow
+  remains inside the table area; security summary cards wrap long token/session
+  values without overlap.
 
 ### Active Slice: Organization Management Filters And Pagination
 

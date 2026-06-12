@@ -44,6 +44,13 @@
 - 本地 IAM 用户模型暂不包含手机号和头像字段。需要这些字段时，应先设计迁移和资料编辑权限，不要只为前端表格临时拼接伪字段。
 - 新增成员仍走邀请流程。生产环境必须使用 SMTP 或外部通知驱动，避免 debug/no-op 响应把邀请 token 暴露给不该看到的人。
 
+## 会话与 MFA 维护
+
+- `/admin/sessions` 读取 `GET /api/v1/orgs/{orgId}/sessions?scope=org`。该接口返回分页对象，二次开发调用方应读取 `data.items`。
+- 会话列表在 service 层始终限定当前 `orgId`。即使调用方传入 `userId`，也不会返回其他组织的会话；排查缺失会话时先确认 token 所属组织和页面筛选范围。
+- 会话状态由 `revokedAt` 和 `expiresAt` 计算：`active` 表示未撤销且未过期，`revoked` 表示已撤销，`expired` 表示 refresh 会话已过期。过期或已撤销会话不应再次执行撤销操作。
+- `/admin/security` 只处理当前账号的 MFA 设置、当前会话信息和退出登录。密码修改、邮箱、手机号、头像等资料编辑需要单独设计验证、通知和审计流程。
+
 ## Review 清单
 
 - 变更是否保持目录边界？

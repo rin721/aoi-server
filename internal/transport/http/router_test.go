@@ -116,6 +116,8 @@ type fakeIAMService struct {
 	lastOrgFilter     iamservice.OrganizationListFilter
 	userListCalls     int
 	lastUserFilter    iamservice.UserListFilter
+	sessionListCalls  int
+	lastSessionFilter iamservice.SessionListFilter
 }
 
 type permissionAuthorizer map[string]bool
@@ -228,8 +230,10 @@ func (s *fakeIAMService) UpdateRole(context.Context, iamservice.UpdateRoleInput)
 func (s *fakeIAMService) ListPermissions(context.Context, iamservice.Principal) ([]iammodel.Permission, error) {
 	return nil, nil
 }
-func (s *fakeIAMService) ListSessions(context.Context, iamservice.Principal, int64) ([]iammodel.Session, error) {
-	return nil, nil
+func (s *fakeIAMService) ListSessions(_ context.Context, _ iamservice.Principal, filter iamservice.SessionListFilter) (iamservice.SessionPage, error) {
+	s.sessionListCalls++
+	s.lastSessionFilter = filter
+	return iamservice.SessionPage{Items: []iammodel.Session{}, Page: 1, PageSize: 10, StorageStatus: "persisted"}, nil
 }
 func (s *fakeIAMService) RevokeSession(context.Context, iamservice.Principal, int64) error {
 	return nil
@@ -436,6 +440,31 @@ func TestNewRouterOrganizationsPassesListFilters(t *testing.T) {
 	filter := iamSvc.lastOrgFilter
 	if filter.Keyword != "team" || filter.Code != "alpha" || filter.Name != "Alpha Team" || filter.Status != "active" || filter.Page != 3 || filter.PageSize != 20 || filter.OrderKey != "code" || !filter.Desc {
 		t.Fatalf("unexpected organization list filter: %#v", filter)
+	}
+}
+
+func TestNewRouterSessionsPassesListFilters(t *testing.T) {
+	iamSvc := &fakeIAMService{}
+	router := newTestRouter(RouterDeps{
+		IAMHandler: iamhandler.New(iamSvc, nil),
+		IAMAuth:    iamSvc,
+		IAMAuthz:   iamSvc,
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/1/sessions?scope=org&keyword=edge&userId=42&ipAddress=127.0.0.1&status=active&page=2&pageSize=30&orderKey=last_used_at&desc=true", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected sessions status %d, got %d body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	if iamSvc.sessionListCalls != 1 {
+		t.Fatalf("expected one ListSessions call, got %d", iamSvc.sessionListCalls)
+	}
+	filter := iamSvc.lastSessionFilter
+	if filter.Scope != "org" || filter.Keyword != "edge" || filter.UserID != 42 || filter.IPAddress != "127.0.0.1" || filter.Status != "active" || filter.Page != 2 || filter.PageSize != 30 || filter.OrderKey != "last_used_at" || !filter.Desc {
+		t.Fatalf("unexpected session list filter: %#v", filter)
 	}
 }
 

@@ -42,6 +42,7 @@ type Repository interface {
 	CreateSession(context.Context, *model.Session) error
 	FindSessionByID(context.Context, int64) (*model.Session, error)
 	FindSessionByRefreshHash(context.Context, string) (*model.Session, error)
+	ListSessionsByOrg(context.Context, int64) ([]model.Session, error)
 	ListSessionsByUser(context.Context, int64) ([]model.Session, error)
 	SaveSession(context.Context, *model.Session) error
 	CreateAPIToken(context.Context, *model.APIToken) error
@@ -306,6 +307,12 @@ func (r *repository) FindSessionByRefreshHash(ctx context.Context, hash string) 
 		return nil, err
 	}
 	return &session, nil
+}
+
+func (r *repository) ListSessionsByOrg(ctx context.Context, orgID int64) ([]model.Session, error) {
+	var sessions []model.Session
+	err := r.db.Find(ctx, &sessions, database.Where("org_id = ?", orgID), database.Order("created_at DESC"))
+	return sessions, err
 }
 
 func (r *repository) ListSessionsByUser(ctx context.Context, userID int64) ([]model.Session, error) {

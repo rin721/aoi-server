@@ -399,6 +399,82 @@ func TestListUsersFiltersAndPaginates(t *testing.T) {
 	}
 }
 
+func TestListSessionsFiltersPaginatesAndScopesOrganization(t *testing.T) {
+	ctx := context.Background()
+	svc, cleanup := newTestService(t)
+	defer cleanup()
+
+	admin, err := svc.BootstrapAdmin(ctx, BootstrapAdminInput{OrgCode: "acme", Username: "admin", Email: "admin@example.com", Password: "password123"})
+	if err != nil {
+		t.Fatalf("BootstrapAdmin() failed: %v", err)
+	}
+	adminLogin, err := svc.Login(ctx, LoginInput{Identifier: "admin@example.com", Password: "password123", OrgCode: "acme", IPAddress: "127.0.0.1", UserAgent: "Edge"})
+	if err != nil {
+		t.Fatalf("Login(admin) failed: %v", err)
+	}
+	principal, err := svc.AuthenticateToken(ctx, adminLogin.AccessToken)
+	if err != nil {
+		t.Fatalf("AuthenticateToken(admin) failed: %v", err)
+	}
+	invite, err := svc.InviteUser(ctx, InviteUserInput{Principal: principal, Email: "member@example.com", RoleCode: model.RoleMember})
+	if err != nil {
+		t.Fatalf("InviteUser() failed: %v", err)
+	}
+	if _, err := svc.AcceptInvitation(ctx, AcceptInvitationInput{Token: invite.Token, Username: "member", Password: "password123"}); err != nil {
+		t.Fatalf("AcceptInvitation() failed: %v", err)
+	}
+	memberLogin, err := svc.Login(ctx, LoginInput{Identifier: "member@example.com", Password: "password123", OrgCode: "acme", IPAddress: "10.0.0.2", UserAgent: "Firefox"})
+	if err != nil {
+		t.Fatalf("Login(member) failed: %v", err)
+	}
+	memberPrincipal, err := svc.AuthenticateToken(ctx, memberLogin.AccessToken)
+	if err != nil {
+		t.Fatalf("AuthenticateToken(member) failed: %v", err)
+	}
+	beta, err := svc.CreateOrganization(ctx, principal, "beta", "Beta")
+	if err != nil {
+		t.Fatalf("CreateOrganization(beta) failed: %v", err)
+	}
+	if _, err := svc.SwitchOrg(ctx, principal, beta.ID, "Safari", "172.16.0.1"); err != nil {
+		t.Fatalf("SwitchOrg(beta) failed: %v", err)
+	}
+
+	ownPage, err := svc.ListSessions(ctx, principal, SessionListFilter{Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("ListSessions(own) failed: %v", err)
+	}
+	if ownPage.Total != 1 || len(ownPage.Items) != 1 || ownPage.Items[0].UserID != admin.UserID || ownPage.Items[0].OrgID != principal.OrgID {
+		t.Fatalf("unexpected own sessions: %#v", ownPage)
+	}
+
+	orgPage, err := svc.ListSessions(ctx, principal, SessionListFilter{Scope: "org", Keyword: "fire", Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("ListSessions(org keyword) failed: %v", err)
+	}
+	if orgPage.Total != 1 || len(orgPage.Items) != 1 || orgPage.Items[0].UserID != memberPrincipal.UserID || orgPage.Items[0].OrgID != principal.OrgID {
+		t.Fatalf("unexpected org keyword sessions: %#v", orgPage)
+	}
+
+	adminOrgSessions, err := svc.ListSessions(ctx, principal, SessionListFilter{UserID: admin.UserID, Scope: "org", Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("ListSessions(admin user) failed: %v", err)
+	}
+	if adminOrgSessions.Total != 1 || len(adminOrgSessions.Items) != 1 || adminOrgSessions.Items[0].OrgID != principal.OrgID {
+		t.Fatalf("expected beta session to be filtered out: %#v", adminOrgSessions)
+	}
+
+	if err := svc.RevokeSession(ctx, principal, adminOrgSessions.Items[0].ID); err != nil {
+		t.Fatalf("RevokeSession() failed: %v", err)
+	}
+	revokedPage, err := svc.ListSessions(ctx, principal, SessionListFilter{Scope: "org", Status: "revoked"})
+	if err != nil {
+		t.Fatalf("ListSessions(revoked) failed: %v", err)
+	}
+	if revokedPage.Total != 1 || len(revokedPage.Items) != 1 || revokedPage.Items[0].ID != adminOrgSessions.Items[0].ID {
+		t.Fatalf("unexpected revoked sessions: %#v", revokedPage)
+	}
+}
+
 func TestMFASetupAndLogin(t *testing.T) {
 	ctx := context.Background()
 	svc, cleanup := newTestService(t)

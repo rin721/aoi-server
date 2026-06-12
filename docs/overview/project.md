@@ -10,7 +10,7 @@
 | 配置 | 支持 YAML、`.env`、环境变量覆盖、校验和监听重载 |
 | 数据库 | `pkg/database` 支持 SQLite、MySQL、PostgreSQL |
 | Demo 模块 | 公开 Todo CRUD 与受保护客户资源示例，采用 handler/service/repository/model 分层 |
-| IAM 模块 | 本地账号、JWT、组织租户、Casbin 权限、组织和用户分页筛选、邀请、找回密码、TOTP MFA、会话撤销和审计 |
+| IAM 模块 | 本地账号、JWT、组织租户、Casbin 权限、组织/用户/会话分页筛选、邀请、找回密码、TOTP MFA、会话撤销和审计 |
 | System 模块 | 菜单、API、字典、参数、操作记录、服务器状态、版本发布包和媒体库管理 |
 | 数据库迁移 | `pkg/migrator` 封装 goose，CLI 提供显式迁移命令 |
 | 存储 | 本地文件系统抽象和可选 watcher 辅助能力 |

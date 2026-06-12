@@ -23,10 +23,10 @@ async function refresh() {
 
     if (auth.currentOrgId) {
       const [sessionResult, auditResult] = await Promise.all([
-        api.listSessions(auth.currentOrgId),
+        api.listSessions(auth.currentOrgId, { pageSize: 6 }),
         api.listAuditLogs(auth.currentOrgId, 6)
       ])
-      sessions.value = sessionResult
+      sessions.value = sessionResult.items
       auditLogs.value = auditResult
     }
   } catch (err) {

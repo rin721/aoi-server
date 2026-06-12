@@ -15,6 +15,7 @@ export const useAuthStore = defineStore("auth", () => {
 
   const authenticated = computed(() => Boolean(accessToken.value && user.value))
   const currentOrg = computed(() => orgs.value.find((org) => org.id === currentOrgId.value) || orgs.value[0] || null)
+  const sessionId = computed(() => currentSessionIdFromToken(accessToken.value))
 
   async function fetchSession() {
     loading.value = true
@@ -156,6 +157,7 @@ export const useAuthStore = defineStore("auth", () => {
     refreshExpiresAt,
     refreshToken,
     refreshTokens,
+    sessionId,
     signup,
     switchOrg,
     user

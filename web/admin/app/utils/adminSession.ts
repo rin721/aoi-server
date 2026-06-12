@@ -81,6 +81,11 @@ export function currentOrgIdFromToken(accessToken = getStoredAccessToken()) {
   return typeof orgId === "string" ? orgId : null
 }
 
+export function currentSessionIdFromToken(accessToken = getStoredAccessToken()) {
+  const sessionId = decodeAccessTokenClaims(accessToken)?.sessionId
+  return typeof sessionId === "string" ? sessionId : null
+}
+
 function decodeBase64URL(value: string) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/")
   const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=")

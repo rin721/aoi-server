@@ -16,7 +16,7 @@
 | 用户管理 | `/admin/users` 提供筛选分页，按用户名、显示名、邮箱、角色和成员状态查询当前组织成员 |
 | 找回密码 | 生成一次性 reset token，真实通知通道由 `Notifier` 适配 |
 | MFA | `pkg/mfa` 封装 TOTP，密钥加密存储，登录时校验一次性 code |
-| 会话撤销 | 登出、refresh 轮换和管理员撤销都会更新 `iam_sessions.revoked_at` |
+| 会话撤销 | 会话列表按组织范围分页筛选；登出、refresh 轮换和管理员撤销都会更新 `iam_sessions.revoked_at` |
 | 审计 | 登录、邀请、重置密码、MFA、角色、会话等关键动作写入审计日志 |
 
 ## 表结构
@@ -76,6 +76,12 @@ go run ./cmd/main iam bootstrap-admin \
 `displayName`/`nickName`、`email`、`roleCode`、`status`、`page`、`pageSize`。
 本地账号模型暂不包含手机号和头像字段；新增组织成员仍通过邀请流程完成，
 这样用户可以自己设置密码并接受组织角色。
+
+`GET /api/v1/orgs/:orgId/sessions` 返回分页对象，支持 `scope`、`keyword`、
+`userId`、`ipAddress`、`status`、`page`、`pageSize`。未传 `scope` 和
+`userId` 时只查当前用户；后台 `/admin/sessions` 使用 `scope=org` 查询当前
+组织范围。service 层始终过滤 `session.org_id == principal.orgId`，避免指定
+`userId` 时枚举其他组织会话。
 
 ## API Token 管理
 

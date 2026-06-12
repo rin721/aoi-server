@@ -556,6 +556,14 @@ export type Session = {
   updatedAt: string
 }
 
+export type SessionPage = {
+  items: Session[]
+  page: number
+  pageSize: number
+  storageStatus: string
+  total: number
+}
+
 export type APIToken = {
   id: ID
   orgId: ID
