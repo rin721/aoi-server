@@ -377,7 +377,7 @@ Validation completed:
 - `go test ./internal/modules/iam/... ./internal/transport/http -count=1 -mod=readonly`
 - `pnpm --dir web/admin typecheck`
 - `docs/api/openapi.yaml` parsed successfully with PyYAML.
-- API smoke using `admin` / `admin888` verified `/api/v1/orgs/{orgId}/users`
+- API smoke using a local test account verified `/api/v1/orgs/{orgId}/users`
   returns a persisted page object and filters `keyword=admin`.
 - Local visual evidence saved:
   `tmp/ai/users-desktop-1440-final.png` and
@@ -468,7 +468,7 @@ Validation completed:
 - `go build -mod=readonly -o ./tmp/go-scaffold-server.exe ./cmd/main`
 - `pnpm --dir web/admin typecheck`
 - `docs/api/openapi.yaml` parsed successfully with PyYAML.
-- API smoke using `admin` / `admin888` verified login, customer detail, list,
+- API smoke using a local test account verified login, customer detail, list,
   update, and UTF-8 Chinese keyword filtering. Windows PowerShell string bodies
   must be sent as UTF-8 bytes for Chinese request payloads.
 - Local visual evidence saved:

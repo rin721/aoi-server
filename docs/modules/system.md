@@ -63,3 +63,21 @@
 - 断点上传会话默认 24 小时过期。过期会话不会继续接收分片；运维清理时应同时处理 `system_media_upload_sessions`、`system_media_upload_chunks` 和 `media/chunks/<session-id>/` 临时对象。
 - 如果让菜单或 API 变成可导入的数据库数据，需要先重新设计来源优先级、冲突处理和启动同步策略，再改变版本导入行为。
 - 管理页应保持低噪声：紧凑筛选区、清晰表格、薄边框、少装饰，避免把前台视觉风格带进后台工作流。
+
+## 服务器状态 Dashboard
+
+服务器状态接口仍然是 `GET /api/v1/system/server-info`，后端 DTO 不包含 GPU、CI/CD、后台任务或服务进程明细。前端不能伪造这些数据；需要新指标时应先扩展后端采集和 DTO，再在前端配置中声明展示方式。
+
+前端治理入口：
+
+- `web/admin/app/config/admin-api.ts` 集中保存后台 API endpoint。
+- `web/admin/app/config/server-status-dashboard.ts` 集中保存 KPI 顺序、资源面板顺序、字段 label、阈值、状态文案、状态权重、格式化规则、刷新策略和空状态文案。
+- `web/admin/app/utils/serverStatusDashboard.ts` 负责把真实接口数据派生为页面模型，统一处理状态判断、异常优先、容量换算、百分比边界和空值 fallback。
+- `web/admin/app/pages/server-info.vue` 只渲染派生模型，不直接定义阈值、字段映射、排序规则、单位换算或接口路径。
+
+二次开发约束：
+
+- 新增指标时，先确认后端是否真实返回字段；没有字段时只记录扩展点，不在前端 mock。
+- 新增资源卡片、KPI 或表格列时，优先扩展 `SERVER_STATUS_DASHBOARD_CONFIG`，页面按配置渲染。
+- 新增状态类型时，同步更新 `ServerStatusHealthLevel`、`statusLabels`、`statusWeights` 和派生函数，不要在页面中单独判断颜色或文案。
+- 调整刷新策略时修改 `refresh.autoEnabled`、`refresh.intervalMs` 或 `refresh.manualCooldownMs`，不要在页面里散落定时器数字。

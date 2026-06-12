@@ -119,3 +119,24 @@ Nuxt 侧运行时配置保持最小化：
 | `NUXT_PUBLIC_SHOW_DEMO_TODO` | `false` | 是否在后台导航兜底菜单中显示 Demo Todo。客户列表由服务端菜单返回。 |
 
 用于 Go 静态托管时，先在 `web/admin` 执行 `pnpm generate`，确保 `.output/public/index.html` 存在。`pnpm build` 保留为构建检查，不替代静态产物生成。
+
+## Server Status Dashboard 配置
+
+服务器状态 Dashboard 的后端静态托管仍由 `webui` 配置控制：
+
+- `webui.mount_path`：Go 挂载后台 SPA 的路径，默认 `/admin`。
+- `webui.dist_dir`：Go 读取前端静态产物的目录，默认 `./web/admin/.output/public`。
+- `webui.public_base_url`：公开访问后台时使用的基础路径，通常与 `mount_path` 保持一致。
+
+前端运行期配置仍走 Nuxt public runtime config：
+
+- `NUXT_APP_BASE_URL` 应与 `webui.mount_path` 对齐。
+- `NUXT_PUBLIC_API_BASE_URL` 为空时使用同源 Go API；跨域或网关部署时由环境变量注入。
+
+Server Status 页面自己的展示治理不新增后端配置项，前端入口如下：
+
+- `web/admin/app/config/admin-api.ts`：集中维护后台 API endpoint。
+- `web/admin/app/config/server-status-dashboard.ts`：集中维护指标阈值、状态文案、状态权重、KPI 顺序、字段 label、刷新策略、格式化规则和空状态文案。
+- `web/admin/app/assets/css/main.css`：通过 `--aoi-admin-*` token 控制卡片间距、局部滚动高度、CPU 行尺寸和数据状态尺寸。
+
+示例配置和文档不得包含真实账号、密码、Token 或生产地址。需要本地登录验证时，使用安全渠道获取本地测试账号信息。

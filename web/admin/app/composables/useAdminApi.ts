@@ -57,6 +57,7 @@
   TokenPair,
   User
 } from "~/types/admin"
+import { ADMIN_API_ENDPOINTS } from "~/config/admin-api"
 
 type RequestOptions = {
   auth?: boolean
@@ -215,8 +216,8 @@ export function useAdminApi() {
     getMe: () => request<User>("/api/v1/me"),
     getReady: () => request<ReadyStatus>("/ready", { auth: false }),
     getSetupStatus: () => request<SetupStatus>("/api/v1/auth/setup/status", { auth: false }),
-    getSystemConfig: () => request<SystemConfigSnapshot>("/api/v1/system/config"),
-    getSystemServerInfo: () => request<SystemServerInfo>("/api/v1/system/server-info"),
+    getSystemConfig: () => request<SystemConfigSnapshot>(ADMIN_API_ENDPOINTS.system.config),
+    getSystemServerInfo: () => request<SystemServerInfo>(ADMIN_API_ENDPOINTS.system.serverInfo),
     initialAdminSetup: (body: InitialAdminSetupRequest) =>
       request<TokenPair>("/api/v1/auth/setup/initial-admin", { auth: false, body, method: "POST" }),
     inviteUser: (orgId: ID, body: { email: string, roleCode: string }) =>
@@ -459,7 +460,5 @@ function clearSessionAndRedirect() {
 function isApiErrorPayload(value: unknown): value is ApiErrorPayload {
   return Boolean(value && typeof value === "object" && "endpoint" in value && "statusCode" in value)
 }
-
-
 
 

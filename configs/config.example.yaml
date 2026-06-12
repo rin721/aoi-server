@@ -8,6 +8,9 @@ server:
   idle_timeout: 30
 
 webui:
+  # Admin WebUI 静态产物由 web/admin 的 pnpm generate 生成。
+  # mount_path、dist_dir 与 Nuxt NUXT_APP_BASE_URL 需要保持同一部署语义。
+  # Server Status Dashboard 的指标阈值、状态文案和刷新策略位于前端配置，不在示例 YAML 中写死。
   enabled: true
   mount_path: /admin
   dist_dir: ./web/admin/.output/public

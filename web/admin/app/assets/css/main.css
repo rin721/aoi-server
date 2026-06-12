@@ -818,6 +818,15 @@ a {
   --aoi-admin-cpu-label-width: 62px;
   --aoi-admin-cpu-value-width: 52px;
   --aoi-admin-meter-height: 7px;
+  --aoi-admin-server-scroll-max-height: 360px;
+  --aoi-admin-server-cpu-scroll-max-height: 340px;
+  --aoi-admin-server-build-scroll-max-height: 420px;
+  --aoi-admin-server-note-size: 13px;
+  --aoi-admin-data-state-min-height: 160px;
+  --aoi-admin-data-state-icon-size: 38px;
+  --aoi-admin-data-state-padding: 18px;
+  --aoi-admin-data-state-title-size: 14px;
+  --aoi-admin-data-state-copy-max-width: 420px;
   --aoi-admin-summary-min-height: 104px;
   --aoi-admin-summary-padding: 14px;
   --aoi-admin-nav-row-height: 44px;
@@ -871,6 +880,11 @@ a {
   --aoi-admin-card-body-padding: 12px;
   --aoi-admin-card-body-padding-sm: 10px;
   --aoi-admin-card-body-padding-lg: 16px;
+  --aoi-admin-server-scroll-max-height: 320px;
+  --aoi-admin-server-cpu-scroll-max-height: 300px;
+  --aoi-admin-server-build-scroll-max-height: 360px;
+  --aoi-admin-data-state-min-height: 132px;
+  --aoi-admin-data-state-padding: 14px;
   --aoi-admin-summary-min-height: 88px;
   --aoi-admin-summary-padding: 12px;
   --aoi-admin-nav-row-height: 40px;
@@ -1766,5 +1780,4 @@ a {
     display: grid;
   }
 }
-
 
