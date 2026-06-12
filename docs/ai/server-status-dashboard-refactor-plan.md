@@ -35,13 +35,13 @@
 
 ## 当前任务
 
-- 本次目标：完成阶段 2 到阶段 9 的一个可验证切片；把 Server Status 的展示配置、API endpoint、状态判断、格式化、派生模型、视觉结构、文档和静态托管验证纳入治理。
-- 是否需要先分析研究：DONE。已只读确认 Git 状态、项目结构、技术栈、服务器状态页面、后端接口、采集逻辑、静态 SPA 挂载和文档位置。
-- 计划修改范围：本任务书、`web/admin/app/config`、`web/admin/app/utils`、`web/admin/app/components/aoi`、`useAdminApi()` 的 endpoint 引用、`server-info.vue`、后台 CSS tokens、系统/维护/使用/环境文档和示例配置。
-- 不修改范围：不改 Go API、DTO、数据库迁移、认证逻辑、真实账号信息、生产配置或数据目录。
-- 风险：RISK 当前页面已存在 baseline UI 改造，后续配置化必须保持视觉行为兼容；RISK 当前无 GPU、CI/CD、服务明细数据，不能伪造模块。
-- 验证方式：运行 `pnpm typecheck`、`pnpm build`、`pnpm generate`、`go test ./... -count=1 -mod=readonly`、`go build -mod=readonly -o ./tmp/go-scaffold-server ./cmd/main`，并通过 Go 静态托管访问 `/admin/login` 和 `/admin/server-info`；Browser 抽查 `1440x900`、`1280x720`、`390x844`。
-- Git 分支计划：在 `codex/server-status-dashboard-governance` 完成本阶段提交，再合并回 main。
+- 本次目标：修复 PC 端 Server Status rows 键值列表的值列收缩问题，避免日期、Go 版本、构建版本等内容竖向逐字显示。
+- 是否需要先分析研究：DONE。已定位到 `AoiKeyValueList` rows 模式中 `dd` 右对齐 flex 与 `inline-flex` value 共同导致值容器按 min-content 收缩。
+- 计划修改范围：本任务书、`web/admin/app/components/aoi/AoiKeyValueList.vue`，必要时补充后台 CSS token。
+- 不修改范围：不改 Go API、DTO、数据库迁移、认证逻辑、真实账号信息、生产配置或数据目录；不新增 GPU、CI/CD、服务明细伪数据。
+- 风险：RISK rows 模式是后台复用组件，修复必须保持 cards 模式和移动端行为稳定。
+- 验证方式：运行 `pnpm typecheck`；通过 Browser 检查 `/admin/server-info` PC 宽度下 rows 值列宽度、无竖排文本、无横向溢出、无 `undefined/null/NaN`。
+- Git 分支计划：在 `codex/server-status-pc-value-layout` 完成本次修复提交，再 fast-forward 合并回 main。
 
 ## 任务状态表
 
@@ -62,6 +62,7 @@
 | 重构 Server Status 页面 | DONE | 页面改为健康优先 header、配置驱动 KPI、资源面板、CPU 和构建信息局部滚动。 |
 | 更新文档与示例配置 | DONE | 更新开发、维护、使用、新手、环境配置和示例配置文档。 |
 | 静态托管与浏览器验证 | DONE | `pnpm generate` 后通过 Go 服务访问 `/admin/login` 与 `/admin/server-info`。 |
+| 修复 PC rows 值列收缩 | DONE | 已在 Aoi wrapper 层修复，PC 桌面宽度不再出现 34px/53px 的竖排值列。 |
 
 ## 变更记录
 
@@ -84,3 +85,13 @@
 - commit hash：`c14c45a`
 - 是否已合并 main：是，fast-forward 合并到 main；本阶段核心提交为 `c14c45a` 与 `7d0be1a`。
 - 下一步建议：NEXT 等后端真实提供 GPU、CI/CD、服务进程明细后，再继续阶段 7 的服务与任务区域结构化治理。
+
+### 2026-06-13 PC rows 值列修复
+
+- 状态：DONE
+- 修改文件：`web/admin/app/components/aoi/AoiKeyValueList.vue`、`web/admin/app/assets/css/main.css`、`docs/ai/server-status-dashboard-refactor-plan.md`。
+- 修改摘要：修复 rows 键值列表在 PC 瀑布流窄卡片内 label 列过宽、value 列被压成竖排的问题；新增 label fluid/compact token，并让 rows value 占满可用列宽。
+- 验证结果：`pnpm typecheck`、`pnpm generate` 通过；Browser 在 `1440x900` 下检查 `/admin/server-info`，rows value 最窄 189px，无横向溢出，无 `undefined/null/NaN` 文本。
+- commit hash：PENDING
+- 是否已合并 main：PENDING
+- 下一步建议：继续观察 PC 宽屏瀑布流高度分布，后续可按配置将构建信息从 rows 改为更适合长字段的代码/表格视图。

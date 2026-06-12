@@ -837,6 +837,8 @@ a {
   --aoi-admin-kv-row-gap: 14px;
   --aoi-admin-kv-row-padding: 14px 0;
   --aoi-admin-kv-row-min-height: 54px;
+  --aoi-admin-kv-label-compact-width: 96px;
+  --aoi-admin-kv-label-fluid-width: 34%;
   --aoi-admin-kv-label-min-width: 160px;
   --aoi-admin-kv-label-max-width: 260px;
   --aoi-admin-kv-label-gap: 4px;
@@ -1780,4 +1782,3 @@ a {
     display: grid;
   }
 }
-

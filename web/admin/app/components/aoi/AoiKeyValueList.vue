@@ -86,7 +86,16 @@ function displayValue(item: AoiKeyValueItem) {
   min-height: var(--aoi-admin-kv-row-min-height);
   align-items: start;
   gap: var(--aoi-admin-kv-row-gap);
-  grid-template-columns: minmax(var(--aoi-admin-kv-label-min-width), var(--aoi-admin-kv-label-max-width)) minmax(0, 1fr);
+  grid-template-columns:
+    minmax(
+      0,
+      clamp(
+        var(--aoi-admin-kv-label-compact-width),
+        var(--aoi-admin-kv-label-fluid-width),
+        var(--aoi-admin-kv-label-max-width)
+      )
+    )
+    minmax(0, 1fr);
   border-top: 1px solid var(--aoi-admin-border-soft);
   padding: var(--aoi-admin-kv-row-padding);
 }
@@ -140,6 +149,11 @@ function displayValue(item: AoiKeyValueItem) {
   margin: 0;
 }
 
+.aoi-key-value-list--rows .aoi-key-value-list__item dd {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
 .aoi-key-value-list--cards .aoi-key-value-list__item dd {
   justify-content: flex-start;
 }
@@ -158,6 +172,10 @@ function displayValue(item: AoiKeyValueItem) {
   overflow-wrap: anywhere;
   padding: var(--aoi-admin-kv-value-padding);
   white-space: pre-wrap;
+}
+
+.aoi-key-value-list--rows .aoi-key-value-list__value {
+  width: 100%;
 }
 
 .aoi-key-value-list__value--mono {
