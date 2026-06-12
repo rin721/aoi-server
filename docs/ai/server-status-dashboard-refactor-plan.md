@@ -93,5 +93,5 @@
 - 修改摘要：修复 rows 键值列表在 PC 瀑布流窄卡片内 label 列过宽、value 列被压成竖排的问题；新增 label fluid/compact token，并让 rows value 占满可用列宽。
 - 验证结果：`pnpm typecheck`、`pnpm generate` 通过；Browser 在 `1440x900` 下检查 `/admin/server-info`，rows value 最窄 189px，无横向溢出，无 `undefined/null/NaN` 文本。
 - commit hash：`1b89831`
-- 是否已合并 main：待本记录提交后合并。
+- 是否已合并 main：是，fast-forward 合并到 main；本次核心提交为 `1b89831` 与 `6afb8de`。
 - 下一步建议：继续观察 PC 宽屏瀑布流高度分布，后续可按配置将构建信息从 rows 改为更适合长字段的代码/表格视图。
