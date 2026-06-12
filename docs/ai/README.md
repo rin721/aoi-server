@@ -1,4 +1,4 @@
-﻿# AI Workspace
+# AI Workspace
 
 This directory is the isolated AI operating layer for `go-scaffold`. It gives
 future Codex sessions a fast path into the repo without mixing agent notes into
@@ -11,7 +11,7 @@ application packages.
 - `prompts.md`: reusable prompts for common development tasks.
 - `handoff-template.md`: compact handoff format for long-running work.
 - `admin-template-parity.md`: persistent task book, status board, visual
-  reference notes, and handoff point for incremental 上游样板 parity work.
+  reference notes, and handoff point for incremental 外部后台 parity work.
 
 ## Default Workflow
 
@@ -34,6 +34,6 @@ govulncheck ./...
 gosec ./...
 osv-scanner scan source .
 ```
-## 上游样板 平替任务书
+## 外部后台 平替任务书
 
 `admin-template-parity.md` 是当前逐步完善后台功能的持久化任务书。每个切片开始前先记录研究计划和视觉证据；版本管理、媒体库、断点上传和客户资源示例切片已记录外部研究入口、上游源码入口、本地实现边界和验证计划。

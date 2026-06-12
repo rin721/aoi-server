@@ -30,6 +30,13 @@
 - API Token 明文只在签发成功时出现一次。排障时不要要求用户把完整 token 贴到 issue、日志或聊天记录中，优先使用 `tokenPrefix`、`tokenId` 和审计日志定位。
 - 调用方泄漏 token、用户被禁用、角色权限收缩或自动化任务下线时，应在 `/admin/api-tokens` 或 `DELETE /api/v1/orgs/{orgId}/api-tokens/{tokenId}` 立即撤销。
 
+## 组织管理维护
+
+- `/admin/organizations` 读取 `GET /api/v1/orgs`。该接口返回分页对象，二次开发调用方应读取 `data.items`；`GET /api/v1/me/orgs` 仍返回当前用户所属组织数组，用于会话和顶部切换器。
+- 组织列表筛选在 service 层按 `keyword`、`code`、`name`、`status` 处理。排查“看不到组织”时，先点击页面 `重置` 回到第一页，再检查调用方是否把 `page` 设置到超出总页数。
+- 更新组织名称时必须满足请求路径 `orgId` 与 access token 中的 `orgId` 一致。需要维护其他组织时，先切换组织重新签发 token，再提交修改。
+- 创建组织会把当前用户加入新组织并授予 owner 角色；如果创建成功但切换失败，优先检查新组织的内置角色和 Casbin policy 是否初始化完成。
+
 ## 用户管理维护
 
 - `/admin/users` 与 API Token 签发页都读取 `GET /api/v1/orgs/{orgId}/users`。该接口现在返回分页对象，不再是裸数组；二次开发调用方应读取 `data.items`。

@@ -1,4 +1,4 @@
-﻿# Project Map For Agents
+# Project Map For Agents
 
 ## Architecture
 
@@ -29,13 +29,13 @@ use infrastructure interfaces and keep HTTP details in handlers.
 - Modules: `internal/modules/demo` and `internal/modules/iam` follow
   `model -> repository -> service -> handler`.
 - System parity module: `internal/modules/system` follows the same
-  `model -> repository -> service -> handler` flow for 上游样板-inspired
+  `model -> repository -> service -> handler` flow for 外部后台-inspired
   menus, API catalog sync, dictionaries, operation records, parameters,
   read-only config snapshots, server status, and idempotent default data
   seeding during startup.
 - API catalog entries expose route access mode (`public`, `authenticated`, or
   `permission`) inferred from HTTP route registration and permission metadata;
-  this mirrors 上游样板的 public/private router split without renaming transport
+  this mirrors 外部后台的 public/private router split without renaming transport
   packages or storing duplicate middleware state.
 - Login logs are a 管理后台式 admin page over existing IAM `auth.login` audit
   records; do not create a duplicate login-log table until there is a product
@@ -64,7 +64,7 @@ For a new application module:
 5. Add focused service and route tests.
 6. Update human docs and, when useful, add AI notes in `docs/ai`.
 
-For 上游样板 parity slices, keep the existing Go scaffold boundaries:
+For 外部后台 parity slices, keep the existing Go scaffold boundaries:
 
 1. Route registration and API catalog metadata stay in `internal/transport/http`.
 2. Request parsing and response writing stay in module handlers.

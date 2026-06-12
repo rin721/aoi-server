@@ -724,9 +724,55 @@ paths:
     get:
       tags: [IAM 组织]
       summary: 查询组织列表
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+          description: 关键字，匹配组织 Code、名称和状态。
+        - name: code
+          in: query
+          schema:
+            type: string
+          description: 按组织 Code 模糊筛选。
+        - name: name
+          in: query
+          schema:
+            type: string
+          description: 按组织名称模糊筛选。
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, disabled]
+          description: 按组织状态筛选。
+        - name: orderKey
+          in: query
+          schema:
+            type: string
+            enum: [id, code, name, status]
+          description: 排序字段，默认 id。
+        - name: desc
+          in: query
+          schema:
+            type: boolean
+          description: 是否倒序。
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: 页码，默认 1。
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: 每页数量，默认 10，最大 100。
       responses:
         "200":
-          description: 组织列表。
+          description: 分页组织列表。
           content:
             application/json:
               schema:
@@ -735,9 +781,7 @@ paths:
                   - type: object
                     properties:
                       data:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/Organization"
+                        $ref: "#/components/schemas/OrganizationPage"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -4731,6 +4775,23 @@ components:
         updatedAt:
           type: string
           format: date-time
+    OrganizationPage:
+      type: object
+      required: [items, page, pageSize, total, storageStatus]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Organization"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+        storageStatus:
+          type: string
     User:
       type: object
       required: [id, username, email, displayName, status, mfaEnabled, createdAt, updatedAt]

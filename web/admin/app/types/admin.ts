@@ -500,6 +500,14 @@ export type Organization = {
   updatedAt: string
 }
 
+export type OrganizationPage = {
+  items: Organization[]
+  page: number
+  pageSize: number
+  storageStatus: string
+  total: number
+}
+
 export type OrganizationUser = {
   membershipStatus: Status
   roles: string[]

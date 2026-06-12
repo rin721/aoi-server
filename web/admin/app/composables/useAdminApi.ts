@@ -14,6 +14,7 @@
   MFASetupPayload,
   NotificationDelivery,
   Organization,
+  OrganizationPage,
   OrganizationUser,
   OrganizationUserPage,
   Permission,
@@ -223,7 +224,8 @@ export function useAdminApi() {
       request<AuditLog[]>(`/api/v1/orgs/${orgId}/audit-logs`, { query: typeof query === "number" ? { limit: query } : query }),
     listInvitations: (orgId: ID) => request<Invitation[]>(`/api/v1/orgs/${orgId}/invitations`),
     listMyOrganizations: () => request<Organization[]>("/api/v1/me/orgs"),
-    listOrganizations: () => request<Organization[]>("/api/v1/orgs"),
+    listOrganizations: (query: { code?: string, desc?: boolean, keyword?: string, name?: string, orderKey?: string, page?: number, pageSize?: number, status?: string } = {}) =>
+      request<OrganizationPage>("/api/v1/orgs", { query }),
     listPermissions: (orgId: ID) => request<Permission[]>(`/api/v1/orgs/${orgId}/permissions`),
     listAPITokens: (orgId: ID, query: { page?: number, pageSize?: number, status?: string, userId?: ID | null } = {}) =>
       request<APITokenPage>(`/api/v1/orgs/${orgId}/api-tokens`, { query }),

@@ -208,6 +208,25 @@ type UpdateOrganizationInput struct {
 	IPAddress string
 }
 
+type OrganizationListFilter struct {
+	Keyword  string
+	Code     string
+	Name     string
+	Status   string
+	OrderKey string
+	Desc     bool
+	Page     int
+	PageSize int
+}
+
+type OrganizationPage struct {
+	Items         []model.Organization `json:"items"`
+	Page          int                  `json:"page"`
+	PageSize      int                  `json:"pageSize"`
+	Total         int64                `json:"total"`
+	StorageStatus string               `json:"storageStatus"`
+}
+
 type CreateAPITokenInput struct {
 	Principal Principal
 	UserID    int64
@@ -334,7 +353,7 @@ type Service interface {
 	Authorize(context.Context, Principal, string, string) (bool, error)
 	Me(context.Context, Principal) (*model.User, error)
 	ListMyOrganizations(context.Context, Principal) ([]model.Organization, error)
-	ListOrganizations(context.Context, Principal) ([]model.Organization, error)
+	ListOrganizations(context.Context, Principal, OrganizationListFilter) (OrganizationPage, error)
 	CreateOrganization(context.Context, Principal, string, string) (*model.Organization, error)
 	UpdateOrganization(context.Context, UpdateOrganizationInput) (*model.Organization, error)
 	InviteUser(context.Context, InviteUserInput) (NotificationDelivery, error)
@@ -789,8 +808,35 @@ func (s *service) ListMyOrganizations(ctx context.Context, p Principal) ([]model
 	return orgs, nil
 }
 
-func (s *service) ListOrganizations(ctx context.Context, _ Principal) ([]model.Organization, error) {
-	return s.repo.ListOrganizations(ctx)
+func (s *service) ListOrganizations(ctx context.Context, _ Principal, filter OrganizationListFilter) (OrganizationPage, error) {
+	orgs, err := s.repo.ListOrganizations(ctx)
+	if err != nil {
+		return OrganizationPage{}, err
+	}
+	out := make([]model.Organization, 0, len(orgs))
+	for _, org := range orgs {
+		if organizationMatches(org, filter) {
+			out = append(out, org)
+		}
+	}
+	sortOrganizations(out, filter)
+	page, pageSize := normalizeListPage(filter.Page, filter.PageSize)
+	total := int64(len(out))
+	start := (page - 1) * pageSize
+	if start > len(out) {
+		start = len(out)
+	}
+	end := start + pageSize
+	if end > len(out) {
+		end = len(out)
+	}
+	return OrganizationPage{
+		Items:         out[start:end],
+		Page:          page,
+		PageSize:      pageSize,
+		Total:         total,
+		StorageStatus: "persisted",
+	}, nil
 }
 
 func (s *service) CreateOrganization(ctx context.Context, p Principal, code, name string) (*model.Organization, error) {
@@ -1107,7 +1153,7 @@ func (s *service) ListUsers(ctx context.Context, p Principal, filter UserListFil
 		}
 	}
 	sortOrganizationUsers(out, filter)
-	page, pageSize := normalizeUserListPage(filter.Page, filter.PageSize)
+	page, pageSize := normalizeListPage(filter.Page, filter.PageSize)
 	total := int64(len(out))
 	start := (page - 1) * pageSize
 	if start > len(out) {
@@ -1126,7 +1172,7 @@ func (s *service) ListUsers(ctx context.Context, p Principal, filter UserListFil
 	}, nil
 }
 
-func normalizeUserListPage(page, pageSize int) (int, int) {
+func normalizeListPage(page, pageSize int) (int, int) {
 	if page <= 0 {
 		page = 1
 	}
@@ -1137,6 +1183,23 @@ func normalizeUserListPage(page, pageSize int) (int, int) {
 		pageSize = 100
 	}
 	return page, pageSize
+}
+
+func organizationMatches(org model.Organization, filter OrganizationListFilter) bool {
+	keyword := normalizeCode(filter.Keyword)
+	if keyword != "" && !containsAnyFold(keyword, org.Code, org.Name, org.Status) {
+		return false
+	}
+	if code := normalizeCode(filter.Code); code != "" && !strings.Contains(strings.ToLower(org.Code), code) {
+		return false
+	}
+	if name := normalizeCode(filter.Name); name != "" && !strings.Contains(strings.ToLower(org.Name), name) {
+		return false
+	}
+	if status := normalizeCode(filter.Status); status != "" && normalizeCode(org.Status) != status {
+		return false
+	}
+	return true
 }
 
 func organizationUserMatches(item OrganizationUser, filter UserListFilter) bool {
@@ -1180,6 +1243,34 @@ func rolesContain(roles []string, roleCode string) bool {
 		}
 	}
 	return false
+}
+
+func sortOrganizations(items []model.Organization, filter OrganizationListFilter) {
+	orderKey := normalizeCode(filter.OrderKey)
+	if orderKey == "" {
+		orderKey = "id"
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		left, right := items[i], items[j]
+		compare := int64(0)
+		switch orderKey {
+		case "code":
+			compare = int64(strings.Compare(strings.ToLower(left.Code), strings.ToLower(right.Code)))
+		case "name":
+			compare = int64(strings.Compare(strings.ToLower(left.Name), strings.ToLower(right.Name)))
+		case "status":
+			compare = int64(strings.Compare(strings.ToLower(left.Status), strings.ToLower(right.Status)))
+		default:
+			compare = left.ID - right.ID
+		}
+		if compare == 0 {
+			return false
+		}
+		if filter.Desc {
+			return compare > 0
+		}
+		return compare < 0
+	})
 }
 
 func sortOrganizationUsers(items []OrganizationUser, filter UserListFilter) {

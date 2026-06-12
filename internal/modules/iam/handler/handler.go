@@ -244,7 +244,11 @@ func (h *Handler) ListOrganizations(c web.Context) {
 	if !ok {
 		return
 	}
-	orgs, err := h.service.ListOrganizations(c.RequestContext(), principal)
+	filter, ok := parseOrganizationListFilter(c)
+	if !ok {
+		return
+	}
+	orgs, err := h.service.ListOrganizations(c.RequestContext(), principal, filter)
 	h.write(c, orgs, err)
 }
 
@@ -690,6 +694,35 @@ func parseUserListFilter(c web.Context) (service.UserListFilter, bool) {
 		if err != nil {
 			result.BadRequest(c, "invalid pageSize")
 			return service.UserListFilter{}, false
+		}
+		filter.PageSize = parsed
+	}
+	return filter, true
+}
+
+func parseOrganizationListFilter(c web.Context) (service.OrganizationListFilter, bool) {
+	query := c.Request().URL.Query()
+	filter := service.OrganizationListFilter{
+		Keyword:  query.Get("keyword"),
+		Code:     query.Get("code"),
+		Name:     query.Get("name"),
+		Status:   query.Get("status"),
+		OrderKey: query.Get("orderKey"),
+		Desc:     query.Get("desc") == "true" || query.Get("desc") == "1",
+	}
+	if raw := query.Get("page"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			result.BadRequest(c, "invalid page")
+			return service.OrganizationListFilter{}, false
+		}
+		filter.Page = parsed
+	}
+	if raw := query.Get("pageSize"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			result.BadRequest(c, "invalid pageSize")
+			return service.OrganizationListFilter{}, false
 		}
 		filter.PageSize = parsed
 	}

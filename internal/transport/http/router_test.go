@@ -112,6 +112,8 @@ type fakeIAMService struct {
 	initialSetupCalls int
 	signupCalls       int
 	loginCalls        int
+	orgListCalls      int
+	lastOrgFilter     iamservice.OrganizationListFilter
 	userListCalls     int
 	lastUserFilter    iamservice.UserListFilter
 }
@@ -164,8 +166,10 @@ func (s *fakeIAMService) Me(context.Context, iamservice.Principal) (*iammodel.Us
 func (s *fakeIAMService) ListMyOrganizations(context.Context, iamservice.Principal) ([]iammodel.Organization, error) {
 	return nil, nil
 }
-func (s *fakeIAMService) ListOrganizations(context.Context, iamservice.Principal) ([]iammodel.Organization, error) {
-	return nil, nil
+func (s *fakeIAMService) ListOrganizations(_ context.Context, _ iamservice.Principal, filter iamservice.OrganizationListFilter) (iamservice.OrganizationPage, error) {
+	s.orgListCalls++
+	s.lastOrgFilter = filter
+	return iamservice.OrganizationPage{Items: []iammodel.Organization{}, Page: 1, PageSize: 10, StorageStatus: "persisted"}, nil
 }
 func (s *fakeIAMService) CreateOrganization(context.Context, iamservice.Principal, string, string) (*iammodel.Organization, error) {
 	return nil, nil
@@ -407,6 +411,31 @@ func TestNewRouterOrgUsersPassesListFilters(t *testing.T) {
 	filter := iamSvc.lastUserFilter
 	if filter.Keyword != "alice" || filter.Username != "ali" || filter.DisplayName != "Alice" || filter.Email != "alice@example.com" || filter.RoleCode != "admin" || filter.Status != "active" || filter.Page != 2 || filter.PageSize != 30 || filter.OrderKey != "username" || !filter.Desc {
 		t.Fatalf("unexpected user list filter: %#v", filter)
+	}
+}
+
+func TestNewRouterOrganizationsPassesListFilters(t *testing.T) {
+	iamSvc := &fakeIAMService{}
+	router := newTestRouter(RouterDeps{
+		IAMHandler: iamhandler.New(iamSvc, nil),
+		IAMAuth:    iamSvc,
+		IAMAuthz:   iamSvc,
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/orgs?keyword=team&code=alpha&name=Alpha%20Team&status=active&page=3&pageSize=20&orderKey=code&desc=1", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected organizations status %d, got %d body %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	if iamSvc.orgListCalls != 1 {
+		t.Fatalf("expected one ListOrganizations call, got %d", iamSvc.orgListCalls)
+	}
+	filter := iamSvc.lastOrgFilter
+	if filter.Keyword != "team" || filter.Code != "alpha" || filter.Name != "Alpha Team" || filter.Status != "active" || filter.Page != 3 || filter.PageSize != 20 || filter.OrderKey != "code" || !filter.Desc {
+		t.Fatalf("unexpected organization list filter: %#v", filter)
 	}
 }
 

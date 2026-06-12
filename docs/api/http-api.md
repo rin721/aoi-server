@@ -496,7 +496,7 @@ Content-Type: application/json
 
 | 方法 | 路径 | 权限对象/动作 | 说明 |
 | --- | --- | --- | --- |
-| GET | `/api/v1/orgs` | `org:read` | 查询组织列表。 |
+| GET | `/api/v1/orgs` | `org:read` | 分页查询组织列表，支持 `keyword`、`code`、`name`、`status`、`page`、`pageSize`。 |
 | POST | `/api/v1/orgs` | `org:create` | 创建组织，并把当前用户设为新组织 owner。 |
 | PATCH | `/api/v1/orgs/{orgId}` | `org:update` | 更新当前组织信息。 |
 | GET | `/api/v1/orgs/{orgId}/users` | `user:read` | 分页查询当前组织用户，支持 `keyword`、`username`、`displayName`/`nickName`、`email`、`roleCode`、`status`、`page`、`pageSize`。 |
@@ -513,6 +513,16 @@ Content-Type: application/json
 | DELETE | `/api/v1/orgs/{orgId}/api-tokens/{tokenId}` | `api_token:revoke` | 撤销 API Token。 |
 
 路径中的 `{orgId}` 必须与 access token 中的 `orgId` 一致。
+
+### 查询组织列表
+
+组织列表返回分页对象，用于后台 `组织管理` 的筛选表格。`keyword` 会匹配
+组织 Code、组织名称和状态；`status` 可传 `active` 或 `disabled`。
+二次开发调用方应读取 `data.items`，不要再按裸数组解析响应。
+
+```http
+GET /api/v1/orgs?keyword=team&status=active&page=1&pageSize=10
+```
 
 ### 查询组织用户
 

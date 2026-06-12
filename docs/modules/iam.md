@@ -8,7 +8,7 @@
 | --- | --- |
 | 本地账号 | 邮箱/用户名全局唯一，密码使用 `pkg/crypto` bcrypt 哈希 |
 | 自助开通 | 可选公开注册入口一次性创建组织、首个 owner 用户和登录会话 |
-| 组织租户 | access token 固定绑定单个 `orgId`，切换组织会重新签发 token |
+| 组织租户 | access token 固定绑定单个 `orgId`，组织列表支持筛选分页，切换组织会重新签发 token |
 | JWT 会话 | `pkg/token` 签发 access/refresh token，refresh token 只存 HMAC/SHA-256 hash |
 | API Token | 组织内按用户和角色签发长期或定期 Bearer token，服务端只保存 hash 和显示前缀 |
 | 权限 | `pkg/authorization` 封装 Casbin domain RBAC，模型为 `sub, org, obj, act` |
@@ -65,8 +65,12 @@ go run ./cmd/main iam bootstrap-admin \
 | `POST /api/v1/auth/mfa/verify` | 校验 TOTP 并启用 MFA |
 | `POST /api/v1/invitations/:token/accept` | 接受邀请 |
 | `GET /api/v1/me` | 当前用户资料 |
-| `GET /api/v1/me/orgs` | 当前用户组织列表 |
+| `GET /api/v1/me/orgs` | 当前用户所属组织数组，用于会话身份和顶部切换器 |
 | `/api/v1/orgs`、`/api/v1/orgs/:orgId/users/*`、`/api/v1/orgs/:orgId/invitations/*`、`/api/v1/orgs/:orgId/roles/*`、`/api/v1/orgs/:orgId/permissions`、`/api/v1/orgs/:orgId/api-tokens`、`/api/v1/orgs/:orgId/sessions`、`/api/v1/orgs/:orgId/audit-logs` | 管理接口，需认证和 Casbin 权限 |
+
+`GET /api/v1/orgs` 返回分页对象，支持 `keyword`、`code`、`name`、
+`status`、`page`、`pageSize`。`keyword` 会匹配组织 Code、组织名称和状态；
+后台 `/admin/organizations` 使用该接口驱动筛选表格。
 
 `GET /api/v1/orgs/:orgId/users` 返回分页对象，支持 `keyword`、`username`、
 `displayName`/`nickName`、`email`、`roleCode`、`status`、`page`、`pageSize`。

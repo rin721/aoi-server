@@ -165,6 +165,72 @@ func TestSelfSignupCreatesOwnerSession(t *testing.T) {
 	}
 }
 
+func TestListOrganizationsFiltersAndPaginates(t *testing.T) {
+	ctx := context.Background()
+	svc, cleanup := newTestService(t)
+	defer cleanup()
+
+	admin, err := svc.BootstrapAdmin(ctx, BootstrapAdminInput{
+		OrgCode:  "core",
+		OrgName:  "Core Org",
+		Username: "admin",
+		Email:    "admin@example.com",
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("BootstrapAdmin() failed: %v", err)
+	}
+	if _, err := svc.CreateOrganization(ctx, *admin, "alpha", "Alpha Team"); err != nil {
+		t.Fatalf("CreateOrganization(alpha) failed: %v", err)
+	}
+	if _, err := svc.CreateOrganization(ctx, *admin, "beta", "Beta Team"); err != nil {
+		t.Fatalf("CreateOrganization(beta) failed: %v", err)
+	}
+	if _, err := svc.CreateOrganization(ctx, *admin, "support", "Support Desk"); err != nil {
+		t.Fatalf("CreateOrganization(support) failed: %v", err)
+	}
+
+	firstPage, err := svc.ListOrganizations(ctx, *admin, OrganizationListFilter{
+		Keyword:  "team",
+		OrderKey: "code",
+		Page:     1,
+		PageSize: 1,
+	})
+	if err != nil {
+		t.Fatalf("ListOrganizations(page 1) failed: %v", err)
+	}
+	if firstPage.Total != 2 || firstPage.Page != 1 || firstPage.PageSize != 1 || len(firstPage.Items) != 1 || firstPage.Items[0].Code != "alpha" || firstPage.StorageStatus != "persisted" {
+		t.Fatalf("unexpected first page: %#v", firstPage)
+	}
+
+	secondPage, err := svc.ListOrganizations(ctx, *admin, OrganizationListFilter{
+		Keyword:  "team",
+		OrderKey: "code",
+		Page:     2,
+		PageSize: 1,
+	})
+	if err != nil {
+		t.Fatalf("ListOrganizations(page 2) failed: %v", err)
+	}
+	if len(secondPage.Items) != 1 || secondPage.Items[0].Code != "beta" {
+		t.Fatalf("unexpected second page: %#v", secondPage)
+	}
+
+	filtered, err := svc.ListOrganizations(ctx, *admin, OrganizationListFilter{
+		Code:     "sup",
+		Name:     "desk",
+		Status:   model.StatusActive,
+		OrderKey: "name",
+		Desc:     true,
+	})
+	if err != nil {
+		t.Fatalf("ListOrganizations(filtered) failed: %v", err)
+	}
+	if filtered.Total != 1 || len(filtered.Items) != 1 || filtered.Items[0].Code != "support" {
+		t.Fatalf("unexpected filtered organizations: %#v", filtered)
+	}
+}
+
 func TestInitialAdminSetupCreatesFirstOwnerAndClosesSetup(t *testing.T) {
 	ctx := context.Background()
 	svc, cleanup := newTestServiceWithSignup(t, false)

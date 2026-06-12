@@ -1,4 +1,4 @@
-﻿# 上游样板 Parity Notes
+# 外部后台 Parity Notes
 
 Verified on 2026-06-11 from the public demo and upstream documentation.
 Sources:
@@ -9,7 +9,7 @@ Sources:
 
 ## Persistent Task Book
 
-This file is the durable handoff point for incremental 上游样板 parity.
+This file is the durable handoff point for incremental 外部后台 parity.
 Before implementing a parity slice, update or append a short entry here with:
 
 1. target slice and current status;
@@ -26,7 +26,7 @@ Status legend:
 
 - `[done]`: implemented and documented in this repository.
 - `[doing]`: actively being implemented in the current parity slice.
-- `[audit]`: present locally but needs 上游样板 comparison or polish before calling
+- `[audit]`: present locally but needs 外部后台 comparison or polish before calling
   it equivalent.
 - `[next]`: preferred next implementation slice.
 - `[todo]`: not implemented or intentionally deferred.
@@ -73,7 +73,7 @@ Last checked: 2026-06-12.
   `tmp/ai/customer-mobile-390.png`,
   `tmp/ai/users-desktop-1440-final.png`, and
   `tmp/ai/users-mobile-390-final.png`.
-- Customer/resource example research: 上游样板 route
+- Customer/resource example research: 外部后台 route
   `外部后台演示站/#/layout/example/customer` was opened in the
   in-app Browser on 2026-06-12. Screenshot capture timed out in the demo tab,
   so the current evidence is DOM/source based: warning bar, `新增` action, empty
@@ -82,10 +82,10 @@ Last checked: 2026-06-12.
 - Demo visual readout: fixed white shell, left menu, thin dividers, compact
   operational cards, dense tables, small action buttons, minimal decorative
   effects, and visible diagonal demo watermark.
-- Local parity stance: continue mapping 上游样板 responsibilities into this repo's
+- Local parity stance: continue mapping 外部后台 responsibilities into this repo's
   existing `internal/modules/*/{model,repository,service,handler}`,
   `internal/transport/http`, `internal/app/initapp`, `internal/config`, and
-  `pkg` boundaries instead of renaming the backend to 上游样板的 folders.
+  `pkg` boundaries instead of renaming the backend to 外部后台的 folders.
 
 ### Route And Feature Board
 
@@ -93,24 +93,24 @@ Last checked: 2026-06-12.
 | --- | --- | --- | --- | --- |
 | [done] | Admin shell, left menu, visited tabs, dense table styling | `web/admin/app` layout and shared CSS | Visual before/after required for every future UI slice | Keep low-noise 管理后台式 management style. |
 | [done] | Dashboard baseline | `/admin` | Re-check demo dashboard before major dashboard redesign | Local dashboard is service/IAM-focused, not plugin-market focused. |
-| [done] | Menu management | `/admin/menus`, `/api/v1/system/menus` | Demo page optional unless changing interactions | Server-driven menu catalog is the local source of truth. |
-| [done] | API management and sync | `/admin/apis`, `/api/v1/system/apis` | Demo page optional unless changing access/filter UI | Includes access-mode summary and permission sync. |
-| [done] | Role authorization matrix | `/admin/roles` | Re-check 上游样板 role page before editing permission UX | Local implementation maps to Casbin domain RBAC. |
+| [done] | Menu management | `/admin/menus`, `/api/v1/system/menus` | External page optional unless changing interactions | Server-driven menu catalog is the local source of truth. |
+| [done] | API management and sync | `/admin/apis`, `/api/v1/system/apis` | External page optional unless changing access/filter UI | Includes access-mode summary and permission sync. |
+| [done] | Role authorization matrix | `/admin/roles` | Re-check 外部后台 role page before editing permission UX | Local implementation maps to Casbin domain RBAC. |
 | [done] | User management | `/admin/users` and IAM APIs | External route/source checked on 2026-06-12 | First pass added list filters, pagination, and compact role/status operations without exposing source wording. |
-| [audit] | Organization/tenant management | `/admin/organizations` | Research upstream tenant/org equivalent before changing | Local IAM has organizations; 外部样板 may not match one-to-one. |
+| [done] | Organization/tenant management | `/admin/organizations` | Research closest external permission pages before changing | Added organization filters, pagination, and compact management UI. |
 | [audit] | Session/security/MFA pages | `/admin/sessions`, `/admin/security` | Visual and workflow check required before UI changes | Keep token and MFA behavior local; do not copy insecure demo shortcuts. |
-| [done] | Dictionary management | `/admin/dictionaries`, system dictionary APIs | Demo page optional unless changing item editing UX | Persisted dictionaries and items are implemented. |
+| [done] | Dictionary management | `/admin/dictionaries`, system dictionary APIs | External page optional unless changing item editing UX | Persisted dictionaries and items are implemented. |
 | [done] | Operation history | `/admin/operation-records` | Re-check demo before adding advanced filters/export | Persisted protected request records are implemented. |
-| [done] | Parameter management | `/admin/parameters` | Demo page optional unless adding batch/import/export | Persisted parameter CRUD is implemented. |
+| [done] | Parameter management | `/admin/parameters` | External page optional unless adding batch/import/export | Persisted parameter CRUD is implemented. |
 | [done] | System config read | `/admin/system`, `/api/v1/system/config` | Research required before any write/reload capability | Current slice is read-only and masks secrets. |
 | [done] | Server status | `/admin/server-info`, `/api/v1/system/server-info` | Visual check required if charts are added | Uses local runtime and host metrics. |
-| [done] | Login log | `/admin/login-logs` | Demo page already observed as menu/tab with limited content | Local page uses IAM `auth.login` audit records. |
-| [done] | Error log | `/admin/error-logs` | Demo page observed as unassigned route for admin account | Local page uses `system_operation_records` status filters. |
+| [done] | Login log | `/admin/login-logs` | External page already observed as menu/tab with limited content | Local page uses IAM `auth.login` audit records. |
+| [done] | Error log | `/admin/error-logs` | External page observed as unassigned route for admin account | Local page uses `system_operation_records` status filters. |
 | [done] | Login captcha | `/api/v1/auth/captcha`, `/admin/login` | Demo login captcha must be checked if login screen changes | Optional config: `auth.login_captcha_enabled`. |
-| [done] | API Token | `/admin/api-tokens`, `/api/v1/orgs/:orgId/api-tokens` | Demo page and upstream source inspected on 2026-06-12 | Local opaque token implementation with one-time plaintext display and hash-only storage. |
-| [done] | Version management | `/admin/versions`, `/api/v1/system/versions` | Demo page and upstream source inspected on 2026-06-12 | 上游样板 feature is a configuration release package for selected menus, APIs, and dictionaries; local import safely persists dictionaries and stores menu/API package records. |
-| [done] | Media library upload/download | `/admin/media`, `/api/v1/system/media/*` | Demo page and upstream source inspected on 2026-06-12 | 上游样板 feature is left-category media management with upload, URL import, keyword filter, preview, rename, download, and delete. |
-| [done] | Breakpoint upload | `/admin/media/resumable`, `/api/v1/system/media/assets/resumable/*` | Demo page and upstream source inspected on 2026-06-12 | Local implementation uses resumable sessions, SHA-256 chunk/full-file verification, Storage-backed chunk cleanup, and media asset completion. |
+| [done] | API Token | `/admin/api-tokens`, `/api/v1/orgs/:orgId/api-tokens` | External page and external source inspected on 2026-06-12 | Local opaque token implementation with one-time plaintext display and hash-only storage. |
+| [done] | Version management | `/admin/versions`, `/api/v1/system/versions` | External page and external source inspected on 2026-06-12 | 外部后台 feature is a configuration release package for selected menus, APIs, and dictionaries; local import safely persists dictionaries and stores menu/API package records. |
+| [done] | Media library upload/download | `/admin/media`, `/api/v1/system/media/*` | External page and external source inspected on 2026-06-12 | 外部后台 feature is left-category media management with upload, URL import, keyword filter, preview, rename, download, and delete. |
+| [done] | Breakpoint upload | `/admin/media/resumable`, `/api/v1/system/media/assets/resumable/*` | External page and external source inspected on 2026-06-12 | Local implementation uses resumable sessions, SHA-256 chunk/full-file verification, Storage-backed chunk cleanup, and media asset completion. |
 | [done] | Customer/resource example | `/admin/customers`, `/api/v1/demo/customers` | Demo visual/source checked on 2026-06-12 | Protected resource CRUD example using local IAM principal scope. |
 | [defer] | Template config/code generator/form generator/export template | `pkg/sqlgen` plus explicit product spec | Research required, but do not copy wholesale | Needs product decision and security review before implementation. |
 | [defer] | AI workflow, MCP Tools, Skills, AI page drawing | Separate AI tooling boundary | Research required before any local work | Keep AI artifacts under `docs/ai` or `tools/ai`; do not mix into app packages. |
@@ -118,15 +118,15 @@ Last checked: 2026-06-12.
 
 ### Next Slice Protocol
 
-Preferred next slice: Organization/tenant management audit, unless the user redirects
-to another 外部样板 area.
+Preferred next slice: Session/security/MFA pages audit, unless the user redirects
+to another external admin area.
 
 Before implementation:
 
-- Research the selected 上游样板 workflow visually and capture screenshots for the
+- Research the selected external admin workflow visually and capture screenshots for the
   main list/form, important dialogs, empty state, error state, and completion
   state where the demo exposes them.
-- Inspect upstream 上游样板 server and web source for request shape, service
+- Inspect external admin server and web source for request shape, service
   behavior, cleanup rules, validation, permissions, and failure responses.
 - Inspect the closest local module, config, migration status, and frontend
   route before deciding whether to extend an existing boundary or add a new
@@ -156,6 +156,76 @@ Validation floor:
 - For visible UI work, visually inspect desktop `1440x900` and mobile
   `390x844` routes with Browser and record results here or in the final note.
 
+### Active Slice: Organization Management Filters And Pagination
+
+Status: `[done]` started and completed on 2026-06-12.
+
+Research completed before implementation:
+
+- The external admin navigation exposes permission-oriented management pages
+  such as role, menu, API, user, dictionary, operation history, parameters,
+  token, login log, version, and error log, but no dedicated organization or
+  tenant page under the current demo account.
+- Direct access to the closest role-management route returned a no-permission
+  state for the current demo account. No captcha was shown.
+- Local conclusion: keep this repo's organization boundary as the source of
+  truth, and borrow only the management-page structure already established in
+  adjacent slices: warning/context strip, compact filters, dense table,
+  explicit pagination, and a side panel for create/update actions.
+
+Local implementation plan:
+
+- Extend `GET /api/v1/orgs` from a bare array to a paginated object with
+  `keyword`, `code`, `name`, `status`, `orderKey`, `desc`, `page`, and
+  `pageSize` query support. Default no-query calls return page 1.
+- Keep organization creation and current-organization update rules unchanged:
+  creating an organization adds the current user as owner; updating is only
+  allowed for the token-bound current organization.
+- Update `/admin/organizations` into a compact management surface with filters,
+  page-size control, paginated table, current-organization edit panel, and
+  create panel. Do not add new columns or schema fields in this slice.
+- Update API docs, OpenAPI, IAM module docs, onboarding and maintenance notes,
+  and keep example configuration wording free of source/reference names.
+
+Validation plan:
+
+- Add focused IAM service and HTTP router tests for organization list
+  filtering, sorting, pagination, and query parsing.
+- Run `go test ./internal/modules/iam/... ./internal/transport/http -count=1 -mod=readonly`.
+- Run `pnpm --dir web/admin typecheck`.
+- Parse `docs/api/openapi.yaml`.
+- Visually inspect `/admin/organizations` at `1440x900` and `390x844`, with
+  special attention to filter wrapping, table scroll containment, and text
+  overlap.
+
+Implementation completed:
+
+- Extended `GET /api/v1/orgs` to return `OrganizationPage` with `keyword`,
+  `code`, `name`, `status`, `orderKey`, `desc`, `page`, and `pageSize` query
+  support.
+- Added IAM service and HTTP router tests for organization filtering,
+  sorting, pagination, and query parsing.
+- Reworked `/admin/organizations` into a compact management page with warning
+  context, filters, page-size control, paginated table, current organization
+  edit panel, and create panel.
+- Trimmed nonessential table columns after visual review so desktop users can
+  see the switch action without page-level horizontal scrolling.
+- Updated API docs, OpenAPI, IAM module docs, onboarding, maintenance, and
+  overview notes.
+
+Validation completed:
+
+- `go test ./internal/modules/iam/... ./internal/transport/http -count=1 -mod=readonly`
+- `pnpm --dir web/admin typecheck`
+- `docs/api/openapi.yaml` parsed successfully with PyYAML.
+- Local visual evidence saved:
+  `tmp/ai/organizations-desktop-1440-final.png` and
+  `tmp/ai/organizations-mobile-390-final.png`.
+- Visual notes: desktop has no page-level horizontal overflow and the action
+  column is visible; mobile keeps filters single-column and confines table
+  overflow to the table container; rendered body text contains no source or
+  reference wording.
+
 ### Active Slice: User Management Filters And Pagination
 
 Status: `[done]` started and completed on 2026-06-12.
@@ -164,7 +234,7 @@ Research completed before implementation:
 
 - Demo route attempted:
   `外部后台演示站/#/layout/superAdmin/user`. The current public
-  demo session returned the 上游样板 no-route/no-permission page, so this role cannot
+  demo session returned the 外部后台 no-route/no-permission page, so this role cannot
   visually inspect the live user table without a different demo permission set.
   No captcha was shown.
 - Upstream primary source checked at commit
@@ -243,8 +313,8 @@ Research completed before implementation:
   access-user ID and operations, empty state `暂无数据`, and bottom pagination.
   The create/edit surface is a right-side `客户` drawer with `客户名` and
   `客户电话` fields plus cancel/confirm actions.
-- Browser screenshot capture timed out on the public demo tab, so no 上游样板
-  customer screenshot is saved yet. DOM inspection and upstream source were
+- Browser screenshot capture timed out on the public demo tab, so no 外部后台
+  customer screenshot is saved yet. DOM inspection and external source were
   used for this slice; local screenshots are still required after
   implementation.
 - Upstream primary source checked at commit
@@ -263,15 +333,15 @@ Local implementation plan:
 
 - Keep the feature in the Demo module because it is an example CRUD resource,
   but register it behind IAM authentication and `customer:*` permissions to
-  mirror 上游样板的 private router plus Casbin responsibility split.
+  mirror 外部后台的 private router plus Casbin responsibility split.
 - Add a `demo_customers` model/table with customer name, phone, owner user ID,
   owner username, owner role code, organization ID, timestamps, and soft delete.
   It is intentionally separate from System media/version tables because it is a
   teaching example rather than operational configuration.
 - Apply local resource visibility as: users list customers from their current
   organization where the owner role matches their active role, or records they
-  created themselves. This maps 上游样板的 role data-authority example into the
-  current IAM principal shape without adding 上游样板的 full authority association
+  created themselves. This maps 外部后台的 role data-authority example into the
+  current IAM principal shape without adding 外部后台的 full authority association
   model.
 - Expose protected APIs under `/api/v1/demo/customers` for list, create, detail,
   update, and delete. Use `customer:read`, `customer:create`,
@@ -332,7 +402,7 @@ Research completed before implementation:
 
 - Demo route: `外部后台演示站/#/layout/example/breakpoint`.
 - Visual evidence: `tmp/ai/demo-breakpoint-2026-06-12.png`.
-- Demo page shape: a compact white panel titled "大文件上传", one "选择文件"
+- External page shape: a compact white panel titled "大文件上传", one "选择文件"
   file picker button, one "上传文件" primary action, a selected-file row with
   filename, percentage and a thin progress bar, plus a note that the test
   version writes chunks and merged files into server-side breakpoint/file
@@ -369,7 +439,7 @@ Local implementation plan:
   `media:upload` for check/chunk/complete/abort; listing and final asset access
   continue to use existing media permissions.
 - Use SHA-256 for full-file and chunk hashes, while keeping request field names
-  close enough to 上游样板的 `fileHash`, `chunkHash`, `chunkIndex`, `chunkTotal`,
+  close enough to 外部后台的 `fileHash`, `chunkHash`, `chunkIndex`, `chunkTotal`,
   and `fileName` responsibility split.
 - Reuse the existing `MediaMaxBytes` limit and `MediaPrefix`; default chunk
   size is 1 MB and the server rejects empty files, files over the max, invalid
@@ -396,7 +466,7 @@ Validation plan:
 - Run `pnpm typecheck` from `web/admin`.
 - Use Browser visual checks on `/admin/media/resumable` at `1440x900` and
   `390x844`, including storage-disabled and selected-file states. If the user
-  provides the 上游样板 captcha, also capture 上游样板 upload progress/completion
+  provides the 外部后台 captcha, also capture 外部后台 upload progress/completion
   evidence for comparison.
 
 Implementation completed:
@@ -450,7 +520,7 @@ Research completed before implementation:
 - Visual evidence:
   `tmp/ai/demo-upload-2026-06-12.png` and
   `tmp/ai/demo-upload-import-url-2026-06-12.png`.
-- Demo page shape: left category tree with `全部分类`; top warning bar; action
+- External page shape: left category tree with `全部分类`; top warning bar; action
   buttons for normal upload, crop upload, QR upload, compressed upload, and
   URL import; keyword filter; table columns for preview, date, file name/remark,
   link, tag, and row operations; pagination at the lower right.
@@ -562,7 +632,7 @@ Research completed before implementation:
   `tmp/ai/demo-version-2026-06-12.png`,
   `tmp/ai/demo-version-export-drawer-2026-06-12.png`, and
   `tmp/ai/demo-version-import-drawer-2026-06-12.png`.
-- Demo page shape: list page filters by created date, version name, and version
+- External page shape: list page filters by created date, version name, and version
   code; primary actions are create release package and import version package;
   row actions are view, download package, and delete. The create drawer collects
   version name/code/description and lets the user select menus, APIs, and
@@ -581,7 +651,7 @@ Research completed before implementation:
 
 Local implementation plan:
 
-- Keep the 上游样板 responsibility split, but name the local concept explicitly as a
+- Keep the 外部后台 responsibility split, but name the local concept explicitly as a
   system release package. It snapshots menus, API routes, and dictionaries into
   a versioned JSON payload instead of representing the running binary version or
   migration version.
@@ -654,7 +724,7 @@ Research completed before implementation:
 - Demo route: API Token page under Super Admin. Screenshots:
   `tmp/ai/demo-api-token-2026-06-12.png` and
   `tmp/ai/demo-api-token-dialog-2026-06-12.png`.
-- Demo page shape: filters by user ID and status; primary action is issue;
+- External page shape: filters by user ID and status; primary action is issue;
   table columns are ID, user, role ID, status, expires at, remark, operation;
   issue drawer asks for user, role, validity period, and remark; success dialog
   shows the token once; operation area includes curl example and invalidate.
@@ -670,9 +740,9 @@ Research completed before implementation:
 
 Local implementation plan:
 
-- Keep the 上游样板 management workflow shape, but implement local API tokens as
+- Keep the 外部后台 management workflow shape, but implement local API tokens as
   opaque secrets with a display prefix and SHA-256 hash. Do not store the
-  plaintext token or copy 上游样板的 raw JWT persistence.
+  plaintext token or copy 外部后台的 raw JWT persistence.
 - Put the backend in IAM because the token authenticates callers and belongs to
   users, organizations, and role/permission scope. Keep route registration in
   `internal/transport/http`.
@@ -733,7 +803,7 @@ sufficient for the current management workflow.
   lists are arranged as operational widgets rather than marketing cards.
 - Styling: the demo keeps backgrounds mostly solid white, uses thin borders, and
   avoids blurred or translucent surfaces inside core management workflows.
-- Visual pollution to avoid while replacing 上游样板 incrementally: front-site
+- Visual pollution to avoid while replacing 外部后台 incrementally: front-site
   background images, colorful navigation gradients, translucent glass panels,
   large marketing gradients, decorative blur, high-opacity watermark patterns,
   and low-contrast table/header text.
@@ -756,7 +826,7 @@ available.
 
 ## Backend Reference
 
-上游样板's server is organized around `api/v1`, `config`, `core`,
+外部后台's server is organized around `api/v1`, `config`, `core`,
 `global`, `initialize`, `middleware`, `model`, `model/request`,
 `model/response`, `router`, `service`, `source`, and `utils`.
 
@@ -775,12 +845,12 @@ renaming the backend wholesale:
 - `middleware` maps to `internal/middleware`.
 - `utils` maps to reusable packages under `pkg`.
 
-Do not rename this repository to match 上游样板的 folder names wholesale. The parity
+Do not rename this repository to match 外部后台的 folder names wholesale. The parity
 target is the responsibility split: router catalog, API handler, service domain
 rules, repository persistence, typed request/response shapes, initialization,
 middleware, and reusable utilities.
 
-上游样板的 router initialization separates public routes from private routes guarded
+外部后台的 router initialization separates public routes from private routes guarded
 by JWT and Casbin. In this scaffold, the equivalent information is expressed in
 the API catalog as `access=public|authenticated|permission` while the concrete
 middleware remains in `internal/transport/http` and `internal/middleware`.
@@ -794,7 +864,7 @@ middleware remains in `internal/transport/http` and `internal/middleware`.
    models and routes.
 4. Preserve the current dependency rule: modules depend on reusable `pkg`
    infrastructure, while `pkg` does not import application modules.
-5. Avoid copying 上游样板's code generator, plugin market, or generated
+5. Avoid copying 外部后台's code generator, plugin market, or generated
    CRUD surface until this backend has an explicit product requirement for them.
 
 ## Implemented Parity Slices
@@ -819,52 +889,52 @@ middleware remains in `internal/transport/http` and `internal/middleware`.
   `system_dictionaries` and `system_dictionary_items`, CRUD HTTP APIs, IAM
   permissions, role-matrix grouping, a server-driven menu entry, and the
   `/admin/dictionaries` management page.
-- 2026-06-12: Operation history slice added after visually inspecting 上游样板的
+- 2026-06-12: Operation history slice added after visually inspecting 外部后台的
   `操作历史` page: protected API requests are recorded into
   `system_operation_records`, surfaced through `/api/v1/system/operation-records`,
   wired into IAM permissions and server-driven menus, and managed from
   `/admin/operation-records` with 管理后台式 filters, selection, table layout, and
   pagination.
-- 2026-06-12: Parameter management slice added after checking 上游样板的
+- 2026-06-12: Parameter management slice added after checking 外部后台的
   `参数管理` / `sys_params` model and service: persisted `system_parameters`
   records expose name, key, value, description, created timestamps, list filters,
   single and batch delete, key lookup, IAM permissions, server-driven menus, and
   the `/admin/parameters` management page.
-- 2026-06-12: System configuration slice added after checking 上游样板的
+- 2026-06-12: System configuration slice added after checking 外部后台的
   `系统配置` page and `/system/getSystemConfig` route: this scaffold now exposes
   a permission-protected `/api/v1/system/config` read-only runtime snapshot,
   masks secrets, wires `config:read` into IAM/menu/API catalogs, and adds the
   `/admin/system` grouped configuration page. 管理后台式 config write and service
   reload remain a later, higher-risk parity slice.
-- 2026-06-12: Server status slice added after checking 上游样板的
+- 2026-06-12: Server status slice added after checking 外部后台的
   `/system/getServerInfo` service shape: this scaffold now exposes
   `/api/v1/system/server-info` with `server:read`, returns gopsutil-backed
   host CPU/RAM/disk metrics plus Go runtime, memory, GC, OS, uptime, and build
   metadata, wires the server-driven menu and role permission matrix, and adds
   `/admin/server-info`.
 - 2026-06-12: Admin visual pollution hardening after visual comparison with
-  上游样板 dashboard and menu-management pages: the admin runtime now clears legacy
+  外部后台 dashboard and menu-management pages: the admin runtime now clears legacy
   Aoi background/colorful-nav variables, and the admin CSS baseline uses a
   restrained 管理后台式 palette with solid panels, thin borders, low shadows,
   denser tables, muted login branding, semantic API method badges, isolated
   admin surface tokens, and desktop/mobile visual checks.
-- 2026-06-12: 上游样板 `source`/`initialize` parity slice: the System module can
+- 2026-06-12: 外部后台 `source`/`initialize` parity slice: the System module can
   seed default dictionaries and parameters during startup through
   `system.seed_defaults_on_start`. The seed is idempotent, skips unavailable
   tables, and never overwrites existing user-edited parameter values.
-- 2026-06-12: Login log parity slice after inspecting 上游样板
+- 2026-06-12: Login log parity slice after inspecting 外部后台
   `#/layout/admin/loginLog`: the demo currently exposes the menu item and tab
   but keeps dashboard content in the work surface, so this scaffold implements a
   usable `/admin/login-logs` page backed by IAM `auth.login` audit records and
   adds the server-driven menu entry under Security Audit.
-- 2026-06-12: Error log parity slice after inspecting 上游样板
+- 2026-06-12: Error log parity slice after inspecting 外部后台
   `#/layout/admin/errorLog`: the public demo currently renders the unassigned
   route/permission page for the admin account, so this scaffold implements a
   usable `/admin/error-logs` page over `system_operation_records`. The backend
   keeps the existing operation-record table and adds optional `statusClass`
   filtering (`4xx`, `5xx`, or `error`) to `/api/v1/system/operation-records`;
   exact `status` filters still take priority when supplied.
-- 2026-06-12: API catalog access-mode parity slice based on 上游样板的 public vs
+- 2026-06-12: API catalog access-mode parity slice based on 外部后台的 public vs
   JWT/Casbin-protected router groups: route catalog entries now expose
   `access` as `public`, `authenticated`, or `permission`, and the API management
   page can summarize and filter by that access mode without changing the
