@@ -50,6 +50,26 @@ DB_HOST
 
 优先使用带前缀名称；不带前缀名称只作为兼容 fallback。
 
+## Docker 部署变量
+
+`deploy.sh` 的基础部署变量只影响 Docker 和宿主机部署行为，不会进入 Go 配置结构。
+这些变量可作为脚本默认值，命令行参数优先级更高：
+
+| 变量 | 对应参数 | 用途 |
+| --- | --- | --- |
+| `DEPLOY_PATH` | `--path` | 保存 Compose 文件的运行目录。 |
+| `DEPLOY_IMAGE` | `--image` | 构建或运行的镜像名。 |
+| `GITHUB_PROXY_HOST` | `--github-proxy-host` | Git 克隆代理主机，例如 `github-com-gh.helloworlds.eu.org`。 |
+| `APP_PORT` | `--port` | 宿主机 HTTP 端口。 |
+| `APP_CONTAINER_PORT` | `--server-port` | 容器内 HTTP 端口，并与 `RIN_APP_SERVER_PORT` 对齐。 |
+| `HOST_CONFIG_DIR` | `--config-dir` | 宿主机配置目录，脚本会管理其中的 `config.yaml`。 |
+| `HOST_DATA_DIR` | `--data-dir` | 宿主机数据目录，映射到容器 `/app/data`。 |
+| `HOST_LOGS_DIR` | `--logs-dir` | 宿主机日志目录，映射到容器 `/app/logs`。 |
+
+Compose 模板实际接收 `HOST_CONFIG_FILE`、`HOST_DATA_DIR` 和 `HOST_LOGS_DIR`。手动
+运行 Compose 时需要显式导出这些变量；通过 `deploy.sh` 运行时脚本会从目录参数
+派生并导出。
+
 ## 常用变量
 
 | 范围 | 变量 |
@@ -72,8 +92,10 @@ DB_HOST
 
 `RIN_APP_AUTH_REFRESH_TOKEN_PEPPER` 同时用于 refresh token 和 IAM API Token 的 HMAC hash。生产环境轮换该值前，需要把既有 refresh token 与 API Token 会统一失效这件事纳入发布通知和回滚预案。
 
-完整字段列表以 `internal/config/*` 和 `.env.example` 为准。生产 Compose 示例只暴露
-当前部署模板需要的运行期变量，是否扩展为全量变量映射需要在部署任务中单独审计。
+完整字段列表以 `internal/config/*` 和 `.env.example` 为准。生产 Compose 示例暴露
+部署模板常用的 `RIN_APP_*` 运行期变量，`deploy.sh` 也为这些变量提供显式参数。
+后续新增面向运维的配置字段时，需要同步 `internal/config`、示例配置、`.env.example`、
+Compose 模板、部署脚本参数和本文档。
 
 ## 默认值
 
@@ -143,7 +165,7 @@ Docker 镜像构建时通过 build args 注入 Nuxt 构建期配置：
 | `NUXT_PUBLIC_API_BASE_URL` | 空字符串 | 网关或跨域部署时的 API 入口 |
 | `NUXT_PUBLIC_SHOW_DEMO_TODO` | `false` | 仅控制前端兜底菜单，不改变后端 Demo 配置 |
 
-`deploy.sh` 提供 `--webui-mount-path`、`--webui-build-base-url`、`--webui-api-base-url`、`--webui-show-demo-todo`、`--webui-check` 和 `--webui-check-path`。`--webui-mount-path` 与 Go 配置一样必须是非根绝对路径；未显式传 `--webui-build-base-url` 时，脚本会从 `--webui-mount-path` 派生带尾斜杠的 Nuxt baseURL，避免 Go 挂载路径和 Nuxt 静态资源路径不一致。
+`deploy.sh` 提供 `--config-dir`、`--data-dir`、`--logs-dir`、`--webui-mount-path`、`--webui-build-base-url`、`--webui-api-base-url`、`--webui-show-demo-todo`、`--webui-check` 和 `--webui-check-path`。`--webui-mount-path` 与 Go 配置一样必须是非根绝对路径；未显式传 `--webui-build-base-url` 时，脚本会从 `--webui-mount-path` 派生带尾斜杠的 Nuxt baseURL，避免 Go 挂载路径和 Nuxt 静态资源路径不一致。
 
 ## Server Status Dashboard 配置
 

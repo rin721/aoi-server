@@ -3,6 +3,7 @@ set -euo pipefail
 
 DEFAULT_REPO_URL="https://github.com/rin721/go-scaffold.git"
 DEFAULT_REPO_REF="main"
+DEFAULT_REPO_SLUG="rin721/go-scaffold"
 
 die() {
 	printf '[install] ERROR: %s\n' "$*" >&2
@@ -15,11 +16,16 @@ Usage:
   curl -fsSL -o install.sh https://raw.githubusercontent.com/rin721/go-scaffold/main/script/install.sh
   bash install.sh --docker y --confirm [deploy options]
 
+GitHub proxy:
+  curl -fsSL -o install.sh https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-scaffold/main/script/install.sh
+  bash install.sh --github-proxy-host github-com-gh.helloworlds.eu.org --docker y --confirm [deploy options]
+
 This bootstrap script clones the repository, then delegates to the repository
-root deploy.sh with the same arguments. Use --repo and --ref to override the
-default source:
+root deploy.sh with the same arguments. Use --repo, --ref, or --github-proxy-host
+to override the default source:
   --repo https://github.com/rin721/go-scaffold.git
   --ref main
+  --github-proxy-host github-com-gh.helloworlds.eu.org
 USAGE
 }
 
@@ -31,6 +37,16 @@ require_arg() {
 
 require_cmd() {
 	command -v "$1" >/dev/null 2>&1 || die "$1 is required"
+}
+
+repo_url_from_github_proxy() {
+	local host="$1"
+
+	host="${host#https://}"
+	host="${host#http://}"
+	host="${host%/}"
+	[ -n "$host" ] || die "github proxy host cannot be empty"
+	printf 'https://%s/%s.git' "$host" "$DEFAULT_REPO_SLUG"
 }
 
 clone_repo() {
@@ -47,8 +63,9 @@ clone_repo() {
 	git -C "$target_dir" checkout "$repo_ref" >/dev/null
 }
 
-repo_url="$DEFAULT_REPO_URL"
-repo_ref="$DEFAULT_REPO_REF"
+repo_url="${REPO_URL:-${DEPLOY_REPO_URL:-}}"
+repo_ref="${REPO_REF:-${DEPLOY_REPO_REF:-$DEFAULT_REPO_REF}}"
+github_proxy_host="${GITHUB_PROXY_HOST:-${DEPLOY_GITHUB_PROXY_HOST:-}}"
 args=()
 
 while [ "$#" -gt 0 ]; do
@@ -65,6 +82,12 @@ while [ "$#" -gt 0 ]; do
 		args+=("$1" "$2")
 		shift 2
 		;;
+	--github-proxy-host)
+		require_arg "$1" "${2:-}"
+		github_proxy_host="$2"
+		args+=("$1" "$2")
+		shift 2
+		;;
 	-h | --help)
 		usage
 		exit 0
@@ -75,6 +98,14 @@ while [ "$#" -gt 0 ]; do
 		;;
 	esac
 done
+
+if [ -z "$repo_url" ]; then
+	if [ -n "$github_proxy_host" ]; then
+		repo_url="$(repo_url_from_github_proxy "$github_proxy_host")"
+	else
+		repo_url="$DEFAULT_REPO_URL"
+	fi
+fi
 
 require_cmd git
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/go-scaffold-install.XXXXXX")"

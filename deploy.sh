@@ -3,6 +3,7 @@ set -euo pipefail
 
 DEFAULT_REPO_URL="https://github.com/rin721/go-scaffold.git"
 DEFAULT_REPO_REF="main"
+DEFAULT_REPO_SLUG="rin721/go-scaffold"
 
 log() {
 	printf '[deploy] %s\n' "$*"
@@ -27,18 +28,30 @@ usage() {
   curl -fsSL -o deploy.sh https://raw.githubusercontent.com/rin721/go-scaffold/main/deploy.sh
   bash deploy.sh --docker y --image go-scaffold:local --confirm
 
+GitHub 代理安装:
+  curl -fsSL -o deploy.sh https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-scaffold/main/deploy.sh
+  bash deploy.sh --github-proxy-host github-com-gh.helloworlds.eu.org --docker y --image go-scaffold:local --confirm
+
 部署选项:
   --docker <y|n>              使用 Docker Compose 部署；当前仅支持 "y"。
   --repo <url>                脚本不在仓库目录内运行时要克隆的仓库地址。
   --ref <ref>                 要克隆的 Git ref，默认 main。
+  --github-proxy-host <host>  GitHub 克隆代理主机；未传时直接克隆 github.com。
   --path <path>               运行目录，默认 /opt/go-scaffold。
+  --config-dir <path>         宿主机配置目录，默认 <path>/configs。
+  --data-dir <path>           宿主机数据目录，默认 <path>/data。
+  --logs-dir <path>           宿主机日志目录，默认 <path>/logs。
   --image <image>             要构建或运行的镜像，默认 go-scaffold:local。
   --build <y|n>               是否从源码构建镜像，默认 y。
   --pull <y|n>                Compose up 前是否拉取镜像，默认 n。
-  --port <port>               映射到容器 9999 端口的宿主机端口，默认 9999。
+  --port <port>               宿主机 HTTP 端口，默认 9999。
   --container-name <name>     Docker 容器名，默认 go-scaffold。
   --env <staging|production>  部署环境标签，默认 production。
   --confirm                   必需的确认标记。
+
+可选环境变量:
+  基础部署参数可用同名大写变量作为默认值，例如 DEPLOY_PATH、DEPLOY_IMAGE、
+  APP_PORT、HOST_DATA_DIR。命令行参数始终优先于环境变量。
 
 镜像仓库选项:
   --registry-host <host>      镜像仓库地址，默认 ghcr.io。
@@ -65,9 +78,18 @@ usage() {
   --redis-dial-timeout <value>
   --redis-read-timeout <value>
   --redis-write-timeout <value>
+  --server-host <value>
+  --server-port <value>       容器内 HTTP 端口，同时写入 RIN_APP_SERVER_PORT，默认 9999。
   --server-mode <value>
   --server-read-timeout <value>
   --server-write-timeout <value>
+  --server-idle-timeout <value>
+  --rpc-enabled <value>
+  --rpc-host <value>
+  --rpc-port <value>
+  --rpc-read-timeout <value>
+  --rpc-write-timeout <value>
+  --rpc-idle-timeout <value>
   --webui-enabled <value>
   --webui-mount-path <value>
   --webui-dist-dir <value>
@@ -79,9 +101,17 @@ usage() {
   --webui-check-path <path>          部署后检查路径，默认 <mount_path>/server-info。
   --log-level <value>
   --log-format <value>
+  --log-console-format <value>
+  --log-file-format <value>
   --log-output <value>
+  --log-file-path <value>
+  --log-max-size <value>
+  --log-max-backups <value>
+  --log-max-age <value>
   --i18n-default <value>
   --i18n-supported <value>
+  --i18n-messages-dir <value>
+  --executor-enabled <value>
   --storage-enabled <value>
   --storage-fs-type <value>
   --storage-base-path <value>
@@ -89,6 +119,43 @@ usage() {
   --storage-watch-buffer-size <value>
   --demo-enabled <value>
   --demo-apply-schema-on-start <value>
+  --system-seed-defaults-on-start <value>
+  --plugins-enabled <value>
+  --plugins-manifests <value>
+  --plugins-health-timeout-seconds <value>
+  --plugins-proxy-timeout-seconds <value>
+  --auth-enabled <value>
+  --auth-self-signup-enabled <value>
+  --auth-issuer <value>
+  --auth-audience <value>
+  --auth-signing-key <value>
+  --auth-access-token-ttl-seconds <value>
+  --auth-refresh-token-ttl-seconds <value>
+  --auth-refresh-token-pepper <value>
+  --auth-mfa-issuer <value>
+  --auth-mfa-secret-key <value>
+  --auth-login-max-failures <value>
+  --auth-login-lock-minutes <value>
+  --auth-login-captcha-enabled <value>
+  --auth-captcha-ttl-seconds <value>
+  --auth-invitation-ttl-seconds <value>
+  --auth-password-reset-ttl-seconds <value>
+  --auth-notification-driver <value>
+  --auth-smtp-host <value>
+  --auth-smtp-port <value>
+  --auth-smtp-username <value>
+  --auth-smtp-password <value>
+  --auth-smtp-from <value>
+  --auth-smtp-from-name <value>
+  --auth-smtp-starttls <value>
+  --auth-password-min-length <value>
+  --auth-password-require-lower <value>
+  --auth-password-require-upper <value>
+  --auth-password-require-number <value>
+  --auth-password-require-symbol <value>
+  --auth-casbin-reload-interval-seconds <value>
+  --migration-auto-apply <value>
+  --migration-dir <value>
   --cors-enabled <value>
   --cors-allow-origins <value>
   --cors-allow-methods <value>
@@ -160,6 +227,16 @@ require_cmd() {
 	command -v "$1" >/dev/null 2>&1 || die "$1 is required"
 }
 
+repo_url_from_github_proxy() {
+	local host="$1"
+
+	host="${host#https://}"
+	host="${host#http://}"
+	host="${host%/}"
+	[ -n "$host" ] || die "github proxy host cannot be empty"
+	printf 'https://%s/%s.git' "$host" "$DEFAULT_REPO_SLUG"
+}
+
 clone_repo() {
 	local repo_url="$1"
 	local repo_ref="$2"
@@ -176,22 +253,27 @@ clone_repo() {
 	git -C "$target_dir" checkout "$repo_ref" >/dev/null
 }
 
-DEPLOY_DOCKER=""
-REPO_URL="$DEFAULT_REPO_URL"
-REPO_REF="$DEFAULT_REPO_REF"
-DEPLOY_PATH="/opt/go-scaffold"
-DEPLOY_IMAGE="go-scaffold:local"
-DEPLOY_BUILD="y"
+DEPLOY_DOCKER="${DEPLOY_DOCKER:-}"
+REPO_URL="${REPO_URL:-${DEPLOY_REPO_URL:-}}"
+REPO_REF="${REPO_REF:-${DEPLOY_REPO_REF:-$DEFAULT_REPO_REF}}"
+GITHUB_PROXY_HOST="${GITHUB_PROXY_HOST:-${DEPLOY_GITHUB_PROXY_HOST:-}}"
+DEPLOY_PATH="${DEPLOY_PATH:-/opt/go-scaffold}"
+HOST_CONFIG_DIR="${HOST_CONFIG_DIR:-}"
+HOST_DATA_DIR="${HOST_DATA_DIR:-}"
+HOST_LOGS_DIR="${HOST_LOGS_DIR:-}"
+DEPLOY_IMAGE="${DEPLOY_IMAGE:-go-scaffold:local}"
+DEPLOY_BUILD="${DEPLOY_BUILD:-y}"
 DEPLOY_BUILD_SET="n"
-DEPLOY_PULL="n"
-APP_PORT="9999"
-DEPLOY_CONTAINER_NAME="go-scaffold"
-DEPLOY_ENV="production"
+DEPLOY_PULL="${DEPLOY_PULL:-n}"
+APP_PORT="${APP_PORT:-9999}"
+APP_CONTAINER_PORT="${APP_CONTAINER_PORT:-${RIN_APP_SERVER_PORT:-9999}}"
+DEPLOY_CONTAINER_NAME="${DEPLOY_CONTAINER_NAME:-go-scaffold}"
+DEPLOY_ENV="${DEPLOY_ENV:-production}"
 DEPLOY_CONFIRM="n"
-SOURCE_DIR=""
-REGISTRY_HOST="ghcr.io"
-REGISTRY_USERNAME=""
-REGISTRY_TOKEN=""
+SOURCE_DIR="${SOURCE_DIR:-}"
+REGISTRY_HOST="${REGISTRY_HOST:-ghcr.io}"
+REGISTRY_USERNAME="${REGISTRY_USERNAME:-}"
+REGISTRY_TOKEN="${REGISTRY_TOKEN:-}"
 APP_ENV_PREFIX="${APP_ENV_PREFIX:-RIN_APP}"
 WEBUI_BUILD_BASE_URL="${WEBUI_BUILD_BASE_URL:-}"
 WEBUI_API_BASE_URL="${WEBUI_API_BASE_URL:-}"
@@ -226,9 +308,29 @@ while [ "$#" -gt 0 ]; do
 		REPO_REF="$2"
 		shift 2
 		;;
+	--github-proxy-host)
+		require_arg "$1" "${2:-}"
+		GITHUB_PROXY_HOST="$2"
+		shift 2
+		;;
 	--path)
 		require_arg "$1" "${2:-}"
 		DEPLOY_PATH="$2"
+		shift 2
+		;;
+	--config-dir)
+		require_arg "$1" "${2:-}"
+		HOST_CONFIG_DIR="$2"
+		shift 2
+		;;
+	--data-dir)
+		require_arg "$1" "${2:-}"
+		HOST_DATA_DIR="$2"
+		shift 2
+		;;
+	--logs-dir)
+		require_arg "$1" "${2:-}"
+		HOST_LOGS_DIR="$2"
 		shift 2
 		;;
 	--image)
@@ -381,6 +483,17 @@ while [ "$#" -gt 0 ]; do
 		set_app_env REDIS_WRITE_TIMEOUT "$2"
 		shift 2
 		;;
+	--server-host)
+		require_arg "$1" "${2:-}"
+		set_app_env SERVER_HOST "$2"
+		shift 2
+		;;
+	--server-port)
+		require_arg "$1" "${2:-}"
+		APP_CONTAINER_PORT="$2"
+		set_app_env SERVER_PORT "$2"
+		shift 2
+		;;
 	--server-mode)
 		require_arg "$1" "${2:-}"
 		set_app_env SERVER_MODE "$2"
@@ -394,6 +507,41 @@ while [ "$#" -gt 0 ]; do
 	--server-write-timeout)
 		require_arg "$1" "${2:-}"
 		set_app_env SERVER_WRITE_TIMEOUT "$2"
+		shift 2
+		;;
+	--server-idle-timeout)
+		require_arg "$1" "${2:-}"
+		set_app_env SERVER_IDLE_TIMEOUT "$2"
+		shift 2
+		;;
+	--rpc-enabled)
+		require_arg "$1" "${2:-}"
+		set_app_env RPC_ENABLED "$2"
+		shift 2
+		;;
+	--rpc-host)
+		require_arg "$1" "${2:-}"
+		set_app_env RPC_HOST "$2"
+		shift 2
+		;;
+	--rpc-port)
+		require_arg "$1" "${2:-}"
+		set_app_env RPC_PORT "$2"
+		shift 2
+		;;
+	--rpc-read-timeout)
+		require_arg "$1" "${2:-}"
+		set_app_env RPC_READ_TIMEOUT "$2"
+		shift 2
+		;;
+	--rpc-write-timeout)
+		require_arg "$1" "${2:-}"
+		set_app_env RPC_WRITE_TIMEOUT "$2"
+		shift 2
+		;;
+	--rpc-idle-timeout)
+		require_arg "$1" "${2:-}"
+		set_app_env RPC_IDLE_TIMEOUT "$2"
 		shift 2
 		;;
 	--webui-enabled)
@@ -452,9 +600,39 @@ while [ "$#" -gt 0 ]; do
 		set_app_env LOG_FORMAT "$2"
 		shift 2
 		;;
+	--log-console-format)
+		require_arg "$1" "${2:-}"
+		set_app_env LOG_CONSOLE_FORMAT "$2"
+		shift 2
+		;;
+	--log-file-format)
+		require_arg "$1" "${2:-}"
+		set_app_env LOG_FILE_FORMAT "$2"
+		shift 2
+		;;
 	--log-output)
 		require_arg "$1" "${2:-}"
 		set_app_env LOG_OUTPUT "$2"
+		shift 2
+		;;
+	--log-file-path)
+		require_arg "$1" "${2:-}"
+		set_app_env LOG_FILE_PATH "$2"
+		shift 2
+		;;
+	--log-max-size)
+		require_arg "$1" "${2:-}"
+		set_app_env LOG_MAX_SIZE "$2"
+		shift 2
+		;;
+	--log-max-backups)
+		require_arg "$1" "${2:-}"
+		set_app_env LOG_MAX_BACKUPS "$2"
+		shift 2
+		;;
+	--log-max-age)
+		require_arg "$1" "${2:-}"
+		set_app_env LOG_MAX_AGE "$2"
 		shift 2
 		;;
 	--i18n-default)
@@ -465,6 +643,16 @@ while [ "$#" -gt 0 ]; do
 	--i18n-supported)
 		require_arg "$1" "${2:-}"
 		set_app_env I18N_SUPPORTED "$2"
+		shift 2
+		;;
+	--i18n-messages-dir)
+		require_arg "$1" "${2:-}"
+		set_app_env I18N_MESSAGES_DIR "$2"
+		shift 2
+		;;
+	--executor-enabled)
+		require_arg "$1" "${2:-}"
+		set_app_env EXECUTOR_ENABLED "$2"
 		shift 2
 		;;
 	--storage-enabled)
@@ -500,6 +688,191 @@ while [ "$#" -gt 0 ]; do
 	--demo-apply-schema-on-start)
 		require_arg "$1" "${2:-}"
 		set_app_env DEMO_APPLY_SCHEMA_ON_START "$2"
+		shift 2
+		;;
+	--system-seed-defaults-on-start)
+		require_arg "$1" "${2:-}"
+		set_app_env SYSTEM_SEED_DEFAULTS_ON_START "$2"
+		shift 2
+		;;
+	--plugins-enabled)
+		require_arg "$1" "${2:-}"
+		set_app_env PLUGINS_ENABLED "$2"
+		shift 2
+		;;
+	--plugins-manifests)
+		require_arg "$1" "${2:-}"
+		set_app_env PLUGINS_MANIFESTS "$2"
+		shift 2
+		;;
+	--plugins-health-timeout-seconds)
+		require_arg "$1" "${2:-}"
+		set_app_env PLUGINS_HEALTH_TIMEOUT_SECONDS "$2"
+		shift 2
+		;;
+	--plugins-proxy-timeout-seconds)
+		require_arg "$1" "${2:-}"
+		set_app_env PLUGINS_PROXY_TIMEOUT_SECONDS "$2"
+		shift 2
+		;;
+	--auth-enabled)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_ENABLED "$2"
+		shift 2
+		;;
+	--auth-self-signup-enabled)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_SELF_SIGNUP_ENABLED "$2"
+		shift 2
+		;;
+	--auth-issuer)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_ISSUER "$2"
+		shift 2
+		;;
+	--auth-audience)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_AUDIENCE "$2"
+		shift 2
+		;;
+	--auth-signing-key)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_SIGNING_KEY "$2"
+		shift 2
+		;;
+	--auth-access-token-ttl-seconds)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_ACCESS_TOKEN_TTL_SECONDS "$2"
+		shift 2
+		;;
+	--auth-refresh-token-ttl-seconds)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_REFRESH_TOKEN_TTL_SECONDS "$2"
+		shift 2
+		;;
+	--auth-refresh-token-pepper)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_REFRESH_TOKEN_PEPPER "$2"
+		shift 2
+		;;
+	--auth-mfa-issuer)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_MFA_ISSUER "$2"
+		shift 2
+		;;
+	--auth-mfa-secret-key)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_MFA_SECRET_KEY "$2"
+		shift 2
+		;;
+	--auth-login-max-failures)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_LOGIN_MAX_FAILURES "$2"
+		shift 2
+		;;
+	--auth-login-lock-minutes)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_LOGIN_LOCK_MINUTES "$2"
+		shift 2
+		;;
+	--auth-login-captcha-enabled)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_LOGIN_CAPTCHA_ENABLED "$2"
+		shift 2
+		;;
+	--auth-captcha-ttl-seconds)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_CAPTCHA_TTL_SECONDS "$2"
+		shift 2
+		;;
+	--auth-invitation-ttl-seconds)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_INVITATION_TTL_SECONDS "$2"
+		shift 2
+		;;
+	--auth-password-reset-ttl-seconds)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_PASSWORD_RESET_TTL_SECONDS "$2"
+		shift 2
+		;;
+	--auth-notification-driver)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_NOTIFICATION_DRIVER "$2"
+		shift 2
+		;;
+	--auth-smtp-host)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_SMTP_HOST "$2"
+		shift 2
+		;;
+	--auth-smtp-port)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_SMTP_PORT "$2"
+		shift 2
+		;;
+	--auth-smtp-username)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_SMTP_USERNAME "$2"
+		shift 2
+		;;
+	--auth-smtp-password)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_SMTP_PASSWORD "$2"
+		shift 2
+		;;
+	--auth-smtp-from)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_SMTP_FROM "$2"
+		shift 2
+		;;
+	--auth-smtp-from-name)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_SMTP_FROM_NAME "$2"
+		shift 2
+		;;
+	--auth-smtp-starttls)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_SMTP_STARTTLS "$2"
+		shift 2
+		;;
+	--auth-password-min-length)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_PASSWORD_MIN_LENGTH "$2"
+		shift 2
+		;;
+	--auth-password-require-lower)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_PASSWORD_REQUIRE_LOWER "$2"
+		shift 2
+		;;
+	--auth-password-require-upper)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_PASSWORD_REQUIRE_UPPER "$2"
+		shift 2
+		;;
+	--auth-password-require-number)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_PASSWORD_REQUIRE_NUMBER "$2"
+		shift 2
+		;;
+	--auth-password-require-symbol)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_PASSWORD_REQUIRE_SYMBOL "$2"
+		shift 2
+		;;
+	--auth-casbin-reload-interval-seconds)
+		require_arg "$1" "${2:-}"
+		set_app_env AUTH_CASBIN_RELOAD_INTERVAL_SECONDS "$2"
+		shift 2
+		;;
+	--migration-auto-apply)
+		require_arg "$1" "${2:-}"
+		set_app_env MIGRATION_AUTO_APPLY "$2"
+		shift 2
+		;;
+	--migration-dir)
+		require_arg "$1" "${2:-}"
+		set_app_env MIGRATION_DIR "$2"
 		shift 2
 		;;
 	--cors-enabled)
@@ -547,6 +920,19 @@ while [ "$#" -gt 0 ]; do
 	esac
 done
 
+[ -z "$DEPLOY_DOCKER" ] || DEPLOY_DOCKER="$(normalize_yn "$DEPLOY_DOCKER")"
+DEPLOY_BUILD="$(normalize_yn "$DEPLOY_BUILD")"
+DEPLOY_PULL="$(normalize_yn "$DEPLOY_PULL")"
+WEBUI_CHECK="$(normalize_yn "$WEBUI_CHECK")"
+
+if [ -z "$REPO_URL" ]; then
+	if [ -n "$GITHUB_PROXY_HOST" ]; then
+		REPO_URL="$(repo_url_from_github_proxy "$GITHUB_PROXY_HOST")"
+	else
+		REPO_URL="$DEFAULT_REPO_URL"
+	fi
+fi
+
 [ "$DEPLOY_CONFIRM" = "y" ] || die "--confirm is required"
 [ "$DEPLOY_DOCKER" = "y" ] || die "--docker y is required; non-Docker deployment is not implemented"
 
@@ -555,14 +941,33 @@ staging | production) ;;
 *) die "--env must be staging or production" ;;
 esac
 
+[ -n "$HOST_CONFIG_DIR" ] || HOST_CONFIG_DIR="$DEPLOY_PATH/configs"
+[ -n "$HOST_DATA_DIR" ] || HOST_DATA_DIR="$DEPLOY_PATH/data"
+[ -n "$HOST_LOGS_DIR" ] || HOST_LOGS_DIR="$DEPLOY_PATH/logs"
+HOST_CONFIG_FILE="${HOST_CONFIG_DIR%/}/config.yaml"
+
 [[ "$DEPLOY_PATH" = /* ]] || die "--path must be absolute"
+[[ "$DEPLOY_PATH" != "/" ]] || die "--path must not be /"
+[[ "$HOST_CONFIG_DIR" = /* ]] || die "--config-dir must be absolute"
+[[ "$HOST_DATA_DIR" = /* ]] || die "--data-dir must be absolute"
+[[ "$HOST_LOGS_DIR" = /* ]] || die "--logs-dir must be absolute"
+[ "$HOST_CONFIG_DIR" != "/" ] || die "--config-dir must not be /"
+[ "$HOST_DATA_DIR" != "/" ] || die "--data-dir must not be /"
+[ "$HOST_LOGS_DIR" != "/" ] || die "--logs-dir must not be /"
 [[ "$APP_PORT" =~ ^[0-9]+$ ]] || die "--port must be numeric"
+[[ "$APP_CONTAINER_PORT" =~ ^[0-9]+$ ]] || die "--server-port must be numeric"
 validate_value REPO_URL "$REPO_URL"
 validate_value REPO_REF "$REPO_REF"
+validate_value GITHUB_PROXY_HOST "$GITHUB_PROXY_HOST"
 validate_value DEPLOY_PATH "$DEPLOY_PATH"
+validate_value HOST_CONFIG_DIR "$HOST_CONFIG_DIR"
+validate_value HOST_DATA_DIR "$HOST_DATA_DIR"
+validate_value HOST_LOGS_DIR "$HOST_LOGS_DIR"
+validate_value HOST_CONFIG_FILE "$HOST_CONFIG_FILE"
 validate_value DEPLOY_IMAGE "$DEPLOY_IMAGE"
 validate_value DEPLOY_CONTAINER_NAME "$DEPLOY_CONTAINER_NAME"
 validate_value APP_PORT "$APP_PORT"
+validate_value APP_CONTAINER_PORT "$APP_CONTAINER_PORT"
 validate_value SOURCE_DIR "$SOURCE_DIR"
 validate_value REGISTRY_HOST "$REGISTRY_HOST"
 validate_value REGISTRY_USERNAME "$REGISTRY_USERNAME"
@@ -642,9 +1047,9 @@ READY_URL="http://127.0.0.1:${APP_PORT}/ready"
 [ -f "$COMPOSE_SOURCE" ] || die "compose template not found: $COMPOSE_SOURCE"
 [ -f "$CONFIG_SOURCE" ] || die "config template not found: $CONFIG_SOURCE"
 
-mkdir -p "$DEPLOY_PATH/configs" "$DEPLOY_PATH/data" "$DEPLOY_PATH/logs"
-if [ ! -f "$DEPLOY_PATH/configs/config.yaml" ]; then
-	cp "$CONFIG_SOURCE" "$DEPLOY_PATH/configs/config.yaml"
+mkdir -p "$DEPLOY_PATH" "$HOST_CONFIG_DIR" "$HOST_DATA_DIR" "$HOST_LOGS_DIR"
+if [ ! -f "$HOST_CONFIG_FILE" ]; then
+	cp "$CONFIG_SOURCE" "$HOST_CONFIG_FILE"
 	log "wrote default config template"
 else
 	log "kept existing config file"
@@ -652,14 +1057,14 @@ fi
 cp "$COMPOSE_SOURCE" "$DEPLOY_PATH/$COMPOSE_FILE"
 
 if [ "$(id -u)" = "0" ]; then
-	chown -R 10001:10001 "$DEPLOY_PATH/data" "$DEPLOY_PATH/logs"
+	chown -R 10001:10001 "$HOST_DATA_DIR" "$HOST_LOGS_DIR"
 elif command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
-	sudo chown -R 10001:10001 "$DEPLOY_PATH/data" "$DEPLOY_PATH/logs"
+	sudo chown -R 10001:10001 "$HOST_DATA_DIR" "$HOST_LOGS_DIR"
 else
 	log "warning: cannot chown data/logs to 10001:10001 without passwordless sudo"
 fi
 
-export DEPLOY_IMAGE DEPLOY_CONTAINER_NAME APP_PORT
+export DEPLOY_IMAGE DEPLOY_CONTAINER_NAME APP_PORT APP_CONTAINER_PORT HOST_CONFIG_FILE HOST_DATA_DIR HOST_LOGS_DIR
 for key in "${!APP_ENV[@]}"; do
 	export "$key=${APP_ENV[$key]}"
 done
@@ -672,9 +1077,17 @@ if [ -n "$REGISTRY_USERNAME" ] || [ -n "$REGISTRY_TOKEN" ]; then
 fi
 
 log "source: $SOURCE_DIR"
+if [ -n "$GITHUB_PROXY_HOST" ]; then
+	log "github proxy host: $GITHUB_PROXY_HOST"
+fi
 log "target: $DEPLOY_PATH"
+log "config file: $HOST_CONFIG_FILE"
+log "data dir: $HOST_DATA_DIR"
+log "logs dir: $HOST_LOGS_DIR"
 log "environment: $DEPLOY_ENV"
 log "image: $DEPLOY_IMAGE"
+log "host port: $APP_PORT"
+log "container port: $APP_CONTAINER_PORT"
 log "webui build base url: $WEBUI_BUILD_BASE_URL"
 if [ -n "$WEBUI_API_BASE_URL" ]; then
 	log "webui api base url: $WEBUI_API_BASE_URL"

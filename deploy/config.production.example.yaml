@@ -51,12 +51,12 @@ webui:
   enabled: true
   mount_path: /admin
   dist_dir: ./web/admin/.output/public
-  public_base_url: ${WEBUI_PUBLIC_BASE_URL:/admin}
+  public_base_url: ${RIN_APP_WEBUI_PUBLIC_BASE_URL:/admin}
 
 plugins:
-  enabled: ${PLUGINS_ENABLED:false}
+  enabled: ${RIN_APP_PLUGINS_ENABLED:false}
   manifests:
-    - ${PLUGINS_MANIFEST_PATH:./plugins/demo1/plugin.yaml}
+    - ${RIN_APP_PLUGINS_MANIFESTS:./plugins/demo1/plugin.yaml}
   health_timeout_seconds: 3
   proxy_timeout_seconds: 30
 
@@ -65,7 +65,7 @@ demo:
   apply_schema_on_start: false
 
 system:
-  seed_defaults_on_start: ${SYSTEM_SEED_DEFAULTS_ON_START:true}
+  seed_defaults_on_start: ${RIN_APP_SYSTEM_SEED_DEFAULTS_ON_START:true}
 
 auth:
   enabled: true
@@ -73,26 +73,26 @@ auth:
   issuer: go-scaffold
   audience:
     - go-scaffold-api
-  signing_key: ${AUTH_SIGNING_KEY}
+  signing_key: ${RIN_APP_AUTH_SIGNING_KEY}
   access_token_ttl_seconds: 900
   refresh_token_ttl_seconds: 604800
-  refresh_token_pepper: ${AUTH_REFRESH_TOKEN_PEPPER}
+  refresh_token_pepper: ${RIN_APP_AUTH_REFRESH_TOKEN_PEPPER}
   mfa_issuer: go-scaffold
-  mfa_secret_key: ${AUTH_MFA_SECRET_KEY}
+  mfa_secret_key: ${RIN_APP_AUTH_MFA_SECRET_KEY}
   login_max_failures: 5
   login_lock_minutes: 15
-  login_captcha_enabled: ${AUTH_LOGIN_CAPTCHA_ENABLED:false}
-  captcha_ttl_seconds: ${AUTH_CAPTCHA_TTL_SECONDS:120}
+  login_captcha_enabled: ${RIN_APP_AUTH_LOGIN_CAPTCHA_ENABLED:false}
+  captcha_ttl_seconds: ${RIN_APP_AUTH_CAPTCHA_TTL_SECONDS:120}
   invitation_ttl_seconds: 86400
   password_reset_ttl_seconds: 1800
   notification_driver: smtp
   smtp:
-    host: ${AUTH_SMTP_HOST}
-    port: ${AUTH_SMTP_PORT:587}
-    username: ${AUTH_SMTP_USERNAME}
-    password: ${AUTH_SMTP_PASSWORD}
-    from: ${AUTH_SMTP_FROM}
-    from_name: ${AUTH_SMTP_FROM_NAME:Aoi Admin}
+    host: ${RIN_APP_AUTH_SMTP_HOST}
+    port: ${RIN_APP_AUTH_SMTP_PORT:587}
+    username: ${RIN_APP_AUTH_SMTP_USERNAME}
+    password: ${RIN_APP_AUTH_SMTP_PASSWORD}
+    from: ${RIN_APP_AUTH_SMTP_FROM}
+    from_name: ${RIN_APP_AUTH_SMTP_FROM_NAME:Aoi Admin}
     starttls: true
   password_policy:
     min_length: 10
