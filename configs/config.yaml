@@ -59,10 +59,10 @@ storage:
     # 媒体库普通上传、断点上传、分片合并和本地下载依赖 storage.enabled=true。
     # 仅浏览记录或使用外链导入时可以保持禁用。
     # 本地开发建议使用 basepath + ./data，让媒体对象写入 data/media/...，临时分片写入 data/media/chunks/...。
-    enabled: false
+    enabled: true
     fs_type: basepath
     base_path: ./data
-    enable_watch: false
+    enable_watch: true
     watch_buffer_size: 100
 demo:
     # Demo 模块包含公开 Todo 与受 IAM 保护的客户资源示例。
