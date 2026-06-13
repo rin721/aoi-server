@@ -8,6 +8,45 @@
 go build -trimpath -ldflags="-s -w" -o bin/go-scaffold-server ./cmd/main
 ```
 
+## CLI 发布包
+
+`build` 指令会生成可解压运行的发布包，并会出现在交互首页。无参数执行时会进入确认流；
+使用 `--yes` 或显式传入任一 build 参数时会直接构建。默认输出到 `build/releases/`：
+
+```bash
+go run ./cmd/main build
+go run ./cmd/main build --yes
+go run ./cmd/main build --target linux/amd64 --target windows/amd64
+go run ./cmd/main build --output build/releases --skip-web-generate
+go run ./cmd/main build --cgo
+```
+
+默认目标为 `linux/amd64`、`windows/amd64` 和 `darwin/amd64`。Windows 目标输出 `.zip`，
+Linux 和 macOS 目标输出 `.tar.gz`。每个压缩包内包含：
+
+- `go-scaffold-server` 或 `go-scaffold-server.exe`
+- `configs/config.yaml`，来源于 `deploy/config.production.example.yaml`
+- `configs/config.example.yaml` 和 `configs/locales/`
+- `internal/migrations/`
+- `plugins/demo1/plugin.yaml`
+- `web/admin/.output/public/`
+- 空的 `data/`、`logs/` 目录和 `README.txt`
+
+默认会先在 `web/admin` 执行 `pnpm generate`，并把 Admin WebUI 静态产物打进包内。
+可通过下面的参数控制构建期 WebUI 配置：
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `--yes` | `false` | 跳过交互确认，直接使用默认值和显式参数构建 |
+| `--webui-build-base-url` | `/admin/` | 传给 `NUXT_APP_BASE_URL` |
+| `--webui-api-base-url` | 空字符串 | 传给 `NUXT_PUBLIC_API_BASE_URL` |
+| `--webui-show-demo-todo` | `false` | 传给 `NUXT_PUBLIC_SHOW_DEMO_TODO` |
+| `--skip-web-generate` | `false` | 跳过 `pnpm generate`，但仍要求 `.output/public/index.html` 已存在 |
+
+默认发布包使用 `CGO_ENABLED=0`，优先保证在当前机器上完成跨平台 Go 构建。该模式下
+SQLite 驱动运行时不可用；使用默认 SQLite 配置启动会失败。部署默认包时应切换到
+MySQL/Postgres，或在目标平台、交叉 C 工具链可用时使用 `--cgo` 重新构建。
+
 ## Docker 构建
 
 ```bash

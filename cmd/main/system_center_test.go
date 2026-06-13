@@ -41,7 +41,7 @@ func TestNewCLIAppRegistersLegacyAndSystemCommands(t *testing.T) {
 		t.Fatalf("root help error = %v", err)
 	}
 	rootHelp := stdout.String()
-	for _, want := range []string{"server", "db", "iam", "run", "service", "init"} {
+	for _, want := range []string{"server", "db", "iam", "build", "run", "service", "init"} {
 		if !strings.Contains(rootHelp, want) {
 			t.Fatalf("root help missing command %q:\n%s", want, rootHelp)
 		}
@@ -66,6 +66,17 @@ func TestNewCLIAppRegistersLegacyAndSystemCommands(t *testing.T) {
 	for _, want := range []string{"--org-code", "--username", "--password-stdin"} {
 		if !strings.Contains(iamHelp, want) {
 			t.Fatalf("iam bootstrap-admin help missing %q:\n%s", want, iamHelp)
+		}
+	}
+
+	stdout.Reset()
+	if err := app.RunWithIO(context.Background(), []string{"build", "--help"}, strings.NewReader(""), &stdout, io.Discard); err != nil {
+		t.Fatalf("build help error = %v", err)
+	}
+	buildHelp := stdout.String()
+	for _, want := range []string{"--yes", "--target", "--output", "--cgo", "--skip-web-generate", "--webui-build-base-url"} {
+		if !strings.Contains(buildHelp, want) {
+			t.Fatalf("build help missing %q:\n%s", want, buildHelp)
 		}
 	}
 

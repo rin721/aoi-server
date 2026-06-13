@@ -46,6 +46,10 @@ func newCLIApp() (cli.App, error) {
 	if err := app.AddCommand(iamSpec); err != nil {
 		return nil, err
 	}
+	buildSpec := NewBuildCommand().Spec()
+	if err := app.AddCommand(buildSpec); err != nil {
+		return nil, err
+	}
 	for _, spec := range NewSystemCenterCommands() {
 		if err := app.AddCommand(spec); err != nil {
 			return nil, err
