@@ -64,25 +64,24 @@ raw URL 只负责下载入口脚本，后续 Git 克隆源由 `--repo` 或
 `script/install.sh` 还只支持 `--repo` 和 `--ref`，使用下面这个兼容命令：
 
 ```bash
-export GITHUB_REPO_SLUG=rin721/aoi-server
-export RIN_APP_AUTH_SIGNING_KEY=change-me-at-least-32-bytes-long
-export RIN_APP_AUTH_REFRESH_TOKEN_PEPPER=change-me-refresh-pepper
-export RIN_APP_AUTH_MFA_SECRET_KEY=change-me-mfa-secret-key-32-bytes
-
-curl -fsSL "https://raw-githubusercontent-com-gh.helloworlds.eu.org/${GITHUB_REPO_SLUG}/main/script/install.sh" | bash -s -- \
-  --repo "https://github-com-gh.helloworlds.eu.org/${GITHUB_REPO_SLUG}.git" \
+curl -fsSL https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/aoi-server/main/script/install.sh | bash -s -- \
+  --repo https://github-com-gh.helloworlds.eu.org/rin721/aoi-server.git \
   --docker y \
   --path /opt/go-scaffold \
   --image go-scaffold:local \
   --build y \
+  --auth-signing-key change-me-at-least-32-bytes-long \
+  --auth-refresh-token-pepper change-me-refresh-pepper \
+  --auth-mfa-secret-key change-me-mfa-secret-key-32-bytes \
   --webui-mount-path /admin \
   --webui-build-base-url /admin/ \
   --webui-check-path /admin/server-info \
   --confirm
 ```
 
-如果仓库不是 `rin721/aoi-server`，只需要把 `GITHUB_REPO_SLUG` 改成实际的
-`<owner>/<repo>`；脚本不会内置仓库名。
+如果仓库不是 `rin721/aoi-server`，把命令里的两处 `rin721/aoi-server` 改成实际的
+`<owner>/<repo>`；脚本不会内置仓库名。raw 地址必须包含完整 `<owner>/<repo>`，
+不能只写仓库名。
 
 这个兼容命令会把配置、数据和日志放在 `--path` 下的默认目录：
 `/opt/go-scaffold/configs`、`/opt/go-scaffold/data`、`/opt/go-scaffold/logs`。
@@ -90,11 +89,9 @@ curl -fsSL "https://raw-githubusercontent-com-gh.helloworlds.eu.org/${GITHUB_REP
 脚本更新发布后，可以改用更明确的 `--github-proxy-host` 和宿主机目录映射参数：
 
 ```bash
-export GITHUB_REPO_SLUG=rin721/aoi-server
-
-curl -fsSL "https://raw-githubusercontent-com-gh.helloworlds.eu.org/${GITHUB_REPO_SLUG}/main/script/install.sh" | bash -s -- \
+curl -fsSL https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/aoi-server/main/script/install.sh | bash -s -- \
   --github-proxy-host github-com-gh.helloworlds.eu.org \
-  --repo-slug "$GITHUB_REPO_SLUG" \
+  --repo-slug rin721/aoi-server \
   --docker y \
   --path /opt/go-scaffold \
   --config-dir /opt/go-scaffold/configs \
@@ -102,6 +99,9 @@ curl -fsSL "https://raw-githubusercontent-com-gh.helloworlds.eu.org/${GITHUB_REP
   --logs-dir /var/log/go-scaffold \
   --image go-scaffold:local \
   --build y \
+  --auth-signing-key change-me-at-least-32-bytes-long \
+  --auth-refresh-token-pepper change-me-refresh-pepper \
+  --auth-mfa-secret-key change-me-mfa-secret-key-32-bytes \
   --webui-mount-path /admin \
   --webui-build-base-url /admin/ \
   --webui-check-path /admin/server-info \
