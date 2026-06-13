@@ -16,23 +16,57 @@ var (
 	executeInitialization = ExecuteInitialization
 )
 
+// StartFlowInput 描述启动流程已经收集到的非交互输入。
+type StartFlowInput struct {
+	Service           string
+	ConfigPath        string
+	UseDefaultConfig  bool
+	SkipPrivacyPrompt bool
+}
+
 // RunStartFlow 执行由 pkg/cli UI 驱动的服务启动流程。
 func RunStartFlow(ctx *cli.Context) error {
-	ui, err := requireUI(ctx)
-	if err != nil {
-		return err
+	return RunStartFlowWithInput(ctx, StartFlowInput{})
+}
+
+// RunStartFlowWithInput 执行启动流程；缺失的输入仍会通过 pkg/cli UI 补齐。
+func RunStartFlowWithInput(ctx *cli.Context, input StartFlowInput) error {
+	if ctx == nil {
+		return fmt.Errorf("cli context is required")
 	}
-	service, err := ui.Select(ctx.Context, "选择服务", []cli.SelectOption{
-		{Value: ServiceServer, Label: "server", Description: "后台托管 HTTP 服务进程"},
-		{Value: "db", Label: "db", Description: "数据库配置、迁移和初始化能力"},
-		{Value: "iam", Label: "iam", Description: "IAM 管理员、角色权限和 API Token"},
-		{Value: "cache", Label: "cache", Description: "Redis 缓存依赖状态"},
-		{Value: "storage", Label: "storage", Description: "存储配置和依赖状态"},
-	})
-	if err != nil {
-		return err
+	if ctx.Context == nil {
+		ctx.Context = context.Background()
 	}
-	configPath, err := selectConfigPath(ctx)
+	var ui cli.PromptUI
+	requirePromptUI := func() (cli.PromptUI, error) {
+		if ui != nil {
+			return ui, nil
+		}
+		resolved, err := requireUI(ctx)
+		if err != nil {
+			return nil, err
+		}
+		ui = resolved
+		return ui, nil
+	}
+
+	service := normalizeStartService(input.Service)
+	if service == "" {
+		ui, err := requirePromptUI()
+		if err != nil {
+			return err
+		}
+		service, err = ui.Select(ctx.Context, "选择服务", startServiceOptions())
+		if err != nil {
+			return err
+		}
+		service = normalizeStartService(service)
+	}
+	if !isSupportedStartService(service) {
+		return fmt.Errorf("unsupported service %q; expected one of: server, db, iam, cache, storage", service)
+	}
+
+	configPath, err := startConfigPath(ctx, input)
 	if err != nil {
 		return err
 	}
@@ -42,9 +76,18 @@ func RunStartFlow(ctx *cli.Context) error {
 	if service != ServiceServer {
 		return printDependencyServiceInfo(ctx.Stdout, service, configPath)
 	}
-	if ok, err := ui.Confirm(ctx.Context, "是否填写或生成隐私配置？", false); err != nil {
-		return err
-	} else if ok {
+	if !input.SkipPrivacyPrompt {
+		ui, err := requirePromptUI()
+		if err != nil {
+			return err
+		}
+		ok, err := ui.Confirm(ctx.Context, "是否填写或生成隐私配置？", false)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return startServer(ctx, configPath)
+		}
 		if isExampleConfig(configPath) {
 			return fmt.Errorf("示例配置只读，不能写入隐私配置")
 		}
@@ -65,6 +108,50 @@ func RunStartFlow(ctx *cli.Context) error {
 			_ = ui.Info("隐私配置已处理。")
 		}
 	}
+	return startServer(ctx, configPath)
+}
+
+func startServiceOptions() []cli.SelectOption {
+	return []cli.SelectOption{
+		{Value: ServiceServer, Label: "server", Description: "后台托管 HTTP 服务进程"},
+		{Value: "db", Label: "db", Description: "数据库配置、迁移和初始化能力"},
+		{Value: "iam", Label: "iam", Description: "IAM 管理员、角色权限和 API Token"},
+		{Value: "cache", Label: "cache", Description: "Redis 缓存依赖状态"},
+		{Value: "storage", Label: "storage", Description: "存储配置和依赖状态"},
+	}
+}
+
+func startConfigPath(ctx *cli.Context, input StartFlowInput) (string, error) {
+	if strings.TrimSpace(input.ConfigPath) != "" {
+		return input.ConfigPath, nil
+	}
+	if input.UseDefaultConfig {
+		files := DiscoverConfigFiles()
+		if len(files) > 0 {
+			return files[0], nil
+		}
+		return constants.AppDefaultConfigPath, nil
+	}
+	if _, err := requireUI(ctx); err != nil {
+		return "", err
+	}
+	return selectConfigPath(ctx)
+}
+
+func normalizeStartService(service string) string {
+	return strings.ToLower(strings.TrimSpace(service))
+}
+
+func isSupportedStartService(service string) bool {
+	switch normalizeStartService(service) {
+	case ServiceServer, "db", "iam", "cache", "storage":
+		return true
+	default:
+		return false
+	}
+}
+
+func startServer(ctx *cli.Context, configPath string) error {
 	state, err := newFlowManager().StartServer(ctx.Context, configPath)
 	if err != nil {
 		return err

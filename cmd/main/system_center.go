@@ -29,13 +29,31 @@ func newRunCommandSpec() cli.CommandSpec {
 		Description: "Config file path",
 		EnvVar:      appconfig.EnvConfigPathName(),
 	}
+	serviceFlag := cli.FlagSpec{
+		Name:        "service",
+		Type:        cli.FlagTypeString,
+		Description: "Service to select in the start flow: server, db, iam, cache, or storage",
+	}
+	yesFlag := cli.FlagSpec{
+		Name:        "yes",
+		Type:        cli.FlagTypeBool,
+		Default:     false,
+		Description: "Use default choices and skip remaining interactive confirmations",
+	}
 	return cli.CommandSpec{
 		Name:        "run",
 		Description: "Start managed background services",
 		HomeLabel:   "启动 / run",
 		HomeOrder:   10,
-		Flags:       []cli.FlagSpec{configFlag},
+		Flags:       []cli.FlagSpec{configFlag, serviceFlag, yesFlag},
 		Run: func(ctx *cli.Context) error {
+			if runDirectRequested(ctx) {
+				input, err := startFlowInputFromContext(ctx)
+				if err != nil {
+					return err
+				}
+				return cliapp.RunStartFlowWithInput(ctx, input)
+			}
 			return cliapp.RunStartFlow(ctx)
 		},
 		Commands: []cli.CommandSpec{
@@ -55,6 +73,36 @@ func newRunCommandSpec() cli.CommandSpec {
 			},
 		},
 	}
+}
+
+func runDirectRequested(ctx *cli.Context) bool {
+	return ctx.GetBool("yes") || ctx.IsFlagChanged("service")
+}
+
+func startFlowInputFromContext(ctx *cli.Context) (cliapp.StartFlowInput, error) {
+	service := strings.ToLower(strings.TrimSpace(ctx.GetString("service")))
+	if service == "" {
+		service = cliapp.ServiceServer
+	}
+	switch service {
+	case cliapp.ServiceServer, "db", "iam", "cache", "storage":
+	default:
+		return cliapp.StartFlowInput{}, &cli.UsageError{
+			Command: ctx.CommandPath,
+			Message: fmt.Sprintf("unsupported --service %q; expected one of: server, db, iam, cache, storage", ctx.GetString("service")),
+		}
+	}
+
+	configPath := ""
+	if ctx.IsFlagChanged("config") || strings.TrimSpace(ctx.GetString("config")) != constants.AppDefaultConfigPath {
+		configPath = ctx.GetString("config")
+	}
+	return cliapp.StartFlowInput{
+		Service:           service,
+		ConfigPath:        configPath,
+		UseDefaultConfig:  true,
+		SkipPrivacyPrompt: ctx.GetBool("yes"),
+	}, nil
 }
 
 func newServiceCommandSpec() cli.CommandSpec {

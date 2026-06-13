@@ -90,6 +90,17 @@ func TestNewCLIAppRegistersLegacyAndSystemCommands(t *testing.T) {
 			t.Fatalf("service help missing %q:\n%s", want, serviceHelp)
 		}
 	}
+
+	stdout.Reset()
+	if err := app.RunWithIO(context.Background(), []string{"run", "--help"}, strings.NewReader(""), &stdout, io.Discard); err != nil {
+		t.Fatalf("run help error = %v", err)
+	}
+	runHelp := stdout.String()
+	for _, want := range []string{"--service", "--yes", "server"} {
+		if !strings.Contains(runHelp, want) {
+			t.Fatalf("run help missing %q:\n%s", want, runHelp)
+		}
+	}
 }
 
 // TestSystemCenterCommandSpecs 固定 run/service/init 的业务命令规格。
@@ -117,8 +128,13 @@ func TestSystemCenterCommandSpecs(t *testing.T) {
 		t.Fatalf("init home metadata = label %q order %d", byName["init"].HomeLabel, byName["init"].HomeOrder)
 	}
 
-	if len(byName["run"].Flags) != 1 || byName["run"].Flags[0].Name != "config" {
+	if len(byName["run"].Flags) != 3 || byName["run"].Flags[0].Name != "config" {
 		t.Fatalf("run parent config flag = %#v", byName["run"].Flags)
+	}
+	for _, want := range []string{"service", "yes"} {
+		if !hasFlag(byName["run"].Flags, want) {
+			t.Fatalf("run command missing flag %q", want)
+		}
 	}
 	runServer, ok := findChildSpec(byName["run"], constants.AppServerCommandName)
 	if !ok {
@@ -165,6 +181,39 @@ func TestRunCommandUsesStdinBackedBusinessInteraction(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("run command stdin interaction output missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestRunCommandDirectServiceShowsDependencyInfo(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	t.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	args := []string{"run", "--service=db", "--config=configs/config.example.yaml", "--yes"}
+	if err := runCLI(context.Background(), args, strings.NewReader(""), &stdout, &stderr); err != nil {
+		t.Fatalf("runCLI(%v) error = %v\nstderr:\n%s", args, err, stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{"db", "sqlite", "v1"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("direct run command output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestRunCommandRejectsInvalidService(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := runCLI(context.Background(), []string{"run", "--service=queue", "--yes"}, strings.NewReader(""), &stdout, &stderr)
+	var usageErr *cli.UsageError
+	if !errors.As(err, &usageErr) {
+		t.Fatalf("runCLI(invalid service) error = %T %v, want *cli.UsageError", err, err)
+	}
+	if !strings.Contains(usageErr.Error(), "unsupported --service") {
+		t.Fatalf("usage error should mention unsupported service, got %v", usageErr)
 	}
 }
 

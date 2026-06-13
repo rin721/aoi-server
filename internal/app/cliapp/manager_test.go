@@ -317,6 +317,53 @@ func TestRunStartFlowShowsDependencyServicesThroughCLIUI(t *testing.T) {
 	}
 }
 
+func TestRunStartFlowWithInputStartsServerNonInteractively(t *testing.T) {
+	configPath := copyExampleConfig(t)
+	runner := &fakeProcessRunner{
+		startInfos:     []ProcessInfo{{PID: 321, ProcessStartTime: 12345}},
+		runningResults: []bool{true},
+	}
+	restoreFlowManager(t, testManager(t, runner))
+	ui := &fakePromptUI{
+		selects:  []string{"db"},
+		confirms: []bool{true},
+	}
+	var stdout bytes.Buffer
+	ctx := &cli.Context{
+		Context: context.Background(),
+		Stdout:  &stdout,
+		UI:      ui,
+	}
+
+	if err := RunStartFlowWithInput(ctx, StartFlowInput{
+		Service:           ServiceServer,
+		ConfigPath:        configPath,
+		SkipPrivacyPrompt: true,
+	}); err != nil {
+		t.Fatalf("RunStartFlowWithInput() error = %v", err)
+	}
+
+	if len(runner.starts) != 1 {
+		t.Fatalf("StartProcess calls = %d, want 1", len(runner.starts))
+	}
+	wantArgs := []string{"server", "--config", filepath.Clean(configPath)}
+	if !reflect.DeepEqual(runner.starts[0].Args, wantArgs) {
+		t.Fatalf("start args = %#v, want %#v", runner.starts[0].Args, wantArgs)
+	}
+	if len(ui.selects) != 1 {
+		t.Fatalf("service select should not be consumed in direct input mode")
+	}
+	if len(ui.confirms) != 1 {
+		t.Fatalf("privacy confirm should not be consumed when skipped")
+	}
+	out := stdout.String()
+	for _, want := range []string{ServiceServer, StatusRunning} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("direct start output missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestRunStartFlowForceWritesGeneratedEnvManagedPrivacy(t *testing.T) {
 	envNames := appconfig.EnvNamesForPath("auth.signing_key")
 	unsetEnvForTest(t, envNames...)
