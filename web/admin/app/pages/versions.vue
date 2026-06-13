@@ -113,8 +113,10 @@ const filteredDictionaries = computed(() => {
   ].some((value) => String(value || "").toLowerCase().includes(keyword)))
 })
 
-async function load() {
-  loading.value = true
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     pageData.value = await api.listSystemVersions({
@@ -129,9 +131,16 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
+
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || saving.value || importing.value || deleting.value),
+  load
+})
 
 async function loadSources(force = false) {
   if (sourceLoading.value || (!force && (sources.value.menuCount || sources.value.apiCount || sources.value.dictionaryCount))) {
@@ -280,7 +289,7 @@ async function resetFilters() {
   startCreatedAt.value = ""
   endCreatedAt.value = ""
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function previousPage() {
@@ -288,7 +297,7 @@ async function previousPage() {
     return
   }
   page.value -= 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function nextPage() {
@@ -296,7 +305,12 @@ async function nextPage() {
     return
   }
   page.value += 1
-  await load()
+  await autoRefresh.refreshNow()
+}
+
+async function search() {
+  page.value = 1
+  await autoRefresh.refreshNow()
 }
 
 function toggleAllRows(event: Event) {
@@ -435,14 +449,14 @@ function downloadJSON(value: unknown, filename: string) {
 
 onMounted(async () => {
   await Promise.all([
-    load(),
+    autoRefresh.refreshNow(),
     loadSources()
   ])
 })
 
 watch(pageSize, async () => {
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 })
 
 useHead({
@@ -456,7 +470,13 @@ useHead({
       <template #actions>
         <AoiButton appearance="soft" icon="package-plus" :disabled="!persisted" @click="openExportDialog">创建发版</AoiButton>
         <AoiButton appearance="soft" icon="upload" :disabled="!persisted" @click="openImportDialog">导入版本</AoiButton>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 
@@ -478,12 +498,12 @@ useHead({
       </div>
 
       <div class="admin-filter-toolbar version-filter-toolbar">
-        <AoiTextField v-model="versionName" label="版本名称" icon="search" placeholder="Release" @enter="page = 1; load()" />
-        <AoiTextField v-model="versionCode" label="版本号" icon="hash" placeholder="v2026.06" @enter="page = 1; load()" />
+        <AoiTextField v-model="versionName" label="版本名称" icon="search" placeholder="Release" @enter="search" />
+        <AoiTextField v-model="versionCode" label="版本号" icon="hash" placeholder="v2026.06" @enter="search" />
         <AoiTextField v-model="startCreatedAt" label="开始日期" icon="calendar" type="date" />
         <AoiTextField v-model="endCreatedAt" label="结束日期" icon="calendar" type="date" />
-        <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="page = 1; load()" />
-        <AoiButton appearance="soft" icon="search" :loading="loading" @click="page = 1; load()">查询</AoiButton>
+        <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="search" />
+        <AoiButton appearance="soft" icon="search" :loading="loading" @click="search">查询</AoiButton>
         <AoiButton appearance="plain" icon="rotate-ccw" @click="resetFilters">重置</AoiButton>
         <AoiButton appearance="soft" intent="danger" icon="trash-2" :disabled="!hasSelection || deleting" :loading="deleting" @click="deleteSelected">删除</AoiButton>
       </div>

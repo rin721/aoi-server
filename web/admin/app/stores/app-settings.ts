@@ -572,6 +572,7 @@ export const useAppSettingsStore = defineStore("app-settings", () => {
     }
   })
   const accentPresetCardOptions = computed(() => createAoiAccentPresetCardOptions(accentPresetCards.value))
+  // 派生设置统一由主设置和派生强度计算，页面只写主值，不直接写 effective*。
   const effectiveRevealMotionSettings = computed(() => ({
     durationMs: deriveAoiSettingNumber(revealMotionDurationMs.value, settingDerivationStrengths.revealMotion, {
       amount: 0.18,
@@ -1134,6 +1135,7 @@ export const useAppSettingsStore = defineStore("app-settings", () => {
       return
     }
 
+    // 先更新主派生强度，effective* computed 会随主值自动跟随。
     settingDerivationStrengths[key] = clampAoiSettingDerivationStrength(value, settingDerivationStrengths[key])
     derivationPreset.value = "custom"
     persist()

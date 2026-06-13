@@ -19,6 +19,7 @@ import (
 	iammodel "github.com/rei0721/go-scaffold/internal/modules/iam/model"
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
 	systemhandler "github.com/rei0721/go-scaffold/internal/modules/system/handler"
+	systemmodel "github.com/rei0721/go-scaffold/internal/modules/system/model"
 	systemservice "github.com/rei0721/go-scaffold/internal/modules/system/service"
 	"github.com/rei0721/go-scaffold/pkg/database"
 	"github.com/rei0721/go-scaffold/pkg/web"
@@ -629,6 +630,9 @@ func TestNewRouterSystemAPIsRequirePermissionAndListCatalog(t *testing.T) {
 	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/config", "config:read") {
 		t.Fatalf("expected system api catalog to include config with permission: %#v", body.Data)
 	}
+	if !apiCatalogContains(body, http.MethodPatch, "/api/v1/system/config", "config:update") {
+		t.Fatalf("expected system api catalog to include config update with permission: %#v", body.Data)
+	}
 	if !apiCatalogContains(body, http.MethodGet, "/api/v1/system/server-info", "server:read") {
 		t.Fatalf("expected system api catalog to include server info with permission: %#v", body.Data)
 	}
@@ -706,6 +710,64 @@ func TestAPIRouteAccessClassifiesPublicAuthenticatedAndPermissionRoutes(t *testi
 				t.Fatalf("apiRouteAccess(%q, %q) = %q, want %q", tt.path, tt.permission, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSanitizeOperationRequestBodyRedactsConfigUpdateValues(t *testing.T) {
+	body := sanitizeOperationRequestBody(http.MethodPatch, "/api/v1/system/config", `{"persist":true,"items":[{"key":"database.password","value":"secret"},{"key":"server.port","value":18083}]}`)
+
+	if strings.Contains(body, "secret") || strings.Contains(body, "18083") {
+		t.Fatalf("expected config update body to be redacted, got %s", body)
+	}
+	if !strings.Contains(body, "database.password") || !strings.Contains(body, "[redacted]") {
+		t.Fatalf("expected config update body to retain keys and redact values, got %s", body)
+	}
+	if !strings.Contains(body, `"persist":true`) {
+		t.Fatalf("expected config update body to retain persist flag, got %s", body)
+	}
+}
+
+func TestNewRouterSystemConfigUpdateRequiresPermission(t *testing.T) {
+	auth := &fakeIAMService{}
+	systemHandler := systemhandler.New(systemservice.New(systemservice.Config{
+		ConfigUpdater: func(context.Context, systemservice.UpdateConfigInput) (systemmodel.ConfigSnapshot, error) {
+			return systemmodel.ConfigSnapshot{Sections: []systemmodel.ConfigSection{
+				{
+					Code: "server",
+					Items: []systemmodel.ConfigItem{
+						{Key: "server.port", Value: 18083},
+					},
+				},
+			}}, nil
+		},
+	}), nil, nil)
+
+	routerWithoutPermission := newTestRouter(RouterDeps{
+		IAMAuth:       auth,
+		IAMAuthz:      permissionAuthorizer{},
+		SystemHandler: systemHandler,
+	})
+	forbiddenRequest := httptest.NewRequest(http.MethodPatch, "/api/v1/system/config", bytes.NewBufferString(`{"items":[{"key":"server.port","value":18083}]}`))
+	forbiddenRequest.Header.Set("Authorization", "Bearer token")
+	forbiddenRequest.Header.Set("Content-Type", "application/json")
+	forbiddenRecorder := httptest.NewRecorder()
+	routerWithoutPermission.ServeHTTP(forbiddenRecorder, forbiddenRequest)
+	if forbiddenRecorder.Code != http.StatusForbidden {
+		t.Fatalf("expected config update to require config:update, got status %d body %s", forbiddenRecorder.Code, forbiddenRecorder.Body.String())
+	}
+
+	routerWithPermission := newTestRouter(RouterDeps{
+		IAMAuth:       auth,
+		IAMAuthz:      permissionAuthorizer{"config:update": true},
+		SystemHandler: systemHandler,
+	})
+	allowedRequest := httptest.NewRequest(http.MethodPatch, "/api/v1/system/config", bytes.NewBufferString(`{"items":[{"key":"server.port","value":18083}]}`))
+	allowedRequest.Header.Set("Authorization", "Bearer token")
+	allowedRequest.Header.Set("Content-Type", "application/json")
+	allowedRecorder := httptest.NewRecorder()
+	routerWithPermission.ServeHTTP(allowedRecorder, allowedRequest)
+	if allowedRecorder.Code != http.StatusOK {
+		t.Fatalf("expected config update status %d, got %d body %s", http.StatusOK, allowedRecorder.Code, allowedRecorder.Body.String())
 	}
 }
 

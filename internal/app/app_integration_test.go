@@ -7,13 +7,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/rei0721/go-scaffold/internal/config"
 	"github.com/rei0721/go-scaffold/internal/modules/demo/model"
+	systemmodel "github.com/rei0721/go-scaffold/internal/modules/system/model"
+	systemservice "github.com/rei0721/go-scaffold/internal/modules/system/service"
 )
 
 // TestNewServerModeBuildsMinimalApplication 固定应用组装根的最小可启动契约，确保后续注释补全或结构调整不改变该场景。
@@ -110,6 +114,145 @@ func TestNewServerModeBuildsMinimalApplication(t *testing.T) {
 	if got := application.Core.ConfigManager.Get().Server.Port; got != 18082 {
 		t.Fatalf("expected manager config port to be 18082, got %d", got)
 	}
+
+	snapshot, err := application.Modules.System.Service.ListConfig(context.Background())
+	if err != nil {
+		t.Fatalf("list system config: %v", err)
+	}
+	value, ok := systemConfigValue(snapshot, "server.port")
+	if !ok {
+		t.Fatalf("expected system config to include server.port, got %#v", snapshot)
+	}
+	if value != 18082 {
+		t.Fatalf("expected system config port to follow manager update, got %#v", value)
+	}
+	corsOriginsItem, ok := systemConfigItem(snapshot, "cors.allow_origins")
+	if !ok || !corsOriginsItem.Editable || corsOriginsItem.ValueType != systemmodel.ConfigValueTypeArray {
+		t.Fatalf("expected cors.allow_origins to be editable string array, got %#v ok=%v", corsOriginsItem, ok)
+	}
+	executorPoolSizeItem, ok := systemConfigItem(snapshot, "executor.pools.0.size")
+	if !ok || !executorPoolSizeItem.Editable || executorPoolSizeItem.ValueType != systemmodel.ConfigValueTypeNumber {
+		t.Fatalf("expected executor.pools.0.size to be editable number, got %#v ok=%v", executorPoolSizeItem, ok)
+	}
+
+	updated, err := application.Modules.System.Service.UpdateConfig(context.Background(), systemservice.UpdateConfigInput{
+		Items: []systemservice.UpdateConfigItem{
+			{Key: "server.port", Value: 18083},
+			{Key: "database.password", Value: "runtime-secret"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("update system config through service: %v", err)
+	}
+	if got := application.Core.ConfigManager.Get().Server.Port; got != 18083 {
+		t.Fatalf("expected manager config port to be 18083, got %d", got)
+	}
+	value, ok = systemConfigValue(updated, "server.port")
+	if !ok || value != 18083 {
+		t.Fatalf("expected updated snapshot port 18083, got %#v ok=%v", value, ok)
+	}
+	value, ok = systemConfigValue(updated, "database.password")
+	if !ok || value != "已配置" {
+		t.Fatalf("expected database.password to remain redacted, got %#v ok=%v", value, ok)
+	}
+	if got := application.Core.ConfigManager.Get().Database.Password; got != "runtime-secret" {
+		t.Fatalf("expected manager database password to be updated, got %q", got)
+	}
+	fileManager := config.NewManager()
+	if err := fileManager.Load(configPath); err != nil {
+		t.Fatalf("reload config file after runtime update: %v", err)
+	}
+	if got := fileManager.Get().Server.Port; got != 18081 {
+		t.Fatalf("expected non-persist update to leave config file port 18081, got %d", got)
+	}
+
+	unchangedSecret, err := application.Modules.System.Service.UpdateConfig(context.Background(), systemservice.UpdateConfigInput{
+		Items: []systemservice.UpdateConfigItem{
+			{Key: "database.password", Value: ""},
+		},
+	})
+	if err != nil {
+		t.Fatalf("update empty secret through service: %v", err)
+	}
+	if got := application.Core.ConfigManager.Get().Database.Password; got != "runtime-secret" {
+		t.Fatalf("expected empty secret value to leave current password unchanged, got %q", got)
+	}
+	value, ok = systemConfigValue(unchangedSecret, "database.password")
+	if !ok || value != "已配置" {
+		t.Fatalf("expected unchanged database.password to remain redacted, got %#v ok=%v", value, ok)
+	}
+
+	persisted, err := application.Modules.System.Service.UpdateConfig(context.Background(), systemservice.UpdateConfigInput{
+		Items: []systemservice.UpdateConfigItem{
+			{Key: "server.port", Value: 18084},
+			{Key: "database.password", Value: "persistent-secret"},
+			{Key: "cors.allow_origins", Value: []any{"https://admin.example.com", "https://app.example.com"}},
+			{Key: "executor.pools.0.size", Value: 24},
+		},
+		Persist: true,
+	})
+	if err != nil {
+		t.Fatalf("persist system config through service: %v", err)
+	}
+	value, ok = systemConfigValue(persisted, "server.port")
+	if !ok || value != 18084 {
+		t.Fatalf("expected persisted snapshot port 18084, got %#v ok=%v", value, ok)
+	}
+	value, ok = systemConfigValue(persisted, "database.password")
+	if !ok || value != "已配置" {
+		t.Fatalf("expected persisted database.password to remain redacted, got %#v ok=%v", value, ok)
+	}
+	value, ok = systemConfigValue(persisted, "cors.allow_origins")
+	if !ok || !reflect.DeepEqual(value, []string{"https://admin.example.com", "https://app.example.com"}) {
+		t.Fatalf("expected persisted CORS origins in snapshot, got %#v ok=%v", value, ok)
+	}
+	value, ok = systemConfigValue(persisted, "executor.pools.0.size")
+	if !ok || value != 24 {
+		t.Fatalf("expected persisted executor pool size in snapshot, got %#v ok=%v", value, ok)
+	}
+	persistedContent, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read persisted config file: %v", err)
+	}
+	if text := string(persistedContent); !strings.Contains(text, "port: 18084") || !strings.Contains(text, `password: "persistent-secret"`) ||
+		!strings.Contains(text, `- "https://admin.example.com"`) || !strings.Contains(text, `size: 24`) {
+		t.Fatalf("expected persisted config file to include updated port and password, got:\n%s", text)
+	}
+	fileManager = config.NewManager()
+	if err := fileManager.Load(configPath); err != nil {
+		t.Fatalf("reload persisted config file: %v", err)
+	}
+	if got := fileManager.Get().Server.Port; got != 18084 {
+		t.Fatalf("expected config file port 18084, got %d", got)
+	}
+	if got := fileManager.Get().Database.Password; got != "persistent-secret" {
+		t.Fatalf("expected config file password to be persistent-secret, got %q", got)
+	}
+	if !reflect.DeepEqual(fileManager.Get().CORS.AllowOrigins, []string{"https://admin.example.com", "https://app.example.com"}) {
+		t.Fatalf("expected config file CORS origins to persist, got %#v", fileManager.Get().CORS.AllowOrigins)
+	}
+	if got := fileManager.Get().Executor.Pools[0].Size; got != 24 {
+		t.Fatalf("expected config file executor pool size 24, got %d", got)
+	}
+}
+
+func systemConfigValue(snapshot systemmodel.ConfigSnapshot, key string) (any, bool) {
+	item, ok := systemConfigItem(snapshot, key)
+	if !ok {
+		return nil, false
+	}
+	return item.Value, true
+}
+
+func systemConfigItem(snapshot systemmodel.ConfigSnapshot, key string) (systemmodel.ConfigItem, bool) {
+	for _, section := range snapshot.Sections {
+		for _, item := range section.Items {
+			if item.Key == key {
+				return item, true
+			}
+		}
+	}
+	return systemmodel.ConfigItem{}, false
 }
 
 // writeAppIntegrationConfig 写入测试夹具文件，并把文件系统准备细节限制在测试辅助层。
@@ -169,7 +312,11 @@ i18n:
   messages_dir: %s
 executor:
   enabled: false
-  pools: []
+  pools:
+    - name: "default"
+      size: 8
+      expiry: 30
+      non_blocking: true
 storage:
   enabled: false
   fs_type: "memory"

@@ -97,11 +97,13 @@ export type SystemAPIGroup = {
 
 export type SystemConfigItem = {
   description: string
+  editable: boolean
   key: string
   label: string
   secret: boolean
   source: string
   value: unknown
+  valueType: "array" | "boolean" | "number" | "object" | "string" | "unknown"
 }
 
 export type SystemConfigSection = {
@@ -703,6 +705,5 @@ export type MFASetupPayload = {
 }
 
 export type Status = "active" | "disabled" | "expired" | "pending" | "used" | "revoked"
-
 
 

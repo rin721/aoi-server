@@ -6,6 +6,8 @@
 
 客户资源示例使用 `demo_customers` 表和 IAM `customer:*` 权限，不新增 YAML 或环境变量配置项。它跟随 `demo.enabled` 启用，跟随 `demo.apply_schema_on_start` 创建示例表。
 
+模板配置、代码生成、表单生成和导出模板能力当前不是运行时后台功能，不新增 YAML、环境变量或 Nuxt runtime config。现有 `pkg/sqlgen` 与 `pkg/yaml2go` 定位为离线/开发期工具：`pkg/sqlgen` 被 `db` CLI 和 Demo schema 使用，`pkg/yaml2go` 只返回生成代码并不写文件。后续如果要把生成器做成后台工作流，必须先从 `docs/ai/generator-product-spec.md` 定义产品规格、安全边界、写入目录、覆盖策略、字段映射、权限码、审计日志、导出格式和候选配置，再按“新增配置字段”流程补齐统一配置、示例配置和文档。
+
 # 配置说明
 
 配置由 `internal/config` 加载。默认配置文件是 `configs/config.yaml`，示例文件位于 `configs/config.example.yaml` 和 `deploy/config.production.example.yaml`。
@@ -55,8 +57,8 @@ DB_HOST
 | Server | `RIN_APP_SERVER_HOST`, `RIN_APP_SERVER_PORT`, `RIN_APP_SERVER_MODE`, `RIN_APP_SERVER_READ_TIMEOUT`, `RIN_APP_SERVER_WRITE_TIMEOUT`, `RIN_APP_SERVER_IDLE_TIMEOUT` |
 | RPC | `RIN_APP_RPC_ENABLED`, `RIN_APP_RPC_HOST`, `RIN_APP_RPC_PORT`, `RIN_APP_RPC_READ_TIMEOUT`, `RIN_APP_RPC_WRITE_TIMEOUT`, `RIN_APP_RPC_IDLE_TIMEOUT` |
 | Database | `RIN_APP_DB_DRIVER`, `RIN_APP_DB_HOST`, `RIN_APP_DB_PORT`, `RIN_APP_DB_USER`, `RIN_APP_DB_PASSWORD`, `RIN_APP_DB_NAME`, `RIN_APP_DB_MAX_OPEN_CONNS`, `RIN_APP_DB_MAX_IDLE_CONNS` |
-| Redis | `RIN_APP_REDIS_ENABLED`, `RIN_APP_REDIS_HOST`, `RIN_APP_REDIS_PORT`, `RIN_APP_REDIS_PASSWORD`, `RIN_APP_REDIS_DB`, `RIN_APP_REDIS_POOL_SIZE` |
-| Logger | `RIN_APP_LOG_LEVEL`, `RIN_APP_LOG_FORMAT`, `RIN_APP_LOG_OUTPUT`, `RIN_APP_LOG_FILE_PATH`, `RIN_APP_LOG_MAX_SIZE`, `RIN_APP_LOG_MAX_BACKUPS`, `RIN_APP_LOG_MAX_AGE` |
+| Redis | `RIN_APP_REDIS_ENABLED`, `RIN_APP_REDIS_HOST`, `RIN_APP_REDIS_PORT`, `RIN_APP_REDIS_PASSWORD`, `RIN_APP_REDIS_DB`, `RIN_APP_REDIS_POOL_SIZE`, `RIN_APP_REDIS_MIN_IDLE_CONNS`, `RIN_APP_REDIS_MAX_RETRIES`, `RIN_APP_REDIS_DIAL_TIMEOUT`, `RIN_APP_REDIS_READ_TIMEOUT`, `RIN_APP_REDIS_WRITE_TIMEOUT` |
+| Logger | `RIN_APP_LOG_LEVEL`, `RIN_APP_LOG_FORMAT`, `RIN_APP_LOG_CONSOLE_FORMAT`, `RIN_APP_LOG_FILE_FORMAT`, `RIN_APP_LOG_OUTPUT`, `RIN_APP_LOG_FILE_PATH`, `RIN_APP_LOG_MAX_SIZE`, `RIN_APP_LOG_MAX_BACKUPS`, `RIN_APP_LOG_MAX_AGE` |
 | I18n | `RIN_APP_I18N_DEFAULT`, `RIN_APP_I18N_SUPPORTED`, `RIN_APP_I18N_MESSAGES_DIR` |
 | Executor | `RIN_APP_EXECUTOR_ENABLED` |
 | Storage | `RIN_APP_STORAGE_ENABLED`, `RIN_APP_STORAGE_FS_TYPE`, `RIN_APP_STORAGE_BASE_PATH`, `RIN_APP_STORAGE_ENABLE_WATCH`, `RIN_APP_STORAGE_WATCH_BUFFER_SIZE` |
@@ -64,13 +66,14 @@ DB_HOST
 | System | `RIN_APP_SYSTEM_SEED_DEFAULTS_ON_START` |
 | WebUI | `RIN_APP_WEBUI_ENABLED`, `RIN_APP_WEBUI_MOUNT_PATH`, `RIN_APP_WEBUI_DIST_DIR`, `RIN_APP_WEBUI_PUBLIC_BASE_URL`, `NUXT_APP_BASE_URL`, `NUXT_PUBLIC_API_BASE_URL`, `NUXT_PUBLIC_SHOW_DEMO_TODO` |
 | Plugins | `RIN_APP_PLUGINS_ENABLED`, `RIN_APP_PLUGINS_MANIFESTS`, `RIN_APP_PLUGINS_HEALTH_TIMEOUT_SECONDS`, `RIN_APP_PLUGINS_PROXY_TIMEOUT_SECONDS` |
-| Auth | `RIN_APP_AUTH_ENABLED`, `RIN_APP_AUTH_SELF_SIGNUP_ENABLED`, `RIN_APP_AUTH_ISSUER`, `RIN_APP_AUTH_AUDIENCE`, `RIN_APP_AUTH_SIGNING_KEY`, `RIN_APP_AUTH_ACCESS_TOKEN_TTL_SECONDS`, `RIN_APP_AUTH_REFRESH_TOKEN_TTL_SECONDS`, `RIN_APP_AUTH_REFRESH_TOKEN_PEPPER`, `RIN_APP_AUTH_MFA_SECRET_KEY`, `RIN_APP_AUTH_LOGIN_CAPTCHA_ENABLED`, `RIN_APP_AUTH_CAPTCHA_TTL_SECONDS`, `RIN_APP_AUTH_NOTIFICATION_DRIVER`, `RIN_APP_AUTH_SMTP_HOST`, `RIN_APP_AUTH_SMTP_PORT`, `RIN_APP_AUTH_SMTP_USERNAME`, `RIN_APP_AUTH_SMTP_PASSWORD`, `RIN_APP_AUTH_SMTP_FROM`, `RIN_APP_AUTH_PASSWORD_MIN_LENGTH`, `RIN_APP_AUTH_PASSWORD_REQUIRE_LOWER`, `RIN_APP_AUTH_PASSWORD_REQUIRE_UPPER`, `RIN_APP_AUTH_PASSWORD_REQUIRE_NUMBER`, `RIN_APP_AUTH_PASSWORD_REQUIRE_SYMBOL` |
+| Auth | `RIN_APP_AUTH_ENABLED`, `RIN_APP_AUTH_SELF_SIGNUP_ENABLED`, `RIN_APP_AUTH_ISSUER`, `RIN_APP_AUTH_AUDIENCE`, `RIN_APP_AUTH_SIGNING_KEY`, `RIN_APP_AUTH_ACCESS_TOKEN_TTL_SECONDS`, `RIN_APP_AUTH_REFRESH_TOKEN_TTL_SECONDS`, `RIN_APP_AUTH_REFRESH_TOKEN_PEPPER`, `RIN_APP_AUTH_MFA_ISSUER`, `RIN_APP_AUTH_MFA_SECRET_KEY`, `RIN_APP_AUTH_LOGIN_MAX_FAILURES`, `RIN_APP_AUTH_LOGIN_LOCK_MINUTES`, `RIN_APP_AUTH_LOGIN_CAPTCHA_ENABLED`, `RIN_APP_AUTH_CAPTCHA_TTL_SECONDS`, `RIN_APP_AUTH_INVITATION_TTL_SECONDS`, `RIN_APP_AUTH_PASSWORD_RESET_TTL_SECONDS`, `RIN_APP_AUTH_NOTIFICATION_DRIVER`, `RIN_APP_AUTH_SMTP_HOST`, `RIN_APP_AUTH_SMTP_PORT`, `RIN_APP_AUTH_SMTP_USERNAME`, `RIN_APP_AUTH_SMTP_PASSWORD`, `RIN_APP_AUTH_SMTP_FROM`, `RIN_APP_AUTH_SMTP_FROM_NAME`, `RIN_APP_AUTH_SMTP_STARTTLS`, `RIN_APP_AUTH_PASSWORD_MIN_LENGTH`, `RIN_APP_AUTH_PASSWORD_REQUIRE_LOWER`, `RIN_APP_AUTH_PASSWORD_REQUIRE_UPPER`, `RIN_APP_AUTH_PASSWORD_REQUIRE_NUMBER`, `RIN_APP_AUTH_PASSWORD_REQUIRE_SYMBOL`, `RIN_APP_AUTH_CASBIN_RELOAD_INTERVAL_SECONDS` |
 | Migration | `RIN_APP_MIGRATION_AUTO_APPLY`, `RIN_APP_MIGRATION_DIR` |
 | CORS | `RIN_APP_CORS_ENABLED`, `RIN_APP_CORS_ALLOW_ORIGINS`, `RIN_APP_CORS_ALLOW_METHODS`, `RIN_APP_CORS_ALLOW_HEADERS`, `RIN_APP_CORS_EXPOSE_HEADERS`, `RIN_APP_CORS_ALLOW_CREDENTIALS`, `RIN_APP_CORS_MAX_AGE` |
 
 `RIN_APP_AUTH_REFRESH_TOKEN_PEPPER` 同时用于 refresh token 和 IAM API Token 的 HMAC hash。生产环境轮换该值前，需要把既有 refresh token 与 API Token 会统一失效这件事纳入发布通知和回滚预案。
 
-完整字段列表以 `internal/config/*` 和 `.env.example` 为准。
+完整字段列表以 `internal/config/*` 和 `.env.example` 为准。生产 Compose 示例只暴露
+当前部署模板需要的运行期变量，是否扩展为全量变量映射需要在部署任务中单独审计。
 
 ## 默认值
 
@@ -106,9 +109,21 @@ DB_HOST
 5. 在 `internal/config` 中新增或调整测试。
 6. 字段面向用户或运维时，同步更新本文档。
 
+AI 渐进式审计流程记录在 `docs/ai/progressive-project-audit.md`，它本身不新增运行时
+配置。后续切片一旦涉及阈值、状态、路径、接口、刷新策略、布局参数、字段映射
+或构建产物路径，必须先在该任务书记录配置落点，再按上面的步骤补齐统一配置、
+示例配置、测试和文档。
+
+HTTP API 公共前缀 `/api/v1` 是对外接口契约，不是 YAML、env 或 Nuxt runtime
+config。后端路由、API catalog、操作记录判定和服务端生成的媒体下载 URL 通过
+`types/constants` 中的 `APIBasePath`、`APIPath()` 和 `MediaAssetDownloadPath()`
+维护；前端调用路径仍由 `web/admin/app/config/admin-api.ts` 维护。若未来要让 API
+前缀可配置，需要先重新设计 OpenAPI、前端 endpoint、权限同步、操作记录筛选和
+部署兼容策略，不能只新增一个环境变量。
+
 ## Admin WebUI 配置
 
-`web/admin` 是当前后台前端主线。Go 后端默认在 `webui.mount_path=/admin` 挂载静态产物，默认产物目录为 `webui.dist_dir=./web/admin/.output/public`，公开后台地址由 `webui.public_base_url=/admin` 描述。
+`web/admin` 是当前后台前端主线。Go 后端默认在 `webui.mount_path=/admin` 挂载静态产物，默认产物目录为 `webui.dist_dir=./web/admin/.output/public`，公开后台地址由 `webui.public_base_url=/admin` 描述。`webui.mount_path` 必须是非根绝对路径，不能设置为 `/`，避免 SPA fallback 覆盖 API、健康检查和就绪检查路由。
 
 Nuxt 侧运行时配置保持最小化：
 
@@ -128,7 +143,7 @@ Docker 镜像构建时通过 build args 注入 Nuxt 构建期配置：
 | `NUXT_PUBLIC_API_BASE_URL` | 空字符串 | 网关或跨域部署时的 API 入口 |
 | `NUXT_PUBLIC_SHOW_DEMO_TODO` | `false` | 仅控制前端兜底菜单，不改变后端 Demo 配置 |
 
-`deploy.sh` 提供 `--webui-build-base-url`、`--webui-api-base-url`、`--webui-show-demo-todo`、`--webui-check` 和 `--webui-check-path`。未显式传 `--webui-build-base-url` 时，脚本会从 `--webui-mount-path` 派生，避免 Go 挂载路径和 Nuxt 静态资源路径不一致。
+`deploy.sh` 提供 `--webui-mount-path`、`--webui-build-base-url`、`--webui-api-base-url`、`--webui-show-demo-todo`、`--webui-check` 和 `--webui-check-path`。`--webui-mount-path` 与 Go 配置一样必须是非根绝对路径；未显式传 `--webui-build-base-url` 时，脚本会从 `--webui-mount-path` 派生带尾斜杠的 Nuxt baseURL，避免 Go 挂载路径和 Nuxt 静态资源路径不一致。
 
 ## Server Status Dashboard 配置
 
@@ -145,8 +160,11 @@ Docker 镜像构建时通过 build args 注入 Nuxt 构建期配置：
 
 Server Status 页面自己的展示治理不新增后端配置项，前端入口如下：
 
-- `web/admin/app/config/admin-api.ts`：集中维护后台 API endpoint。
-- `web/admin/app/config/server-status-dashboard.ts`：集中维护指标阈值、状态文案、状态权重、KPI 顺序、字段 label、刷新策略、格式化规则和空状态文案。
-- `web/admin/app/assets/css/main.css`：通过 `--aoi-admin-*` token 控制卡片间距、局部滚动高度、CPU 行尺寸和数据状态尺寸。
+- `web/admin/app/config/admin-api.ts`：集中维护后台 API endpoint；页面和 composable 不直接散落新增接口路径。
+- `web/admin/app/config/admin-auto-refresh.ts`：集中维护后台通用自动刷新默认值、最小间隔、倒计时 tick、默认手动刷新冷却、时间单位、时间 locale 和共享控件/状态文案。
+- `web/admin/app/config/server-status-dashboard.ts`：集中维护指标阈值、状态文案、状态权重、KPI 顺序、字段 label、页面级刷新策略、手动刷新冷却、格式化规则和空状态文案。
+- `web/admin/app/assets/css/main.css`：通过 `--aoi-admin-*` token 控制卡片间距、自动刷新控件间距、局部滚动高度、CPU 行尺寸和数据状态尺寸；自动刷新控件依赖 `flex-wrap` 和共享 gap token 做窄屏换行，不再在组件内单独维护断点。
+
+`useAdminAutoRefresh()` 只把真实浏览器点击事件识别为手动刷新并应用 `manualCooldownMs`；自动静默刷新、筛选分页后的程序化刷新和数据变更后的 reload 不受冷却影响，避免页面状态因为按钮防抖而跳过必要的数据更新。
 
 示例配置和文档不得包含真实账号、密码、Token 或生产地址。需要本地登录验证时，使用安全渠道获取本地测试账号信息。

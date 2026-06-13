@@ -67,13 +67,15 @@ const tokenExample = computed(() => {
   return `curl -H "Authorization: Bearer ${issuedToken.value}" "${apiOrigin.value}/api/v1/me"`
 })
 
-async function load() {
+async function load(options: { silent?: boolean } = {}) {
   if (!auth.currentOrgId) {
     pageData.value = { items: [], page: 1, pageSize: pageSizeNumber.value, storageStatus: "unavailable", total: 0 }
     return
   }
 
-  loading.value = true
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     pageData.value = await api.listAPITokens(auth.currentOrgId, {
@@ -85,9 +87,16 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
+
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || issuing.value || revoking.value),
+  load
+})
 
 async function loadMetadata() {
   if (!auth.currentOrgId) {
@@ -177,7 +186,7 @@ async function resetFilters() {
   userId.value = ""
   status.value = ""
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function previousPage() {
@@ -185,7 +194,7 @@ async function previousPage() {
     return
   }
   page.value -= 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function nextPage() {
@@ -193,7 +202,12 @@ async function nextPage() {
     return
   }
   page.value += 1
-  await load()
+  await autoRefresh.refreshNow()
+}
+
+async function search() {
+  page.value = 1
+  await autoRefresh.refreshNow()
 }
 
 async function copyIssuedToken() {
@@ -256,7 +270,7 @@ function isRevocable(item: APIToken) {
 
 onMounted(async () => {
   await Promise.all([
-    load(),
+    autoRefresh.refreshNow(),
     loadMetadata()
   ])
 })
@@ -266,14 +280,14 @@ watch(() => auth.currentOrgId, async () => {
   formUserId.value = ""
   formRoleCode.value = ""
   await Promise.all([
-    load(),
+    autoRefresh.refreshNow(),
     loadMetadata()
   ])
 })
 
 watch(pageSize, async () => {
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 })
 
 watch([formUserId, users, roles], alignIssueForm)
@@ -288,7 +302,13 @@ useHead({
     <PageHeader title="API Token" icon="key-round" description="签发和撤销组织内可用于 Bearer 认证的 API Token。">
       <template #actions>
         <AoiButton appearance="soft" icon="plus" :disabled="!auth.currentOrgId" @click="openIssueDialog">签发</AoiButton>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 
@@ -311,10 +331,10 @@ useHead({
       </div>
 
       <div class="admin-filter-toolbar api-token-filter-toolbar">
-        <AoiTextField v-model="userId" label="用户 ID" icon="user" placeholder="10001" @enter="page = 1; load()" />
+        <AoiTextField v-model="userId" label="用户 ID" icon="user" placeholder="10001" @enter="search" />
         <AoiSelect v-model="status" label="状态" :options="statusOptions" />
-        <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="page = 1; load()" />
-        <AoiButton appearance="soft" icon="search" :loading="loading" @click="page = 1; load()">查询</AoiButton>
+        <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="search" />
+        <AoiButton appearance="soft" icon="search" :loading="loading" @click="search">查询</AoiButton>
         <AoiButton appearance="plain" icon="rotate-ccw" @click="resetFilters">重置</AoiButton>
       </div>
 

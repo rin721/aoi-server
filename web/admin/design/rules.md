@@ -27,6 +27,7 @@ Keep `design/` focused on constraints that guide future implementation. Do not a
 - Material Web imports stay centralized in `app/plugins/material-web.client.ts`.
 - New Material Web behavior must be exposed through `app/components/aoi/` first.
 - Aoi component semantics use `appearance` for visual form and `intent` for meaning. Do not add thin one-off wrappers such as secondary/danger/plain buttons when the shared component can express the role through this API.
+- `AoiTextField` emits `enter` as a no-payload command event. Use its `keydown` event when a caller needs the raw `KeyboardEvent`.
 - Plain text links, card links, tag links, and navigation links use `AoiLink`; business code should not use `NuxtLink` or bare `<a>`.
 - Button-style navigation uses `AoiButton` or `AoiIconButton` with `to`/`href`.
 - Use `app/assets/css/tokens.css` tokens and shared structure rules in `app/assets/css/main.css`.
@@ -77,6 +78,10 @@ Keep `design/` focused on constraints that guide future implementation. Do not a
 ## Data And API Rules
 
 - Admin API access goes through `useAdminApi()` and must preserve the Go backend endpoints under `/api/v1`.
+- Concrete backend endpoint paths live in `app/config/admin-api.ts`. Pages and composables should call named `ADMIN_API_ENDPOINTS` entries instead of adding new ad hoc `/api/v1` strings.
+- Shared admin auto-refresh behavior goes through `useAdminAutoRefresh()` and `AdminAutoRefreshControls`. Generic defaults, timing units, clock cadence, manual click cooldown, and shared labels live in `app/config/admin-auto-refresh.ts`; page-specific overrides should be explicit config values, not inline timer numbers or copy.
+- Manual refresh cooldown applies only to real browser click events. Programmatic refreshes after filters, pagination, mutations, route watches, and silent auto-refresh timers must not be skipped by click cooldown.
+- Auto-refresh control spacing and height live in shared CSS tokens. Keep the control responsive through wrapping first; add new component-local breakpoints only after documenting why token-based spacing and natural wrapping are insufficient.
 - Do not add menu/API/dictionary/parameter/code-generation backend concepts unless the Go backend exposes them first.
 - JSON uses camelCase keys. Time fields use ISO 8601 UTC strings.
 - Frontend error UI expects stable error payloads compatible with `ApiErrorPayload` in `app/types/admin.ts`.

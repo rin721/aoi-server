@@ -5,6 +5,7 @@ package httptransport
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	"github.com/rei0721/go-scaffold/pkg/logger"
 	"github.com/rei0721/go-scaffold/pkg/utils"
 	"github.com/rei0721/go-scaffold/pkg/web"
+	appconstants "github.com/rei0721/go-scaffold/types/constants"
 	apperrors "github.com/rei0721/go-scaffold/types/errors"
 	"github.com/rei0721/go-scaffold/types/result"
 )
@@ -67,10 +69,10 @@ func NewRouter(deps RouterDeps) *web.Engine {
 		r.Use(web.Recovery())
 	}
 
-	r.GET("/health", health)
-	r.GET("/ready", ready(deps.Database))
+	r.GET(appconstants.HTTPHealthPath, health)
+	r.GET(appconstants.HTTPReadyPath, ready(deps.Database))
 
-	v1 := r.Group("/api/v1")
+	v1 := r.Group(appconstants.APIBasePath)
 	demo := v1.Group("/demo")
 	if deps.TodoHandler != nil {
 		todos := demo.Group("/todos")
@@ -195,6 +197,7 @@ func registerSystemRoutes(v1 web.Router, deps RouterDeps) {
 	system.Use(OperationRecorder(deps.SystemHandler))
 	system.GET("/menus", deps.SystemHandler.ListMenus)
 	system.GET("/config", middleware.RequirePermission(deps.IAMAuthz, "config", "read", deps.SystemHandler.ListConfig))
+	system.PATCH("/config", middleware.RequirePermission(deps.IAMAuthz, "config", "update", deps.SystemHandler.UpdateConfig))
 	system.GET("/server-info", middleware.RequirePermission(deps.IAMAuthz, "server", "read", deps.SystemHandler.GetServerInfo))
 	system.GET("/apis", middleware.RequirePermission(deps.IAMAuthz, "permission", "read", deps.SystemHandler.ListAPIs))
 	system.POST("/apis/sync", middleware.RequirePermission(deps.IAMAuthz, "permission", "read", deps.SystemHandler.SyncAPIs))
@@ -244,11 +247,11 @@ type operationRecorder interface {
 
 func OperationRecorder(recorder operationRecorder) web.HandlerFunc {
 	return func(c web.Context) {
-		if recorder == nil || !strings.HasPrefix(c.Path(), "/api/v1/") {
+		if recorder == nil || !appconstants.IsAPIPath(c.Path()) {
 			c.Next()
 			return
 		}
-		body := readRequestBody(c.Request())
+		body := sanitizeOperationRequestBody(c.Method(), c.Path(), readRequestBody(c.Request()))
 		start := time.Now()
 		c.Next()
 
@@ -289,10 +292,43 @@ func readRequestBody(req *http.Request) string {
 	return string(raw)
 }
 
+func sanitizeOperationRequestBody(method string, path string, body string) string {
+	if method != http.MethodPatch || path != appconstants.APIPath("system", "config") {
+		return body
+	}
+	var payload struct {
+		Items []struct {
+			Key string `json:"key"`
+		} `json:"items"`
+		Persist bool `json:"persist"`
+	}
+	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+		return `{"items":"[redacted]"}`
+	}
+	out := struct {
+		Items   []map[string]string `json:"items"`
+		Persist bool                `json:"persist"`
+	}{
+		Items:   make([]map[string]string, 0, len(payload.Items)),
+		Persist: payload.Persist,
+	}
+	for _, item := range payload.Items {
+		out.Items = append(out.Items, map[string]string{
+			"key":   item.Key,
+			"value": "[redacted]",
+		})
+	}
+	raw, err := json.Marshal(out)
+	if err != nil {
+		return `{"items":"[redacted]"}`
+	}
+	return string(raw)
+}
+
 func catalogAPIRoutes(routes []web.RouteInfo) []systemmodel.APIEntry {
 	entries := make([]systemmodel.APIEntry, 0, len(routes))
 	for _, route := range routes {
-		if !strings.HasPrefix(route.Path, "/api/v1/") {
+		if !appconstants.IsAPIPath(route.Path) {
 			continue
 		}
 		permission := apiRoutePermission(route.Method, route.Path)
@@ -322,21 +358,21 @@ func apiRouteAccess(path string, permission string) string {
 
 func publicAPIRoute(path string) bool {
 	switch path {
-	case "/api/v1/auth/setup/status",
-		"/api/v1/auth/setup/initial-admin",
-		"/api/v1/auth/signup",
-		"/api/v1/auth/captcha",
-		"/api/v1/auth/login",
-		"/api/v1/auth/refresh",
-		"/api/v1/auth/password/forgot",
-		"/api/v1/auth/password/reset":
+	case appconstants.APIPath("auth", "setup", "status"),
+		appconstants.APIPath("auth", "setup", "initial-admin"),
+		appconstants.APIPath("auth", "signup"),
+		appconstants.APIPath("auth", "captcha"),
+		appconstants.APIPath("auth", "login"),
+		appconstants.APIPath("auth", "refresh"),
+		appconstants.APIPath("auth", "password", "forgot"),
+		appconstants.APIPath("auth", "password", "reset"):
 		return true
 	}
-	return strings.HasPrefix(path, "/api/v1/invitations/")
+	return strings.HasPrefix(path, appconstants.APIPath("invitations")+"/")
 }
 
 func apiRouteGroup(path string) string {
-	path = strings.TrimPrefix(path, "/api/v1/")
+	path = appconstants.TrimAPIPathPrefix(path)
 	segment, _, _ := strings.Cut(path, "/")
 	segment = strings.TrimSpace(segment)
 	if segment == "" {
@@ -346,109 +382,127 @@ func apiRouteGroup(path string) string {
 }
 
 func apiRouteDescription(method string, path string, permission string) string {
-	if strings.HasPrefix(path, "/api/v1/auth/") || strings.HasPrefix(path, "/api/v1/invitations/") {
+	if strings.HasPrefix(path, appconstants.APIPath("auth")+"/") || strings.HasPrefix(path, appconstants.APIPath("invitations")+"/") {
 		return "认证流程接口"
 	}
 	if permission != "" {
 		return "权限保护接口：" + permission
 	}
-	if strings.HasPrefix(path, "/api/v1/system/menus") {
+	if strings.HasPrefix(path, appconstants.APIPath("system", "menus")) {
 		return "当前用户可见菜单"
 	}
 	return method + " " + path
 }
 
 func apiRoutePermission(method string, path string) string {
+	pluginsPath := appconstants.APIPath("plugins")
+	demoCustomersPath := appconstants.APIPath("demo", "customers")
+	orgsPath := appconstants.APIPath("orgs")
+	systemConfigPath := appconstants.APIPath("system", "config")
+	systemServerInfoPath := appconstants.APIPath("system", "server-info")
+	systemAPIsPath := appconstants.APIPath("system", "apis")
+	systemAPIsSyncPath := appconstants.APIPath("system", "apis", "sync")
+	systemAPIPermissionsSyncPath := appconstants.APIPath("system", "apis", "permissions", "sync")
+	systemOperationRecordsPath := appconstants.APIPath("system", "operation-records")
+	systemVersionsPath := appconstants.APIPath("system", "versions")
+	systemMediaCategoriesPath := appconstants.APIPath("system", "media", "categories")
+	systemMediaAssetsPath := appconstants.SystemMediaAssetsAPIPath
+	systemParametersPath := appconstants.APIPath("system", "parameters")
+	systemDictionariesPath := appconstants.APIPath("system", "dictionaries")
+	systemDictionaryItemsPath := appconstants.APIPath("system", "dictionary-items")
+
 	switch {
-	case strings.HasPrefix(path, "/api/v1/plugins/") && strings.Contains(path, "/proxy/"):
+	case strings.HasPrefix(path, pluginsPath+"/") && strings.Contains(path, "/proxy/"):
 		return "plugin:proxy"
-	case strings.HasPrefix(path, "/api/v1/plugins"):
+	case path == pluginsPath || strings.HasPrefix(path, pluginsPath+"/"):
 		return "plugin:read"
-	case path == "/api/v1/demo/customers" && method == http.MethodGet:
+	case path == demoCustomersPath && method == http.MethodGet:
 		return "customer:read"
-	case path == "/api/v1/demo/customers" && method == http.MethodPost:
+	case path == demoCustomersPath && method == http.MethodPost:
 		return "customer:create"
-	case strings.HasPrefix(path, "/api/v1/demo/customers/") && method == http.MethodDelete:
+	case strings.HasPrefix(path, demoCustomersPath+"/") && method == http.MethodDelete:
 		return "customer:delete"
-	case strings.HasPrefix(path, "/api/v1/demo/customers/") && method == http.MethodGet:
+	case strings.HasPrefix(path, demoCustomersPath+"/") && method == http.MethodGet:
 		return "customer:read"
-	case strings.HasPrefix(path, "/api/v1/demo/customers/"):
+	case strings.HasPrefix(path, demoCustomersPath+"/"):
 		return "customer:update"
-	case path == "/api/v1/system/config":
+	case path == systemConfigPath && method == http.MethodPatch:
+		return "config:update"
+	case path == systemConfigPath:
 		return "config:read"
-	case path == "/api/v1/system/server-info":
+	case path == systemServerInfoPath:
 		return "server:read"
-	case path == "/api/v1/system/apis":
+	case path == systemAPIsPath:
 		return "permission:read"
-	case path == "/api/v1/system/apis/sync":
+	case path == systemAPIsSyncPath:
 		return "permission:read"
-	case path == "/api/v1/system/apis/permissions/sync":
+	case path == systemAPIPermissionsSyncPath:
 		return "permission:sync"
-	case path == "/api/v1/system/operation-records" && method == http.MethodDelete:
+	case path == systemOperationRecordsPath && method == http.MethodDelete:
 		return "operation:delete"
-	case path == "/api/v1/system/operation-records":
+	case path == systemOperationRecordsPath:
 		return "operation:read"
-	case path == "/api/v1/system/versions" && method == http.MethodGet:
+	case path == systemVersionsPath && method == http.MethodGet:
 		return "version:read"
-	case path == "/api/v1/system/versions" && method == http.MethodDelete:
+	case path == systemVersionsPath && method == http.MethodDelete:
 		return "version:delete"
-	case path == "/api/v1/system/versions/export":
+	case path == appconstants.APIPath("system", "versions", "export"):
 		return "version:create"
-	case path == "/api/v1/system/versions/import":
+	case path == appconstants.APIPath("system", "versions", "import"):
 		return "version:import"
-	case path == "/api/v1/system/versions/sources":
+	case path == appconstants.APIPath("system", "versions", "sources"):
 		return "version:read"
-	case strings.HasPrefix(path, "/api/v1/system/versions/") && strings.HasSuffix(path, "/download"):
+	case strings.HasPrefix(path, systemVersionsPath+"/") && strings.HasSuffix(path, "/download"):
 		return "version:download"
-	case strings.HasPrefix(path, "/api/v1/system/versions/") && method == http.MethodDelete:
+	case strings.HasPrefix(path, systemVersionsPath+"/") && method == http.MethodDelete:
 		return "version:delete"
-	case strings.HasPrefix(path, "/api/v1/system/versions/"):
+	case strings.HasPrefix(path, systemVersionsPath+"/"):
 		return "version:read"
-	case path == "/api/v1/system/media/categories" && method == http.MethodGet:
+	case path == systemMediaCategoriesPath && method == http.MethodGet:
 		return "media:read"
-	case path == "/api/v1/system/media/categories" && method == http.MethodPost:
+	case path == systemMediaCategoriesPath && method == http.MethodPost:
 		return "media:update"
-	case strings.HasPrefix(path, "/api/v1/system/media/categories/"):
+	case strings.HasPrefix(path, systemMediaCategoriesPath+"/"):
 		return "media:update"
-	case path == "/api/v1/system/media/assets" && method == http.MethodGet:
+	case path == systemMediaAssetsPath && method == http.MethodGet:
 		return "media:read"
-	case path == "/api/v1/system/media/assets/upload":
+	case path == appconstants.APIPath("system", "media", "assets", "upload"):
 		return "media:upload"
-	case strings.HasPrefix(path, "/api/v1/system/media/assets/resumable/"):
+	case strings.HasPrefix(path, appconstants.APIPath("system", "media", "assets", "resumable")+"/"):
 		return "media:upload"
-	case path == "/api/v1/system/media/assets/import-url":
+	case path == appconstants.APIPath("system", "media", "assets", "import-url"):
 		return "media:import"
-	case strings.HasPrefix(path, "/api/v1/system/media/assets/") && strings.HasSuffix(path, "/download"):
+	case strings.HasPrefix(path, systemMediaAssetsPath+"/") && strings.HasSuffix(path, "/download"):
 		return "media:download"
-	case strings.HasPrefix(path, "/api/v1/system/media/assets/") && method == http.MethodDelete:
+	case strings.HasPrefix(path, systemMediaAssetsPath+"/") && method == http.MethodDelete:
 		return "media:delete"
-	case strings.HasPrefix(path, "/api/v1/system/media/assets/"):
+	case strings.HasPrefix(path, systemMediaAssetsPath+"/"):
 		return "media:update"
-	case path == "/api/v1/system/parameters" && method == http.MethodGet:
+	case path == systemParametersPath && method == http.MethodGet:
 		return "parameter:read"
-	case path == "/api/v1/system/parameters" && method == http.MethodPost:
+	case path == systemParametersPath && method == http.MethodPost:
 		return "parameter:create"
-	case path == "/api/v1/system/parameters" && method == http.MethodDelete:
+	case path == systemParametersPath && method == http.MethodDelete:
 		return "parameter:delete"
-	case path == "/api/v1/system/parameters/value":
+	case path == appconstants.APIPath("system", "parameters", "value"):
 		return "parameter:read"
-	case strings.HasPrefix(path, "/api/v1/system/parameters/") && method == http.MethodGet:
+	case strings.HasPrefix(path, systemParametersPath+"/") && method == http.MethodGet:
 		return "parameter:read"
-	case strings.HasPrefix(path, "/api/v1/system/parameters/") && method == http.MethodDelete:
+	case strings.HasPrefix(path, systemParametersPath+"/") && method == http.MethodDelete:
 		return "parameter:delete"
-	case strings.HasPrefix(path, "/api/v1/system/parameters/"):
+	case strings.HasPrefix(path, systemParametersPath+"/"):
 		return "parameter:update"
-	case path == "/api/v1/system/dictionaries" && method == http.MethodGet:
+	case path == systemDictionariesPath && method == http.MethodGet:
 		return "dictionary:read"
-	case path == "/api/v1/system/dictionaries" && method == http.MethodPost:
+	case path == systemDictionariesPath && method == http.MethodPost:
 		return "dictionary:create"
-	case strings.HasPrefix(path, "/api/v1/system/dictionaries/") && method == http.MethodDelete:
+	case strings.HasPrefix(path, systemDictionariesPath+"/") && method == http.MethodDelete:
 		return "dictionary:delete"
-	case strings.HasPrefix(path, "/api/v1/system/dictionaries/"):
+	case strings.HasPrefix(path, systemDictionariesPath+"/"):
 		return "dictionary:update"
-	case strings.HasPrefix(path, "/api/v1/system/dictionary-items/") && method == http.MethodDelete:
+	case strings.HasPrefix(path, systemDictionaryItemsPath+"/") && method == http.MethodDelete:
 		return "dictionary:delete"
-	case strings.HasPrefix(path, "/api/v1/system/dictionary-items/"):
+	case strings.HasPrefix(path, systemDictionaryItemsPath+"/"):
 		return "dictionary:update"
 	case strings.Contains(path, "/api-tokens/"):
 		return "api_token:revoke"
@@ -476,11 +530,11 @@ func apiRoutePermission(method string, path string) string {
 		return "session:read"
 	case strings.HasSuffix(path, "/audit-logs"):
 		return "audit:read"
-	case strings.HasPrefix(path, "/api/v1/orgs/") && method == http.MethodPatch:
+	case strings.HasPrefix(path, orgsPath+"/") && method == http.MethodPatch:
 		return "org:update"
-	case path == "/api/v1/orgs" && method == http.MethodPost:
+	case path == orgsPath && method == http.MethodPost:
 		return "org:create"
-	case path == "/api/v1/orgs":
+	case path == orgsPath:
 		return "org:read"
 	default:
 		return ""

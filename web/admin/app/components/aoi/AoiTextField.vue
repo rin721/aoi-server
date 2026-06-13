@@ -36,7 +36,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  enter: [event: KeyboardEvent]
+  enter: []
   keydown: [event: KeyboardEvent]
   "update:modelValue": [value: string]
 }>()
@@ -56,7 +56,8 @@ function onKeydown(event: KeyboardEvent) {
   emit("keydown", event)
 
   if (event.key === "Enter") {
-    emit("enter", event)
+    // enter 表示表单提交命令；需要原始键盘事件时使用 keydown。
+    emit("enter")
   }
 
   requestAnimationFrame(() => {

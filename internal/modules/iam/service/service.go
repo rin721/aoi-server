@@ -2179,6 +2179,7 @@ var builtinPermissions = []permissionSeed{
 	{Code: "role:create", Name: "Create roles", Description: "Create roles"},
 	{Code: "role:update", Name: "Update roles", Description: "Update roles"},
 	{Code: "config:read", Name: "Read runtime config", Description: "Read sanitized system runtime configuration"},
+	{Code: "config:update", Name: "Update runtime config", Description: "Update current runtime configuration snapshot"},
 	{Code: "server:read", Name: "Read server info", Description: "Read runtime server information"},
 	{Code: "dictionary:read", Name: "Read dictionaries", Description: "Read system dictionaries"},
 	{Code: "dictionary:create", Name: "Create dictionaries", Description: "Create system dictionaries"},

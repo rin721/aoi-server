@@ -28,15 +28,19 @@ const filteredGroups = computed(() => {
     .filter((group) => group.items.length > 0)
 })
 
-async function load() {
-  loading.value = true
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     groups.value = await api.listSystemMenus()
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
 
@@ -56,7 +60,9 @@ function matchesMenu(group: SystemMenuGroup, item: SystemMenuItem, keyword: stri
   ].some((value) => value.toLowerCase().includes(keyword))
 }
 
-onMounted(load)
+const autoRefresh = useAdminAutoRefresh({ blocked: loading, load })
+
+onMounted(autoRefresh.refreshNow)
 
 useHead({
   title: "菜单管理 - Aoi Admin"
@@ -68,7 +74,13 @@ useHead({
     <PageHeader title="菜单管理" icon="panel-left" description="查看当前用户可见的后台菜单目录，核对路由、权限码、移动端入口和排序。">
       <template #actions>
         <AoiButton appearance="soft" aria-label="API 管理" icon="code-2" to="/apis">API 管理</AoiButton>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 
@@ -86,7 +98,7 @@ useHead({
       </div>
 
       <div class="admin-filter-toolbar">
-        <AoiTextField v-model="query" label="关键词" icon="search" placeholder="/roles 或 role:read" />
+        <AoiTextField v-model="query" label="关键字" icon="search" placeholder="/roles 或 role:read" />
         <AoiSelect
           :model-value="groupCode"
           label="分组"

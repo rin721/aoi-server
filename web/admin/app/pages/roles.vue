@@ -95,12 +95,14 @@ const editableRoleOptions = computed(() => roles.value
 
 const selectedEditRole = computed(() => roles.value.find((role) => role.id === editRoleId.value) || null)
 
-async function load() {
+async function load(options: { silent?: boolean } = {}) {
   if (!auth.currentOrgId) {
     return
   }
 
-  loading.value = true
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     const [roleResult, permissionResult] = await Promise.all([
@@ -112,9 +114,16 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
+
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || saving.value || updating.value),
+  load
+})
 
 function togglePermission(code: string, checked: boolean) {
   selectedPermissions.value = checked
@@ -237,8 +246,10 @@ async function updateRole() {
   }
 }
 
-onMounted(load)
-watch(() => auth.currentOrgId, load)
+onMounted(autoRefresh.refreshNow)
+watch(() => auth.currentOrgId, () => {
+  void autoRefresh.refreshNow()
+})
 watch(selectedEditRole, (role) => {
   editName.value = role?.name || ""
   editDescription.value = role?.description || ""
@@ -255,7 +266,13 @@ useHead({
     <PageHeader title="角色权限" icon="shield-check" description="查看系统角色与权限集合，并为当前组织创建自定义角色。">
       <template #actions>
         <AoiButton appearance="soft" aria-label="API 管理" icon="code-2" to="/apis">API 管理</AoiButton>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 

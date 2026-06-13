@@ -25,6 +25,7 @@ const inviteToken = ref("")
 const inviteUrl = ref("")
 const loading = ref(false)
 const saving = ref(false)
+const mutating = ref(false)
 const error = ref("")
 const success = ref("")
 
@@ -53,7 +54,7 @@ const pageSizeOptions = [
 const canInvite = computed(() => Boolean(email.value.trim() && roleCode.value && !saving.value))
 const persisted = computed(() => pageData.value.storageStatus === "persisted")
 
-async function load() {
+async function load(options: { silent?: boolean } = {}) {
   if (!auth.currentOrgId) {
     pageData.value = { ...emptyPage }
     roles.value = []
@@ -61,7 +62,9 @@ async function load() {
     return
   }
 
-  loading.value = true
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     const [userResult, roleResult, invitationResult] = await Promise.all([
@@ -93,13 +96,20 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
 
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || saving.value || mutating.value),
+  load
+})
+
 async function search() {
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function resetFilters() {
@@ -110,7 +120,7 @@ async function resetFilters() {
   filters.roleCode = ""
   filters.status = ""
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function previousPage() {
@@ -118,7 +128,7 @@ async function previousPage() {
     return
   }
   page.value -= 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function nextPage() {
@@ -126,7 +136,7 @@ async function nextPage() {
     return
   }
   page.value += 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function invite() {
@@ -160,6 +170,7 @@ async function updateMemberStatus(item: OrganizationUser, status: "active" | "di
   if (!auth.currentOrgId) {
     return
   }
+  mutating.value = true
   error.value = ""
   success.value = ""
   try {
@@ -168,6 +179,8 @@ async function updateMemberStatus(item: OrganizationUser, status: "active" | "di
     await load()
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    mutating.value = false
   }
 }
 
@@ -176,6 +189,7 @@ async function updateMemberRole(item: OrganizationUser) {
   if (!auth.currentOrgId || !role) {
     return
   }
+  mutating.value = true
   error.value = ""
   success.value = ""
   try {
@@ -184,6 +198,8 @@ async function updateMemberRole(item: OrganizationUser) {
     await load()
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    mutating.value = false
   }
 }
 
@@ -191,6 +207,7 @@ async function revokeInvitation(invitation: Invitation) {
   if (!auth.currentOrgId || !confirm(`撤销 ${invitation.email} 的邀请？`)) {
     return
   }
+  mutating.value = true
   error.value = ""
   success.value = ""
   try {
@@ -199,6 +216,8 @@ async function revokeInvitation(invitation: Invitation) {
     await load()
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    mutating.value = false
   }
 }
 
@@ -214,10 +233,10 @@ function displayUserName(item: OrganizationUser) {
   return item.user.displayName || item.user.username
 }
 
-onMounted(load)
+onMounted(autoRefresh.refreshNow)
 watch(() => auth.currentOrgId, () => {
   page.value = 1
-  load()
+  void autoRefresh.refreshNow()
 })
 
 useHead({
@@ -229,7 +248,13 @@ useHead({
   <div class="page-grid user-page">
     <PageHeader title="用户管理" icon="users" description="按当前组织管理成员、角色和启停状态。">
       <template #actions>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 

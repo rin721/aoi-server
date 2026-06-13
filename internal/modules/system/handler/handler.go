@@ -79,6 +79,16 @@ type deleteVersionsRequest struct {
 	IDs []systemID `json:"ids"`
 }
 
+type updateConfigRequest struct {
+	Items   []updateConfigItemRequest `json:"items" binding:"required"`
+	Persist bool                      `json:"persist"`
+}
+
+type updateConfigItemRequest struct {
+	Key   string `json:"key" binding:"required"`
+	Value any    `json:"value"`
+}
+
 type exportVersionRequest struct {
 	APICodes        []string `json:"apiCodes"`
 	Description     string   `json:"description"`
@@ -164,6 +174,25 @@ func (h *Handler) ListConfig(c web.Context) {
 		return
 	}
 	snapshot, err := h.service.ListConfig(c.RequestContext())
+	writeOK(c, snapshot, err, h.writeError)
+}
+
+func (h *Handler) UpdateConfig(c web.Context) {
+	if _, ok := requirePrincipal(c); !ok {
+		return
+	}
+	var req updateConfigRequest
+	if !bind(c, &req) {
+		return
+	}
+	input := service.UpdateConfigInput{Items: make([]service.UpdateConfigItem, 0, len(req.Items)), Persist: req.Persist}
+	for _, item := range req.Items {
+		input.Items = append(input.Items, service.UpdateConfigItem{
+			Key:   item.Key,
+			Value: item.Value,
+		})
+	}
+	snapshot, err := h.service.UpdateConfig(c.RequestContext(), input)
 	writeOK(c, snapshot, err, h.writeError)
 }
 
@@ -898,7 +927,7 @@ func (h *Handler) writeError(c web.Context, err error) {
 		result.BadRequest(c, err.Error())
 	case errors.Is(err, service.ErrNotFound):
 		result.NotFound(c, err.Error())
-	case errors.Is(err, service.ErrStorageUnavailable):
+	case errors.Is(err, service.ErrConfigUnavailable), errors.Is(err, service.ErrStorageUnavailable):
 		result.Fail(c, http.StatusServiceUnavailable, err.Error())
 	default:
 		if h.logger != nil {

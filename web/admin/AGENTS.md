@@ -53,6 +53,7 @@ Go 后端默认托管 `web/admin/.output/public` 到 `/admin`。如果要验证 
 ## 状态、API 与数据规则
 
 - 后台 API 访问统一走 `useAdminApi()`，并保持 `/api/v1` 后端契约不变。
+- 具体后端 endpoint 路径集中维护在 `app/config/admin-api.ts`；页面和 composable 不要新增散落的 `/api/v1` 字符串。
 - 不新增当前 Go 后端没有暴露的菜单管理、API 管理、字典、参数、代码生成等后端模型。
 - Gin-Vue-Admin 只作为布局、交互和信息架构参考；不实现它的编程辅助、代码生成、插件市场或插件安装/打包系统。
 - 浏览器本地 store 必须只在客户端安全 hydrate，能从损坏的 `localStorage` 恢复，并避免 SSR 崩溃。

@@ -141,7 +141,7 @@ export function useAdminApi() {
     }
 
     try {
-      const pair = await requestWithAuthRetry<TokenPair>("/api/v1/auth/refresh", {
+      const pair = await requestWithAuthRetry<TokenPair>(ADMIN_API_ENDPOINTS.auth.refresh, {
         auth: false,
         body: { refreshToken },
         method: "POST",
@@ -191,134 +191,136 @@ export function useAdminApi() {
 
   return {
     acceptInvitation: (token: string, body: { displayName?: string, password: string, username: string }) =>
-      request<{ email?: string, orgId?: ID, sessionId?: ID, userId?: ID }>(`/api/v1/invitations/${encodeURIComponent(token)}/accept`, {
+      request<{ email?: string, orgId?: ID, sessionId?: ID, userId?: ID }>(ADMIN_API_ENDPOINTS.invitations.accept(token), {
         auth: false,
         body,
         method: "POST"
       }),
     createOrganization: (body: { code: string, name: string }) =>
-      request<Organization>("/api/v1/orgs", { body, method: "POST" }),
+      request<Organization>(ADMIN_API_ENDPOINTS.orgs.collection, { body, method: "POST" }),
     createAPIToken: (orgId: ID, body: { days?: number, remark?: string, roleCode: string, userId: ID }) =>
-      request<CreateAPITokenResult>(`/api/v1/orgs/${orgId}/api-tokens`, { body, method: "POST" }),
+      request<CreateAPITokenResult>(ADMIN_API_ENDPOINTS.orgs.apiTokens(orgId), { body, method: "POST" }),
     createRole: (orgId: ID, body: { code: string, description?: string, name: string, permissions: string[] }) =>
-      request<Role>(`/api/v1/orgs/${orgId}/roles`, { body, method: "POST" }),
+      request<Role>(ADMIN_API_ENDPOINTS.orgs.roles(orgId), { body, method: "POST" }),
     createTodo: (body: { completed?: boolean, description?: string, title: string }) =>
-      request<Todo>("/api/v1/demo/todos", { body, method: "POST" }),
+      request<Todo>(ADMIN_API_ENDPOINTS.demo.todos, { body, method: "POST" }),
     createDemoCustomer: (body: { customerName: string, customerPhoneData: string }) =>
-      request<DemoCustomer>("/api/v1/demo/customers", { body, method: "POST" }),
+      request<DemoCustomer>(ADMIN_API_ENDPOINTS.demo.customers, { body, method: "POST" }),
     deleteDemoCustomer: (id: number) =>
-      request<{ deleted: boolean }>(`/api/v1/demo/customers/${id}`, { method: "DELETE" }),
-    deleteTodo: (id: number) => request<{ deleted: boolean }>(`/api/v1/demo/todos/${id}`, { method: "DELETE" }),
+      request<{ deleted: boolean }>(ADMIN_API_ENDPOINTS.demo.customer(id), { method: "DELETE" }),
+    deleteTodo: (id: number) => request<{ deleted: boolean }>(ADMIN_API_ENDPOINTS.demo.todo(id), { method: "DELETE" }),
     forgotPassword: (email: string) =>
-      request<NotificationDelivery>("/api/v1/auth/password/forgot", { auth: false, body: { email }, method: "POST" }),
-    getAuthCaptcha: () => request<CaptchaChallenge>("/api/v1/auth/captcha", { auth: false }),
-    getHealth: () => request<HealthStatus>("/health", { auth: false }),
-    getMe: () => request<User>("/api/v1/me"),
-    getReady: () => request<ReadyStatus>("/ready", { auth: false }),
-    getSetupStatus: () => request<SetupStatus>("/api/v1/auth/setup/status", { auth: false }),
+      request<NotificationDelivery>(ADMIN_API_ENDPOINTS.auth.forgotPassword, { auth: false, body: { email }, method: "POST" }),
+    getAuthCaptcha: () => request<CaptchaChallenge>(ADMIN_API_ENDPOINTS.auth.captcha, { auth: false }),
+    getHealth: () => request<HealthStatus>(ADMIN_API_ENDPOINTS.health, { auth: false }),
+    getMe: () => request<User>(ADMIN_API_ENDPOINTS.me.profile),
+    getReady: () => request<ReadyStatus>(ADMIN_API_ENDPOINTS.ready, { auth: false }),
+    getSetupStatus: () => request<SetupStatus>(ADMIN_API_ENDPOINTS.auth.setupStatus, { auth: false }),
     getSystemConfig: () => request<SystemConfigSnapshot>(ADMIN_API_ENDPOINTS.system.config),
+    updateSystemConfig: (items: Array<{ key: string, value: unknown }>, options: { persist?: boolean } = {}) =>
+      request<SystemConfigSnapshot>(ADMIN_API_ENDPOINTS.system.config, { body: { items, persist: Boolean(options.persist) }, method: "PATCH" }),
     getSystemServerInfo: () => request<SystemServerInfo>(ADMIN_API_ENDPOINTS.system.serverInfo),
     initialAdminSetup: (body: InitialAdminSetupRequest) =>
-      request<TokenPair>("/api/v1/auth/setup/initial-admin", { auth: false, body, method: "POST" }),
+      request<TokenPair>(ADMIN_API_ENDPOINTS.auth.initialAdminSetup, { auth: false, body, method: "POST" }),
     inviteUser: (orgId: ID, body: { email: string, roleCode: string }) =>
-      request<NotificationDelivery>(`/api/v1/orgs/${orgId}/users/invitations`, { body, method: "POST" }),
+      request<NotificationDelivery>(ADMIN_API_ENDPOINTS.orgs.userInvitations(orgId), { body, method: "POST" }),
     listAuditLogs: (orgId: ID, query: AuditLogQuery | number = 100) =>
-      request<AuditLog[]>(`/api/v1/orgs/${orgId}/audit-logs`, { query: typeof query === "number" ? { limit: query } : query }),
-    listInvitations: (orgId: ID) => request<Invitation[]>(`/api/v1/orgs/${orgId}/invitations`),
-    listMyOrganizations: () => request<Organization[]>("/api/v1/me/orgs"),
+      request<AuditLog[]>(ADMIN_API_ENDPOINTS.orgs.auditLogs(orgId), { query: typeof query === "number" ? { limit: query } : query }),
+    listInvitations: (orgId: ID) => request<Invitation[]>(ADMIN_API_ENDPOINTS.orgs.invitations(orgId)),
+    listMyOrganizations: () => request<Organization[]>(ADMIN_API_ENDPOINTS.me.organizations),
     listOrganizations: (query: { code?: string, desc?: boolean, keyword?: string, name?: string, orderKey?: string, page?: number, pageSize?: number, status?: string } = {}) =>
-      request<OrganizationPage>("/api/v1/orgs", { query }),
-    listPermissions: (orgId: ID) => request<Permission[]>(`/api/v1/orgs/${orgId}/permissions`),
+      request<OrganizationPage>(ADMIN_API_ENDPOINTS.orgs.collection, { query }),
+    listPermissions: (orgId: ID) => request<Permission[]>(ADMIN_API_ENDPOINTS.orgs.permissions(orgId)),
     listAPITokens: (orgId: ID, query: { page?: number, pageSize?: number, status?: string, userId?: ID | null } = {}) =>
-      request<APITokenPage>(`/api/v1/orgs/${orgId}/api-tokens`, { query }),
-    getPlugin: (pluginId: string) => request<PluginManifest>(`/api/v1/plugins/${encodeURIComponent(pluginId)}`),
-    getPluginHealth: (pluginId: string) => request<PluginHealthStatus>(`/api/v1/plugins/${encodeURIComponent(pluginId)}/health`),
-    listPlugins: () => request<PluginManifest[]>("/api/v1/plugins"),
+      request<APITokenPage>(ADMIN_API_ENDPOINTS.orgs.apiTokens(orgId), { query }),
+    getPlugin: (pluginId: string) => request<PluginManifest>(ADMIN_API_ENDPOINTS.plugins.item(pluginId)),
+    getPluginHealth: (pluginId: string) => request<PluginHealthStatus>(ADMIN_API_ENDPOINTS.plugins.health(pluginId)),
+    listPlugins: () => request<PluginManifest[]>(ADMIN_API_ENDPOINTS.plugins.collection),
     proxyPlugin: <T = unknown>(pluginId: string, path: string, options: PluginProxyOptions = {}) =>
       request<T>(pluginProxyEndpoint(pluginId, path), {
         body: options.body,
         method: options.method || "GET",
         query: options.query
       }),
-    listRoles: (orgId: ID) => request<Role[]>(`/api/v1/orgs/${orgId}/roles`),
+    listRoles: (orgId: ID) => request<Role[]>(ADMIN_API_ENDPOINTS.orgs.roles(orgId)),
     listSessions: (orgId: ID, query: { desc?: boolean, ipAddress?: string, keyword?: string, orderKey?: string, page?: number, pageSize?: number, scope?: string, status?: string, userId?: ID | null } = {}) =>
-      request<SessionPage>(`/api/v1/orgs/${orgId}/sessions`, { query }),
-    listSystemAPIs: () => request<SystemAPIGroup[]>("/api/v1/system/apis"),
-    listSystemDictionaries: () => request<SystemDictionaryCatalog>("/api/v1/system/dictionaries"),
-    listSystemMenus: () => request<SystemMenuGroup[]>("/api/v1/system/menus"),
+      request<SessionPage>(ADMIN_API_ENDPOINTS.orgs.sessions(orgId), { query }),
+    listSystemAPIs: () => request<SystemAPIGroup[]>(ADMIN_API_ENDPOINTS.system.apis),
+    listSystemDictionaries: () => request<SystemDictionaryCatalog>(ADMIN_API_ENDPOINTS.system.dictionaries),
+    listSystemMenus: () => request<SystemMenuGroup[]>(ADMIN_API_ENDPOINTS.system.menus),
     listSystemOperationRecords: (query: { method?: string, page?: number, pageSize?: number, path?: string, status?: number | string, statusClass?: string } = {}) =>
-      request<SystemOperationRecordPage>("/api/v1/system/operation-records", { query }),
+      request<SystemOperationRecordPage>(ADMIN_API_ENDPOINTS.system.operationRecords, { query }),
     listSystemParameters: (query: { endCreatedAt?: string, key?: string, name?: string, page?: number, pageSize?: number, startCreatedAt?: string } = {}) =>
-      request<SystemParameterPage>("/api/v1/system/parameters", { query }),
-    listSystemVersionSources: () => request<SystemVersionSourceCatalog>("/api/v1/system/versions/sources"),
+      request<SystemParameterPage>(ADMIN_API_ENDPOINTS.system.parameters, { query }),
+    listSystemVersionSources: () => request<SystemVersionSourceCatalog>(ADMIN_API_ENDPOINTS.system.versionSources),
     listSystemVersions: (query: { endCreatedAt?: string, page?: number, pageSize?: number, startCreatedAt?: string, versionCode?: string, versionName?: string } = {}) =>
-      request<SystemVersionPage>("/api/v1/system/versions", { query }),
+      request<SystemVersionPage>(ADMIN_API_ENDPOINTS.system.versions, { query }),
     createSystemDictionary: (body: { code: string, description?: string, name: string, status?: string }) =>
-      request<SystemDictionary>("/api/v1/system/dictionaries", { body, method: "POST" }),
+      request<SystemDictionary>(ADMIN_API_ENDPOINTS.system.dictionaries, { body, method: "POST" }),
     createSystemParameter: (body: { description?: string, key: string, name: string, value: string }) =>
-      request<SystemParameter>("/api/v1/system/parameters", { body, method: "POST" }),
+      request<SystemParameter>(ADMIN_API_ENDPOINTS.system.parameters, { body, method: "POST" }),
     exportSystemVersion: (body: { apiCodes: string[], description?: string, dictionaryCodes: string[], menuCodes: string[], versionCode: string, versionName: string }) =>
-      request<SystemVersionDetail>("/api/v1/system/versions/export", { body, method: "POST" }),
+      request<SystemVersionDetail>(ADMIN_API_ENDPOINTS.system.versionExport, { body, method: "POST" }),
     importSystemVersion: (versionData: string) =>
-      request<SystemVersionImportResult>("/api/v1/system/versions/import", { body: { versionData }, method: "POST" }),
+      request<SystemVersionImportResult>(ADMIN_API_ENDPOINTS.system.versionImport, { body: { versionData }, method: "POST" }),
     importSystemMediaURLs: (body: { categoryId?: ID | number, items?: Array<{ name?: string, url: string }>, text?: string }) =>
-      request<SystemMediaURLImportResult>("/api/v1/system/media/assets/import-url", { body, method: "POST" }),
+      request<SystemMediaURLImportResult>(ADMIN_API_ENDPOINTS.system.media.importURL, { body, method: "POST" }),
     abortSystemMediaResumableUpload: (body: { fileHash: string, sessionId: ID | number }) =>
-      request<SystemMediaResumableAbortResult>("/api/v1/system/media/assets/resumable/abort", { body, method: "POST" }),
+      request<SystemMediaResumableAbortResult>(ADMIN_API_ENDPOINTS.system.media.resumableAbort, { body, method: "POST" }),
     checkSystemMediaResumableUpload: (body: { categoryId?: ID | number, chunkSize?: number, chunkTotal?: number, fileHash: string, fileName: string, sizeBytes: number }) =>
-      request<SystemMediaResumableCheckResult>("/api/v1/system/media/assets/resumable/check", { body, method: "POST" }),
+      request<SystemMediaResumableCheckResult>(ADMIN_API_ENDPOINTS.system.media.resumableCheck, { body, method: "POST" }),
     completeSystemMediaResumableUpload: (body: { fileHash: string, sessionId: ID | number }) =>
-      request<SystemMediaResumableCompleteResult>("/api/v1/system/media/assets/resumable/complete", { body, method: "POST" }),
+      request<SystemMediaResumableCompleteResult>(ADMIN_API_ENDPOINTS.system.media.resumableComplete, { body, method: "POST" }),
     createSystemDictionaryItem: (dictionaryId: ID, body: { extra?: string, label: string, sort?: number, status?: string, value: string }) =>
-      request<SystemDictionaryItem>(`/api/v1/system/dictionaries/${dictionaryId}/items`, { body, method: "POST" }),
+      request<SystemDictionaryItem>(ADMIN_API_ENDPOINTS.system.dictionaryItems(dictionaryId), { body, method: "POST" }),
     saveSystemMediaCategory: (body: { id?: ID | number, name: string, parentId?: ID | number, sort?: number }) =>
-      request<SystemMediaCategory>("/api/v1/system/media/categories", { body, method: "POST" }),
+      request<SystemMediaCategory>(ADMIN_API_ENDPOINTS.system.media.categories, { body, method: "POST" }),
     deleteSystemVersion: (versionId: ID) =>
-      request<{ deleted: boolean }>(`/api/v1/system/versions/${versionId}`, { method: "DELETE" }),
+      request<{ deleted: boolean }>(ADMIN_API_ENDPOINTS.system.version(versionId), { method: "DELETE" }),
     deleteSystemVersions: (ids: ID[]) =>
-      request<{ deleted: boolean }>("/api/v1/system/versions", { body: { ids }, method: "DELETE" }),
+      request<{ deleted: boolean }>(ADMIN_API_ENDPOINTS.system.versions, { body: { ids }, method: "DELETE" }),
     downloadSystemVersion: (versionId: ID) =>
-      request<SystemVersionPackage>(`/api/v1/system/versions/${versionId}/download`),
+      request<SystemVersionPackage>(ADMIN_API_ENDPOINTS.system.versionDownload(versionId)),
     downloadSystemMediaAsset: (assetId: ID) =>
-      downloadWithAuthRetry(`/api/v1/system/media/assets/${assetId}/download`),
+      downloadWithAuthRetry(ADMIN_API_ENDPOINTS.system.media.assetDownload(assetId)),
     deleteSystemMediaAsset: (assetId: ID) =>
-      request<{ deleted: boolean }>(`/api/v1/system/media/assets/${assetId}`, { method: "DELETE" }),
+      request<{ deleted: boolean }>(ADMIN_API_ENDPOINTS.system.media.asset(assetId), { method: "DELETE" }),
     deleteSystemMediaCategory: (categoryId: ID) =>
-      request<{ deleted: boolean }>(`/api/v1/system/media/categories/${categoryId}`, { method: "DELETE" }),
+      request<{ deleted: boolean }>(ADMIN_API_ENDPOINTS.system.media.category(categoryId), { method: "DELETE" }),
     deleteSystemDictionary: (dictionaryId: ID) =>
-      request<{ deleted: boolean }>(`/api/v1/system/dictionaries/${dictionaryId}`, { method: "DELETE" }),
+      request<{ deleted: boolean }>(ADMIN_API_ENDPOINTS.system.dictionary(dictionaryId), { method: "DELETE" }),
     deleteSystemDictionaryItem: (itemId: ID) =>
-      request<{ deleted: boolean }>(`/api/v1/system/dictionary-items/${itemId}`, { method: "DELETE" }),
+      request<{ deleted: boolean }>(ADMIN_API_ENDPOINTS.system.dictionaryItem(itemId), { method: "DELETE" }),
     deleteSystemOperationRecords: (ids: ID[]) =>
-      request<{ deleted: boolean }>("/api/v1/system/operation-records", { body: { ids }, method: "DELETE" }),
+      request<{ deleted: boolean }>(ADMIN_API_ENDPOINTS.system.operationRecords, { body: { ids }, method: "DELETE" }),
     deleteSystemParameter: (parameterId: ID) =>
-      request<{ deleted: boolean }>(`/api/v1/system/parameters/${parameterId}`, { method: "DELETE" }),
+      request<{ deleted: boolean }>(ADMIN_API_ENDPOINTS.system.parameter(parameterId), { method: "DELETE" }),
     deleteSystemParameters: (ids: ID[]) =>
-      request<{ deleted: boolean }>("/api/v1/system/parameters", { body: { ids }, method: "DELETE" }),
+      request<{ deleted: boolean }>(ADMIN_API_ENDPOINTS.system.parameters, { body: { ids }, method: "DELETE" }),
     getSystemParameterByKey: (key: string) =>
-      request<SystemParameter>("/api/v1/system/parameters/value", { query: { key } }),
+      request<SystemParameter>(ADMIN_API_ENDPOINTS.system.parameterValue, { query: { key } }),
     getSystemVersion: (versionId: ID) =>
-      request<SystemVersionDetail>(`/api/v1/system/versions/${versionId}`),
+      request<SystemVersionDetail>(ADMIN_API_ENDPOINTS.system.version(versionId)),
     listSystemMediaAssets: (query: { categoryId?: ID | number, keyword?: string, page?: number, pageSize?: number } = {}) =>
-      request<SystemMediaAssetPage>("/api/v1/system/media/assets", { query }),
-    listSystemMediaCategories: () => request<SystemMediaCategoryCatalog>("/api/v1/system/media/categories"),
-    syncSystemAPIs: () => request<SystemAPISyncResult>("/api/v1/system/apis/sync", { method: "POST" }),
-    syncSystemAPIPermissions: () => request<SystemPermissionSyncResult>("/api/v1/system/apis/permissions/sync", { method: "POST" }),
+      request<SystemMediaAssetPage>(ADMIN_API_ENDPOINTS.system.media.assets, { query }),
+    listSystemMediaCategories: () => request<SystemMediaCategoryCatalog>(ADMIN_API_ENDPOINTS.system.media.categories),
+    syncSystemAPIs: () => request<SystemAPISyncResult>(ADMIN_API_ENDPOINTS.system.apisSync, { method: "POST" }),
+    syncSystemAPIPermissions: () => request<SystemPermissionSyncResult>(ADMIN_API_ENDPOINTS.system.apiPermissionsSync, { method: "POST" }),
     updateSystemDictionary: (dictionaryId: ID, body: { description?: string, name?: string, status?: string }) =>
-      request<SystemDictionary>(`/api/v1/system/dictionaries/${dictionaryId}`, { body, method: "PATCH" }),
+      request<SystemDictionary>(ADMIN_API_ENDPOINTS.system.dictionary(dictionaryId), { body, method: "PATCH" }),
     updateSystemDictionaryItem: (itemId: ID, body: { extra?: string, label?: string, sort?: number, status?: string, value?: string }) =>
-      request<SystemDictionaryItem>(`/api/v1/system/dictionary-items/${itemId}`, { body, method: "PATCH" }),
+      request<SystemDictionaryItem>(ADMIN_API_ENDPOINTS.system.dictionaryItem(itemId), { body, method: "PATCH" }),
     updateSystemMediaAsset: (assetId: ID, body: { displayName: string }) =>
-      request<SystemMediaAsset>(`/api/v1/system/media/assets/${assetId}`, { body, method: "PATCH" }),
+      request<SystemMediaAsset>(ADMIN_API_ENDPOINTS.system.media.asset(assetId), { body, method: "PATCH" }),
     updateSystemParameter: (parameterId: ID, body: { description?: string, key?: string, name?: string, value?: string }) =>
-      request<SystemParameter>(`/api/v1/system/parameters/${parameterId}`, { body, method: "PATCH" }),
+      request<SystemParameter>(ADMIN_API_ENDPOINTS.system.parameter(parameterId), { body, method: "PATCH" }),
     uploadSystemMediaAsset: (file: File, categoryId?: ID | number) => {
       const body = new FormData()
       body.append("file", file)
       if (categoryId) {
         body.append("categoryId", String(categoryId))
       }
-      return request<SystemMediaAsset>("/api/v1/system/media/assets/upload", { body, method: "POST" })
+      return request<SystemMediaAsset>(ADMIN_API_ENDPOINTS.system.media.assetUpload, { body, method: "POST" })
     },
     uploadSystemMediaChunk: (file: Blob, metadata: { chunkHash: string, chunkIndex: number, chunkTotal: number, fileHash: string, fileName: string, sessionId: ID | number }) => {
       const body = new FormData()
@@ -329,46 +331,45 @@ export function useAdminApi() {
       body.append("fileHash", metadata.fileHash)
       body.append("fileName", metadata.fileName)
       body.append("sessionId", String(metadata.sessionId))
-      return request<SystemMediaResumableChunkResult>("/api/v1/system/media/assets/resumable/chunks", { body, method: "POST" })
+      return request<SystemMediaResumableChunkResult>(ADMIN_API_ENDPOINTS.system.media.resumableChunks, { body, method: "POST" })
     },
-    getDemoCustomer: (id: number) => request<DemoCustomer>(`/api/v1/demo/customers/${id}`),
+    getDemoCustomer: (id: number) => request<DemoCustomer>(ADMIN_API_ENDPOINTS.demo.customer(id)),
     listDemoCustomers: (query: { keyword?: string, page?: number, pageSize?: number } = {}) =>
-      request<DemoCustomerPage>("/api/v1/demo/customers", { query }),
-    listTodos: () => request<Todo[]>("/api/v1/demo/todos"),
+      request<DemoCustomerPage>(ADMIN_API_ENDPOINTS.demo.customers, { query }),
+    listTodos: () => request<Todo[]>(ADMIN_API_ENDPOINTS.demo.todos),
     listUsers: (orgId: ID, query: { desc?: boolean, displayName?: string, email?: string, keyword?: string, orderKey?: string, page?: number, pageSize?: number, roleCode?: string, status?: string, username?: string } = {}) =>
-      request<OrganizationUserPage>(`/api/v1/orgs/${orgId}/users`, { query }),
-    login: (body: LoginRequest) => request<TokenPair>("/api/v1/auth/login", { auth: false, body, method: "POST" }),
-    logout: () => request<{ loggedOut: boolean }>("/api/v1/auth/logout", { method: "POST", retryAuth: false }),
+      request<OrganizationUserPage>(ADMIN_API_ENDPOINTS.orgs.users(orgId), { query }),
+    login: (body: LoginRequest) => request<TokenPair>(ADMIN_API_ENDPOINTS.auth.login, { auth: false, body, method: "POST" }),
+    logout: () => request<{ loggedOut: boolean }>(ADMIN_API_ENDPOINTS.auth.logout, { method: "POST", retryAuth: false }),
     refreshSession: (refreshToken: string) =>
-      request<TokenPair>("/api/v1/auth/refresh", { auth: false, body: { refreshToken }, method: "POST", retryAuth: false }),
+      request<TokenPair>(ADMIN_API_ENDPOINTS.auth.refresh, { auth: false, body: { refreshToken }, method: "POST", retryAuth: false }),
     resetPassword: (body: { newPassword: string, token: string }) =>
-      request<{ reset: boolean }>("/api/v1/auth/password/reset", { auth: false, body, method: "POST" }),
+      request<{ reset: boolean }>(ADMIN_API_ENDPOINTS.auth.passwordReset, { auth: false, body, method: "POST" }),
     revokeInvitation: (orgId: ID, invitationId: ID) =>
-      request<{ revoked: boolean }>(`/api/v1/orgs/${orgId}/invitations/${invitationId}`, { method: "DELETE" }),
+      request<{ revoked: boolean }>(ADMIN_API_ENDPOINTS.orgs.invitation(orgId, invitationId), { method: "DELETE" }),
     revokeAPIToken: (orgId: ID, tokenId: ID) =>
-      request<{ revoked: boolean }>(`/api/v1/orgs/${orgId}/api-tokens/${tokenId}`, { method: "DELETE" }),
+      request<{ revoked: boolean }>(ADMIN_API_ENDPOINTS.orgs.apiToken(orgId, tokenId), { method: "DELETE" }),
     revokeSession: (orgId: ID, sessionId: ID) =>
-      request<{ revoked: boolean }>(`/api/v1/orgs/${orgId}/sessions/${sessionId}`, { method: "DELETE" }),
-    setupMFA: () => request<MFASetupPayload>("/api/v1/auth/mfa/setup", { method: "POST" }),
-    signup: (body: SignupRequest) => request<TokenPair>("/api/v1/auth/signup", { auth: false, body, method: "POST" }),
-    switchOrg: (orgId: ID) => request<TokenPair>("/api/v1/auth/switch-org", { body: { orgId }, method: "POST" }),
+      request<{ revoked: boolean }>(ADMIN_API_ENDPOINTS.orgs.session(orgId, sessionId), { method: "DELETE" }),
+    setupMFA: () => request<MFASetupPayload>(ADMIN_API_ENDPOINTS.auth.mfaSetup, { method: "POST" }),
+    signup: (body: SignupRequest) => request<TokenPair>(ADMIN_API_ENDPOINTS.auth.signup, { auth: false, body, method: "POST" }),
+    switchOrg: (orgId: ID) => request<TokenPair>(ADMIN_API_ENDPOINTS.auth.switchOrg, { body: { orgId }, method: "POST" }),
     updateOrganization: (orgId: ID, body: { name: string }) =>
-      request<Organization>(`/api/v1/orgs/${orgId}`, { body, method: "PATCH" }),
+      request<Organization>(ADMIN_API_ENDPOINTS.orgs.item(orgId), { body, method: "PATCH" }),
     updateRole: (orgId: ID, roleId: ID, body: { description?: string, name?: string, permissions?: string[] }) =>
-      request<Role>(`/api/v1/orgs/${orgId}/roles/${roleId}`, { body, method: "PATCH" }),
+      request<Role>(ADMIN_API_ENDPOINTS.orgs.role(orgId, roleId), { body, method: "PATCH" }),
     updateDemoCustomer: (id: number, body: { customerName?: string, customerPhoneData?: string }) =>
-      request<DemoCustomer>(`/api/v1/demo/customers/${id}`, { body, method: "PATCH" }),
+      request<DemoCustomer>(ADMIN_API_ENDPOINTS.demo.customer(id), { body, method: "PATCH" }),
     updateTodo: (id: number, body: { completed?: boolean, description?: string, title?: string }) =>
-      request<Todo>(`/api/v1/demo/todos/${id}`, { body, method: "PUT" }),
+      request<Todo>(ADMIN_API_ENDPOINTS.demo.todo(id), { body, method: "PUT" }),
     updateUser: (orgId: ID, userId: ID, body: { roles?: string[], status?: string }) =>
-      request<OrganizationUser>(`/api/v1/orgs/${orgId}/users/${userId}`, { body, method: "PATCH" }),
-    verifyMFA: (code: string) => request<{ verified: boolean }>("/api/v1/auth/mfa/verify", { body: { code }, method: "POST" })
+      request<OrganizationUser>(ADMIN_API_ENDPOINTS.orgs.user(orgId, userId), { body, method: "PATCH" }),
+    verifyMFA: (code: string) => request<{ verified: boolean }>(ADMIN_API_ENDPOINTS.auth.mfaVerify, { body: { code }, method: "POST" })
   }
 }
 
 function pluginProxyEndpoint(pluginId: string, path: string) {
-  const cleanPath = path.startsWith("/") ? path : `/${path}`
-  return `/api/v1/plugins/${encodeURIComponent(pluginId)}/proxy${cleanPath}`
+  return ADMIN_API_ENDPOINTS.plugins.proxy(pluginId, path)
 }
 
 function resolveEndpointURL(endpoint: string, baseURL: string) {
@@ -460,5 +461,3 @@ function clearSessionAndRedirect() {
 function isApiErrorPayload(value: unknown): value is ApiErrorPayload {
   return Boolean(value && typeof value === "object" && "endpoint" in value && "statusCode" in value)
 }
-
-

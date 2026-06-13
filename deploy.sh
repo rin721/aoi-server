@@ -143,10 +143,9 @@ normalize_webui_mount_path() {
 	[ -n "$value" ] || die "webui mount path cannot be empty"
 	[[ "$value" == /* ]] || die "webui mount path must start with /"
 	if [ "$value" = "/" ]; then
-		printf '/'
-	else
-		printf '%s' "${value%/}"
+		die "webui mount path must be a non-root absolute path"
 	fi
+	printf '%s' "${value%/}"
 }
 
 validate_value() {

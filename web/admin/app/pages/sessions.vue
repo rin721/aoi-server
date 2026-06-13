@@ -16,6 +16,7 @@ const filters = reactive({
 const page = ref(1)
 const pageSize = ref("10")
 const loading = ref(false)
+const revoking = ref(false)
 const error = ref("")
 const success = ref("")
 
@@ -40,13 +41,15 @@ const pageSizeOptions = [
   { label: "100 条/页", value: "100" }
 ]
 
-async function load() {
+async function load(options: { silent?: boolean } = {}) {
   if (!auth.currentOrgId) {
     pageData.value = { ...emptyPage }
     return
   }
 
-  loading.value = true
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     pageData.value = await api.listSessions(auth.currentOrgId, {
@@ -63,13 +66,20 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
 
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || revoking.value),
+  load
+})
+
 async function search() {
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function resetFilters() {
@@ -79,7 +89,7 @@ async function resetFilters() {
   filters.ipAddress = ""
   filters.status = ""
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function previousPage() {
@@ -87,7 +97,7 @@ async function previousPage() {
     return
   }
   page.value -= 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function nextPage() {
@@ -95,7 +105,7 @@ async function nextPage() {
     return
   }
   page.value += 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function revoke(session: Session) {
@@ -103,6 +113,7 @@ async function revoke(session: Session) {
     return
   }
 
+  revoking.value = true
   error.value = ""
   success.value = ""
   try {
@@ -111,6 +122,8 @@ async function revoke(session: Session) {
     await load()
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    revoking.value = false
   }
 }
 
@@ -158,10 +171,10 @@ function lastUsedAt(session: Session) {
   return session.lastUsedAt || session.createdAt
 }
 
-onMounted(load)
+onMounted(autoRefresh.refreshNow)
 watch(() => auth.currentOrgId, () => {
   page.value = 1
-  load()
+  void autoRefresh.refreshNow()
 })
 
 useHead({
@@ -173,7 +186,13 @@ useHead({
   <div class="page-grid session-page">
     <PageHeader title="会话管理" icon="monitor-check" description="查看当前组织会话，按用户、IP 和状态筛选，并撤销不再可信的会话。">
       <template #actions>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 

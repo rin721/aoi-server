@@ -18,6 +18,7 @@ import (
 	"github.com/rei0721/go-scaffold/internal/modules/system/model"
 	"github.com/rei0721/go-scaffold/internal/modules/system/repository"
 	"github.com/rei0721/go-scaffold/pkg/database"
+	appconstants "github.com/rei0721/go-scaffold/types/constants"
 )
 
 const (
@@ -291,7 +292,7 @@ func (s *service) CompleteMediaResumableUpload(ctx context.Context, input Comple
 		UpdatedAt:          now,
 		UploadedBy:         session.UploadedBy,
 		UploadedByUsername: session.UploadedByUsername,
-		URL:                "/api/v1/system/media/assets/" + strconv.FormatInt(id, 10) + "/download",
+		URL:                appconstants.MediaAssetDownloadPath(id),
 	}
 	if err := s.repo.CreateMediaAsset(ctx, asset); err != nil {
 		_ = s.objectStore.Remove(key)

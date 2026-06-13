@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -63,7 +64,7 @@ type Manager interface {
 	//   manager.Update(func(cfg *Config) {
 	//       cfg.Server.Port = 9090
 	//   })
-	Update(fn func(*Config)) error
+	Update(fn func(*Config), options ...UpdateOption) error
 
 	// RegisterHook 注册配置变更钩子
 	// 参数:
@@ -114,6 +115,8 @@ type manager struct {
 	// 读锁:通知钩子时
 	// 写锁:注册新钩子时
 	hooksMu sync.RWMutex
+
+	updateMu sync.Mutex
 
 	// loggerHandler 日志处理器
 	// 延迟获取日志器,因为日志器可能在配置管理器之后初始化
@@ -378,7 +381,11 @@ func (m *manager) Get() *Config {
 // 线程安全:
 //
 //	使用原子操作确保并发安全
-func (m *manager) Update(fn func(*Config)) error {
+func (m *manager) Update(fn func(*Config), options ...UpdateOption) error {
+	updateOptions := collectUpdateOptions(options)
+	m.updateMu.Lock()
+	defer m.updateMu.Unlock()
+
 	// 获取当前配置
 	oldCfg := m.Get()
 	if oldCfg == nil {
@@ -397,6 +404,12 @@ func (m *manager) Update(fn func(*Config)) error {
 	// 确保修改后的配置仍然有效
 	if err := newCfg.Validate(); err != nil {
 		return fmt.Errorf("config validation failed: %w", err)
+	}
+
+	if len(updateOptions.persistPaths) > 0 {
+		if err := m.persistConfigUpdate(newCfg, updateOptions.persistPaths); err != nil {
+			return err
+		}
 	}
 
 	// 原子替换配置
@@ -528,6 +541,9 @@ func (m *manager) Watch() error {
 //
 //	e: 文件系统事件
 func (m *manager) handleConfigChange(e configloader.Event) {
+	m.updateMu.Lock()
+	defer m.updateMu.Unlock()
+
 	if m.log != nil {
 		m.log.Info("config file changed", "file", e.Name, "op", e.Op)
 	}
@@ -571,13 +587,16 @@ func (m *manager) handleConfigChange(e configloader.Event) {
 
 	// 获取旧配置用于钩子通知
 	oldCfg := m.Get()
+	if reflect.DeepEqual(oldCfg, newCfg) {
+		if m.log != nil {
+			m.log.Info("config file change produced no effective config change")
+		}
+		return
+	}
 
 	// 原子切换配置
 	// 从这一刻起,Get() 会返回新配置
 	m.config.Store(newCfg)
-
-	// 更新主 viper 实例
-	m.v = tempViper
 
 	// 通知所有钩子配置已更新
 	m.notifyHooks(oldCfg, newCfg)

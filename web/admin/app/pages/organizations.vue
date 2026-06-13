@@ -20,6 +20,7 @@ const pageSize = ref("10")
 const loading = ref(false)
 const saving = ref(false)
 const updating = ref(false)
+const switching = ref(false)
 const error = ref("")
 const success = ref("")
 
@@ -41,8 +42,10 @@ const pageSizeOptions = [
   { label: "100 条/页", value: "100" }
 ]
 
-async function load() {
-  loading.value = true
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     pageData.value = await api.listOrganizations({
@@ -58,13 +61,20 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
 
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || saving.value || updating.value || switching.value),
+  load
+})
+
 async function search() {
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function resetFilters() {
@@ -73,7 +83,7 @@ async function resetFilters() {
   filters.name = ""
   filters.status = ""
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function previousPage() {
@@ -81,7 +91,7 @@ async function previousPage() {
     return
   }
   page.value -= 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function nextPage() {
@@ -89,7 +99,7 @@ async function nextPage() {
     return
   }
   page.value += 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function createOrg() {
@@ -140,6 +150,7 @@ async function switchOrganization(org: Organization) {
   if (org.id === auth.currentOrgId || loading.value) {
     return
   }
+  switching.value = true
   error.value = ""
   success.value = ""
   try {
@@ -148,6 +159,8 @@ async function switchOrganization(org: Organization) {
     await load()
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    switching.value = false
   }
 }
 
@@ -155,13 +168,13 @@ function isCurrentOrg(org: Organization) {
   return org.id === auth.currentOrgId
 }
 
-onMounted(load)
+onMounted(autoRefresh.refreshNow)
 watch(() => auth.currentOrg?.name, (value) => {
   currentOrgName.value = value || ""
 }, { immediate: true })
 watch(() => auth.currentOrgId, () => {
   page.value = 1
-  load()
+  void autoRefresh.refreshNow()
 })
 
 useHead({
@@ -173,7 +186,13 @@ useHead({
   <div class="page-grid org-page">
     <PageHeader title="组织管理" icon="building-2" description="查看组织、切换访问上下文，并维护当前组织信息。">
       <template #actions>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 

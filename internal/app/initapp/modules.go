@@ -305,8 +305,16 @@ func NewSystemModule(core Core, infra Infrastructure, iam IAMModule) SystemModul
 		options = append(options, systemservice.WithPermissionStore(newSystemPermissionStore(iam.Repository, core.IDGenerator)))
 	}
 	service := systemservice.New(systemservice.Config{
-		DemoEnabled:   core.Config.Demo.EnabledValue(),
-		RuntimeConfig: SystemConfigSnapshot(core.Config),
+		DemoEnabled: core.Config.Demo.EnabledValue(),
+		ConfigProvider: func() systemmodel.ConfigSnapshot {
+			if core.ConfigManager != nil {
+				if cfg := core.ConfigManager.Get(); cfg != nil {
+					return SystemConfigSnapshot(cfg)
+				}
+			}
+			return SystemConfigSnapshot(core.Config)
+		},
+		ConfigUpdater: runtimeConfigUpdater(core.ConfigManager),
 		StartTime:     time.Now().UTC(),
 	}, options...)
 	seedSystemDefaults(core, service)
@@ -593,27 +601,7 @@ func SystemConfigSnapshot(configSnapshot *config.Config) systemmodel.ConfigSnaps
 			Icon:        "settings",
 			Label:       "运行策略",
 			Order:       80,
-			Items: []systemmodel.ConfigItem{
-				configItem("cors.enabled", "启用 CORS", cfg.CORS.Enabled),
-				configItem("cors.allow_origins", "允许来源", cfg.CORS.AllowOrigins),
-				configItem("cors.allow_methods", "允许方法", cfg.CORS.AllowMethods),
-				configItem("cors.allow_credentials", "允许凭证", cfg.CORS.AllowCredentials),
-				configItem("cors.max_age", "预检缓存(秒)", cfg.CORS.MaxAge),
-				configItem("i18n.default", "默认语言", cfg.I18n.Default),
-				configItem("i18n.supported", "支持语言", cfg.I18n.Supported),
-				configItem("i18n.messages_dir", "语言目录", cfg.I18n.MessagesDir),
-				configItem("demo.enabled", "Demo 模块", cfg.Demo.EnabledValue()),
-				configItem("demo.apply_schema_on_start", "启动建表示例", cfg.Demo.ApplySchemaOnStartValue()),
-				configItem("migration.auto_apply", "自动迁移", cfg.Migration.AutoApply),
-				configItem("migration.dir", "迁移目录", cfg.Migration.Dir),
-				configItem("executor.enabled", "执行器", cfg.Executor.Enabled),
-				configItem("executor.pools", "执行器池数量", len(cfg.Executor.Pools)),
-				configItem("rpc.enabled", "RPC 入口", cfg.RPC.Enabled),
-				configItem("rpc.host", "RPC 主机", cfg.RPC.Host),
-				configItem("rpc.port", "RPC 端口", cfg.RPC.Port),
-				configItem("rpc.read_timeout", "RPC 读取超时(秒)", cfg.RPC.ReadTimeout),
-				configItem("rpc.write_timeout", "RPC 写入超时(秒)", cfg.RPC.WriteTimeout),
-			},
+			Items:       runtimeConfigItems(&cfg),
 		},
 		{
 			Code:        "plugins",
@@ -632,18 +620,65 @@ func SystemConfigSnapshot(configSnapshot *config.Config) systemmodel.ConfigSnaps
 	}}
 }
 
+func runtimeConfigItems(cfg *config.Config) []systemmodel.ConfigItem {
+	items := []systemmodel.ConfigItem{
+		configItem("cors.enabled", "启用 CORS", cfg.CORS.Enabled),
+		configItem("cors.allow_origins", "允许来源", cfg.CORS.AllowOrigins),
+		configItem("cors.allow_methods", "允许方法", cfg.CORS.AllowMethods),
+		configItem("cors.allow_headers", "允许请求头", cfg.CORS.AllowHeaders),
+		configItem("cors.expose_headers", "暴露响应头", cfg.CORS.ExposeHeaders),
+		configItem("cors.allow_credentials", "允许凭证", cfg.CORS.AllowCredentials),
+		configItem("cors.max_age", "预检缓存(秒)", cfg.CORS.MaxAge),
+		configItem("i18n.default", "默认语言", cfg.I18n.Default),
+		configItem("i18n.supported", "支持语言", cfg.I18n.Supported),
+		configItem("i18n.messages_dir", "语言目录", cfg.I18n.MessagesDir),
+		configItem("demo.enabled", "Demo 模块", cfg.Demo.EnabledValue()),
+		configItem("demo.apply_schema_on_start", "启动建表示例", cfg.Demo.ApplySchemaOnStartValue()),
+		configItem("migration.auto_apply", "自动迁移", cfg.Migration.AutoApply),
+		configItem("migration.dir", "迁移目录", cfg.Migration.Dir),
+		configItem("executor.enabled", "执行器", cfg.Executor.Enabled),
+	}
+
+	for index, pool := range cfg.Executor.Pools {
+		prefix := fmt.Sprintf("executor.pools.%d", index)
+		label := strings.TrimSpace(pool.Name)
+		if label == "" {
+			label = fmt.Sprintf("#%d", index+1)
+		}
+		items = append(items,
+			configItem(prefix+".name", fmt.Sprintf("执行器池 %s 名称", label), pool.Name),
+			configItem(prefix+".size", fmt.Sprintf("执行器池 %s 容量", label), pool.Size),
+			configItem(prefix+".expiry", fmt.Sprintf("执行器池 %s 过期(秒)", label), pool.Expiry),
+			configItem(prefix+".non_blocking", fmt.Sprintf("执行器池 %s 非阻塞", label), pool.NonBlocking),
+		)
+	}
+
+	items = append(items,
+		configItem("rpc.enabled", "RPC 入口", cfg.RPC.Enabled),
+		configItem("rpc.host", "RPC 主机", cfg.RPC.Host),
+		configItem("rpc.port", "RPC 端口", cfg.RPC.Port),
+		configItem("rpc.read_timeout", "RPC 读取超时(秒)", cfg.RPC.ReadTimeout),
+		configItem("rpc.write_timeout", "RPC 写入超时(秒)", cfg.RPC.WriteTimeout),
+	)
+	return items
+}
+
 func configItem(key string, label string, value any) systemmodel.ConfigItem {
 	return systemmodel.ConfigItem{
-		Key:    key,
-		Label:  label,
-		Source: "runtime",
-		Value:  value,
+		Editable:  configItemEditable(key, value),
+		Key:       key,
+		Label:     label,
+		Source:    "runtime",
+		Value:     value,
+		ValueType: configItemValueType(value),
 	}
 }
 
 func secretConfigItem(key string, label string, value string) systemmodel.ConfigItem {
 	item := configItem(key, label, secretPresence(value))
+	item.Editable = true
 	item.Secret = true
+	item.ValueType = systemmodel.ConfigValueTypeString
 	return item
 }
 
@@ -652,4 +687,37 @@ func secretPresence(value string) string {
 		return "未配置"
 	}
 	return "已配置"
+}
+
+var readonlyConfigItemKeys = map[string]struct{}{
+	"plugins.items": {},
+}
+
+func configItemEditable(key string, value any) bool {
+	if _, ok := readonlyConfigItemKeys[key]; ok {
+		return false
+	}
+	switch configItemValueType(value) {
+	case systemmodel.ConfigValueTypeArray, systemmodel.ConfigValueTypeBoolean, systemmodel.ConfigValueTypeNumber, systemmodel.ConfigValueTypeString:
+		return true
+	default:
+		return false
+	}
+}
+
+func configItemValueType(value any) string {
+	switch value.(type) {
+	case bool:
+		return systemmodel.ConfigValueTypeBoolean
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+		return systemmodel.ConfigValueTypeNumber
+	case string:
+		return systemmodel.ConfigValueTypeString
+	case []string:
+		return systemmodel.ConfigValueTypeArray
+	case nil:
+		return systemmodel.ConfigValueTypeUnknown
+	default:
+		return systemmodel.ConfigValueTypeObject
+	}
 }

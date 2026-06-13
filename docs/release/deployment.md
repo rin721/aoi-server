@@ -41,7 +41,7 @@ curl http://127.0.0.1:9999/admin/server-info
 
 | 参数 | 说明 |
 | --- | --- |
-| `--webui-mount-path /admin` | Go 静态托管挂载路径，运行时写入 `RIN_APP_WEBUI_MOUNT_PATH`。 |
+| `--webui-mount-path /admin` | Go 静态托管挂载路径，运行时写入 `RIN_APP_WEBUI_MOUNT_PATH`；必须是非根绝对路径，不能是 `/`。 |
 | `--webui-public-base-url /admin` | 后台公开基础路径，运行时写入 `RIN_APP_WEBUI_PUBLIC_BASE_URL`。 |
 | `--webui-build-base-url /admin/` | Nuxt 构建 baseURL；未传时默认跟随 `--webui-mount-path`。 |
 | `--webui-api-base-url ""` | Nuxt public API baseURL；空值表示同源调用。 |
@@ -91,4 +91,4 @@ webui:
 
 手动发布非 Docker 产物时，需要先在 `web/admin` 执行 `pnpm generate`，再将 `.output/public` 随服务一起部署。`pnpm build` 只作为构建检查，不替代静态托管产物。后台 UI 使用左侧导航、顶部工具栏、访问标签、筛选表格和管理抽屉；当前不发布代码生成、编程辅助或插件市场能力。
 
-`NUXT_APP_BASE_URL` 是构建期配置。如果把后台从 `/admin` 改到其他挂载路径，需要重新构建前端静态产物或 Docker 镜像，并同步更新 `webui.mount_path`、`webui.public_base_url` 和部署脚本的 `--webui-build-base-url`。
+`NUXT_APP_BASE_URL` 是构建期配置。如果把后台从 `/admin` 改到其他非根挂载路径，需要重新构建前端静态产物或 Docker 镜像，并同步更新 `webui.mount_path`、`webui.public_base_url` 和部署脚本的 `--webui-build-base-url`。

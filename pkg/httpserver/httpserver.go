@@ -263,6 +263,52 @@ func (s *httpServer) Reload(ctx context.Context, cfg *Config) error {
 	oldAddr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 	portChanged := newAddr != oldAddr
 
+	if portChanged {
+		s.logger.Info("address changed, starting replacement server", "old", oldAddr, "new", newAddr)
+		s.config = cfg
+		if err := utils.IsValidHTTPListenAddr(newAddr); err != nil {
+			s.logger.Warn("invalid listen address, using default host", "addr", newAddr, "error", err)
+			newAddr = fmt.Sprintf("%s:%d", DefaultHost, cfg.Port)
+		}
+		listener, err := net.Listen("tcp", newAddr)
+		if err != nil {
+			return &ServerError{
+				Op:      "reload",
+				Message: ErrMsgReloadFailed,
+				Err:     err,
+			}
+		}
+		s.server = &http.Server{
+			Addr:         newAddr,
+			Handler:      s.handler,
+			ReadTimeout:  cfg.ReadTimeout,
+			WriteTimeout: cfg.WriteTimeout,
+			IdleTimeout:  cfg.IdleTimeout,
+		}
+		go func(server *http.Server) {
+			s.logger.Info(fmt.Sprintf("restarting HTTP server on http://%s", newAddr), "addr", newAddr)
+			if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+				s.logger.Error("reloaded HTTP server error", "error", err)
+				s.errChan <- &ServerError{
+					Op:      "reload",
+					Message: ErrMsgReloadFailed,
+					Err:     err,
+				}
+			}
+		}(s.server)
+		if oldServer != nil {
+			go func(server *http.Server) {
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), DefaultWriteTimeout)
+				defer cancel()
+				if err := server.Shutdown(shutdownCtx); err != nil {
+					s.logger.Error("failed to shutdown old server during reload", "error", err)
+				}
+			}(oldServer)
+		}
+		s.logger.Info("HTTP server reloaded successfully")
+		return nil
+	}
+
 	// 地址变化时必须先关闭旧监听，否则同端口重绑会被操作系统拒绝。
 	// 这段路径存在短暂不可接收新连接的窗口，文档层不能将其描述为零停机。
 	if portChanged {
@@ -291,18 +337,14 @@ func (s *httpServer) Reload(ctx context.Context, cfg *Config) error {
 		newAddr = fmt.Sprintf("%s:%d", DefaultHost, cfg.Port)
 	}
 
-	if !portChanged && oldServer != nil {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), DefaultWriteTimeout)
-		defer cancel()
-
-		if err := oldServer.Shutdown(shutdownCtx); err != nil {
-			s.logger.Error("failed to shutdown old server during reload", "error", err)
-			return &ServerError{
-				Op:      "reload",
-				Message: ErrMsgReloadFailed,
-				Err:     err,
-			}
+	if !portChanged {
+		if oldServer != nil {
+			oldServer.ReadTimeout = cfg.ReadTimeout
+			oldServer.WriteTimeout = cfg.WriteTimeout
+			oldServer.IdleTimeout = cfg.IdleTimeout
 		}
+		s.logger.Info("HTTP server config updated in place")
+		return nil
 	}
 
 	listener, err := net.Listen("tcp", newAddr)

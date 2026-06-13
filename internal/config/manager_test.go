@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 )
 
 // TestCopyConfigCoversAllFieldsAndDeepCopiesSlices 固定配置复制、环境变量覆盖和热加载行为，确保后续注释补全或结构调整不改变该场景。
@@ -83,6 +85,237 @@ func TestUpdatePreservesUntouchedFields(t *testing.T) {
 
 	if src.Server.Port != 8080 {
 		t.Fatalf("Update() mutated source config, got source port %d", src.Server.Port)
+	}
+}
+
+func TestUpdateWithoutPersistDoesNotWriteConfigFile(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	writeTestConfig(t, configPath)
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config before update: %v", err)
+	}
+
+	m := NewManager()
+	if err := m.Load(configPath); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if err := m.Update(func(cfg *Config) {
+		cfg.Server.Port = 19091
+	}); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config after update: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("expected runtime update to leave file unchanged\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	if got := m.Get().Server.Port; got != 19091 {
+		t.Fatalf("expected runtime config port 19091, got %d", got)
+	}
+}
+
+func TestUpdateWithPersistWritesScalarFieldsToConfigFile(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	writeTestConfig(t, configPath)
+
+	m := NewManager()
+	if err := m.Load(configPath); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if err := m.Update(func(cfg *Config) {
+		cfg.Server.Port = 19091
+		cfg.Database.Password = "persistent-secret"
+		cfg.CORS.Enabled = true
+		cfg.CORS.AllowOrigins = []string{"https://admin.example.com", "https://app.example.com"}
+		cfg.Executor.Pools[0].Size = 42
+	}, WithPersistedPaths("server.port", "database.password", "cors.enabled", "cors.allow_origins", "executor.pools.0.size")); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read persisted config: %v", err)
+	}
+	text := string(content)
+	for _, want := range []string{`port: 19091`, `password: "persistent-secret"`, `enabled: true`, `- "https://admin.example.com"`, `- "https://app.example.com"`, `size: 42`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("expected persisted config to contain %q, got:\n%s", want, text)
+		}
+	}
+
+	reloaded := NewManager()
+	if err := reloaded.Load(configPath); err != nil {
+		t.Fatalf("reload persisted config: %v", err)
+	}
+	if got := reloaded.Get().Server.Port; got != 19091 {
+		t.Fatalf("reloaded server port = %d, want 19091", got)
+	}
+	if got := reloaded.Get().Database.Password; got != "persistent-secret" {
+		t.Fatalf("reloaded database password = %q, want persistent-secret", got)
+	}
+	if !reloaded.Get().CORS.Enabled {
+		t.Fatal("expected reloaded CORS enabled")
+	}
+	if !reflect.DeepEqual(reloaded.Get().CORS.AllowOrigins, []string{"https://admin.example.com", "https://app.example.com"}) {
+		t.Fatalf("reloaded CORS allow origins = %#v", reloaded.Get().CORS.AllowOrigins)
+	}
+	if got := reloaded.Get().Executor.Pools[0].Size; got != 42 {
+		t.Fatalf("reloaded executor pool size = %d, want 42", got)
+	}
+}
+
+func TestUpdateWithPersistRejectsInvalidConfigWithoutWritingFile(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	writeTestConfig(t, configPath)
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config before update: %v", err)
+	}
+
+	m := NewManager()
+	if err := m.Load(configPath); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if err := m.Update(func(cfg *Config) {
+		cfg.Server.Port = 0
+	}, WithPersistedPaths("server.port")); err == nil {
+		t.Fatal("expected invalid persisted update to fail")
+	}
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config after update: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("expected invalid update to leave file unchanged\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	if got := m.Get().Server.Port; got != 8080 {
+		t.Fatalf("expected current config to remain unchanged, got port %d", got)
+	}
+}
+
+func TestUpdateWithPersistRejectsMissingFileNode(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	writeTestConfig(t, configPath)
+
+	m := NewManager()
+	if err := m.Load(configPath); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if err := m.Update(func(cfg *Config) {
+		cfg.Server.Port = 19091
+	}, WithPersistedPaths("server.missing")); err == nil {
+		t.Fatal("expected missing persisted path to fail")
+	}
+	if got := m.Get().Server.Port; got != 8080 {
+		t.Fatalf("expected current config to remain unchanged, got port %d", got)
+	}
+}
+
+func TestUpdateWithPersistRejectsEnvManagedFileNode(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	writeTestConfig(t, configPath)
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	content = []byte(strings.Replace(string(content), "port: 8080", "port: ${SERVER_PORT:8080}", 1))
+	if err := os.WriteFile(configPath, content, 0600); err != nil {
+		t.Fatalf("write env managed config: %v", err)
+	}
+
+	m := NewManager()
+	if err := m.Load(configPath); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if err := m.Update(func(cfg *Config) {
+		cfg.Server.Port = 19091
+	}, WithPersistedPaths("server.port")); err == nil {
+		t.Fatal("expected environment placeholder to block persisted update")
+	}
+	if got := m.Get().Server.Port; got != 8080 {
+		t.Fatalf("expected current config to remain unchanged, got port %d", got)
+	}
+}
+
+func TestUpdateWithPersistRejectsActiveEnvOverride(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	writeTestConfig(t, configPath)
+	setTaggedEnv(t, ServerConfig{}, "Port", "19090")
+
+	m := NewManager()
+	if err := m.Load(configPath); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got := m.Get().Server.Port; got != 19090 {
+		t.Fatalf("expected env override port 19090, got %d", got)
+	}
+	if err := m.Update(func(cfg *Config) {
+		cfg.Server.Port = 19091
+	}, WithPersistedPaths("server.port")); err == nil {
+		t.Fatal("expected active environment override to block persisted update")
+	}
+	if got := m.Get().Server.Port; got != 19090 {
+		t.Fatalf("expected current config to remain env value, got port %d", got)
+	}
+}
+
+func TestUpdateWithPersistKeepsWatcherAliveForLaterFileEdits(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	writeTestConfig(t, configPath)
+
+	m := NewManager()
+	if err := m.Load(configPath); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if err := m.Watch(); err != nil {
+		t.Fatalf("Watch() error = %v", err)
+	}
+	hooks := make(chan *Config, 4)
+	m.RegisterHook(func(_, new *Config) {
+		hooks <- new
+	})
+
+	if err := m.Update(func(cfg *Config) {
+		cfg.Server.Port = 19091
+	}, WithPersistedPaths("server.port")); err != nil {
+		t.Fatalf("persist Update() error = %v", err)
+	}
+	waitConfigHook(t, hooks, 19091)
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read persisted config: %v", err)
+	}
+	next := strings.Replace(string(content), "port: 19091", "port: 19092", 1)
+	if next == string(content) {
+		t.Fatalf("persisted config did not contain expected port:\n%s", content)
+	}
+	if err := os.WriteFile(configPath, []byte(next), 0600); err != nil {
+		t.Fatalf("write manual config change: %v", err)
+	}
+	waitConfigHook(t, hooks, 19092)
+	if got := m.Get().Server.Port; got != 19092 {
+		t.Fatalf("expected watcher to load manual config change, got port %d", got)
+	}
+}
+
+func waitConfigHook(t *testing.T, hooks <-chan *Config, wantPort int) {
+	t.Helper()
+
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case cfg := <-hooks:
+			if cfg != nil && cfg.Server.Port == wantPort {
+				return
+			}
+		case <-deadline:
+			t.Fatalf("timed out waiting for config hook with server.port=%d", wantPort)
+		}
 	}
 }
 
@@ -528,10 +761,27 @@ i18n:
   messages_dir: ./configs/locales
 executor:
   enabled: false
+  pools:
+    - name: default
+      size: 10
+      expiry: 30
+      non_blocking: true
 storage:
   enabled: false
 cors:
   enabled: false
+  allow_origins:
+    - "*"
+  allow_methods:
+    - "GET"
+    - "POST"
+  allow_headers:
+    - "Origin"
+    - "Content-Type"
+  expose_headers:
+    - "X-Request-ID"
+  allow_credentials: false
+  max_age: 3600
 `
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatalf("write config: %v", err)

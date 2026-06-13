@@ -8,15 +8,18 @@ const dashboardConfig = SERVER_STATUS_DASHBOARD_CONFIG
 const info = ref<SystemServerInfo | null>(null)
 const loading = ref(false)
 const error = ref("")
-let refreshTimer: number | undefined
-let cooldownTimer: number | undefined
 
-const dashboard = computed(() => createServerStatusDashboardModel(info.value, dashboardConfig))
+const autoRefresh = useAdminAutoRefresh({
+  blocked: loading,
+  defaultEnabled: dashboardConfig.refresh.autoEnabled,
+  intervalMs: dashboardConfig.refresh.intervalMs,
+  load,
+  manualCooldownMs: dashboardConfig.refresh.manualCooldownMs
+})
+const dashboard = computed(() => createServerStatusDashboardModel(info.value, dashboardConfig, autoRefresh.enabled.value))
 const hasData = computed(() => Boolean(info.value))
 const emptyTitle = computed(() => loading.value ? dashboardConfig.emptyStates.loading : dashboardConfig.emptyStates.noData)
 const emptyIcon = computed(() => loading.value ? "loader-circle" : "activity")
-const refreshLocked = ref(false)
-const refreshDisabled = computed(() => loading.value || refreshLocked.value)
 
 async function load(options: { silent?: boolean } = {}) {
   if (!options.silent) {
@@ -34,45 +37,7 @@ async function load(options: { silent?: boolean } = {}) {
   }
 }
 
-async function refreshNow() {
-  if (refreshDisabled.value) {
-    return
-  }
-
-  refreshLocked.value = true
-  try {
-    await load()
-  } finally {
-    const cooldown = dashboardConfig.refresh.manualCooldownMs
-    if (cooldown > 0) {
-      cooldownTimer = window.setTimeout(() => {
-        refreshLocked.value = false
-      }, cooldown)
-    } else {
-      refreshLocked.value = false
-    }
-  }
-}
-
-onMounted(() => {
-  void load()
-  if (dashboardConfig.refresh.autoEnabled) {
-    refreshTimer = window.setInterval(() => {
-      if (!loading.value) {
-        void load({ silent: true })
-      }
-    }, dashboardConfig.refresh.intervalMs)
-  }
-})
-
-onBeforeUnmount(() => {
-  if (refreshTimer) {
-    window.clearInterval(refreshTimer)
-  }
-  if (cooldownTimer) {
-    window.clearTimeout(cooldownTimer)
-  }
-})
+onMounted(autoRefresh.refreshNow)
 
 useHead({
   title: `${dashboardConfig.labels.pageTitle} - Aoi Admin`
@@ -90,10 +55,13 @@ useHead({
         <AoiMetaPill :intent="dashboard.overall.intent" appearance="soft" :icon="dashboard.overall.icon">
           {{ dashboard.overall.label }}
         </AoiMetaPill>
-        <AoiMetaPill intent="neutral" appearance="outline" icon="refresh-cw">
-          {{ dashboard.refreshLabel }}
-        </AoiMetaPill>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="refreshDisabled" @click="refreshNow">
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">
           {{ dashboardConfig.labels.refreshAction }}
         </AoiButton>
       </template>
@@ -237,7 +205,7 @@ useHead({
         :intent="error ? 'danger' : 'info'"
       >
         <template #actions>
-          <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="refreshDisabled" @click="refreshNow">
+          <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">
             {{ dashboardConfig.labels.refreshAction }}
           </AoiButton>
         </template>

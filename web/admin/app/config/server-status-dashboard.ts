@@ -177,7 +177,7 @@ export const SERVER_STATUS_DASHBOARD_CONFIG = {
     { icon: "code", id: "build", title: "构建信息" }
   ],
   refresh: {
-    autoEnabled: false,
+    autoEnabled: true,
     intervalMs: 30_000,
     manualCooldownMs: 1_000
   },

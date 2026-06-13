@@ -86,7 +86,8 @@ type NumericValue = number | null
 
 export function createServerStatusDashboardModel(
   info: SystemServerInfo | null,
-  config: ServerStatusDashboardConfig = SERVER_STATUS_DASHBOARD_CONFIG
+  config: ServerStatusDashboardConfig = SERVER_STATUS_DASHBOARD_CONFIG,
+  autoRefreshEnabled = config.refresh.autoEnabled
 ): ServerStatusDashboardModel {
   // 页面只消费派生模型；阈值、文案、排序和格式化规则必须从配置进入这里统一收敛。
   const cpuAverage = averagePercent(info?.cpu.percent)
@@ -124,7 +125,7 @@ export function createServerStatusDashboardModel(
       state: heapState,
       value: boundedPercent(heapPercent)
     },
-    kpis: createKpis(info, { cpuAverage, diskState, heapPercent, heapState, ramPercent, ramState, refreshedAt }, config),
+    kpis: createKpis(info, { autoRefreshEnabled, cpuAverage, diskState, heapPercent, heapState, ramPercent, ramState, refreshedAt }, config),
     overall,
     panels: createPanels(info, { cpuAverage, cpuAverageState, diskRows, heapPercent, heapState, ramPercent, ramState }, config),
     ram: {
@@ -133,7 +134,7 @@ export function createServerStatusDashboardModel(
       state: ramState,
       value: boundedPercent(ramPercent)
     },
-    refreshLabel: config.refresh.autoEnabled ? config.labels.autoRefreshEnabled : config.labels.autoRefreshDisabled,
+    refreshLabel: autoRefreshEnabled ? config.labels.autoRefreshEnabled : config.labels.autoRefreshDisabled,
     refreshedAt
   }
 }
@@ -142,6 +143,7 @@ function createKpis(
   info: SystemServerInfo | null,
   derived: {
     cpuAverage: NumericValue
+    autoRefreshEnabled: boolean
     diskState: ServerStatusMetricState
     heapPercent: NumericValue
     heapState: ServerStatusMetricState
@@ -189,7 +191,7 @@ function createKpis(
       case "refreshedAt":
         return {
           ...item,
-          description: config.refresh.autoEnabled ? config.labels.autoRefreshEnabled : config.labels.autoRefreshDisabled,
+          description: derived.autoRefreshEnabled ? config.labels.autoRefreshEnabled : config.labels.autoRefreshDisabled,
           intent: "neutral",
           state: info ? healthyState(config) : unknownState(config),
           value: derived.refreshedAt

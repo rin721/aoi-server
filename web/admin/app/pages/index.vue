@@ -23,8 +23,10 @@ const dashboardStats = computed<AoiStatItem[]>(() => [
   }
 ])
 
-async function refresh() {
-  loading.value = true
+async function refresh(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     const [healthResult, readyResult] = await Promise.all([
@@ -45,12 +47,18 @@ async function refresh() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
 
-onMounted(refresh)
-watch(() => auth.currentOrgId, refresh)
+const autoRefresh = useAdminAutoRefresh({ blocked: loading, load: refresh })
+
+onMounted(autoRefresh.refreshNow)
+watch(() => auth.currentOrgId, () => {
+  void autoRefresh.refreshNow()
+})
 
 useHead({
   title: "仪表盘 - Aoi Admin"
@@ -61,7 +69,13 @@ useHead({
   <div class="page-grid">
     <PageHeader title="仪表盘" icon="layout-dashboard" description="查看服务状态、当前组织和最近 IAM 活动。">
       <template #actions>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="refresh">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 
@@ -133,7 +147,5 @@ useHead({
   overflow-wrap: anywhere;
 }
 </style>
-
-
 
 

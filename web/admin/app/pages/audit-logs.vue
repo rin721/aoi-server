@@ -13,12 +13,14 @@ const cursor = ref("")
 const loading = ref(false)
 const error = ref("")
 
-async function load() {
+async function load(options: { silent?: boolean } = {}) {
   if (!auth.currentOrgId) {
     return
   }
 
-  loading.value = true
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     logs.value = await api.listAuditLogs(auth.currentOrgId, {
@@ -32,7 +34,9 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
 
@@ -48,8 +52,12 @@ function prettyMetadata(value: string) {
   }
 }
 
-onMounted(load)
-watch(() => auth.currentOrgId, load)
+const autoRefresh = useAdminAutoRefresh({ blocked: loading, load })
+
+onMounted(autoRefresh.refreshNow)
+watch(() => auth.currentOrgId, () => {
+  void autoRefresh.refreshNow()
+})
 
 useHead({
   title: "审计日志 - Aoi Admin"
@@ -60,7 +68,13 @@ useHead({
   <div class="page-grid">
     <PageHeader title="审计日志" icon="scroll-text" description="按当前组织读取 IAM 审计记录，用于定位管理操作。">
       <template #actions>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 
@@ -71,13 +85,13 @@ useHead({
         <h2>日志</h2>
       </div>
       <div class="admin-filter-toolbar">
-        <AoiTextField v-model="action" label="Action" icon="activity" placeholder="auth.login" @enter="load" />
-        <AoiTextField v-model="userId" label="User ID" icon="user" @enter="load" />
-        <AoiTextField v-model="from" label="From" type="datetime-local" icon="calendar" @enter="load" />
-        <AoiTextField v-model="to" label="To" type="datetime-local" icon="calendar" @enter="load" />
-        <AoiTextField v-model="cursor" label="Cursor" icon="chevrons-down" @enter="load" />
-        <AoiTextField v-model="limit" label="Limit" type="number" icon="list-filter" @enter="load" />
-        <AoiButton appearance="soft" icon="search" @click="load">查询</AoiButton>
+        <AoiTextField v-model="action" label="Action" icon="activity" placeholder="auth.login" @enter="autoRefresh.refreshNow" />
+        <AoiTextField v-model="userId" label="User ID" icon="user" @enter="autoRefresh.refreshNow" />
+        <AoiTextField v-model="from" label="From" type="datetime-local" icon="calendar" @enter="autoRefresh.refreshNow" />
+        <AoiTextField v-model="to" label="To" type="datetime-local" icon="calendar" @enter="autoRefresh.refreshNow" />
+        <AoiTextField v-model="cursor" label="Cursor" icon="chevrons-down" @enter="autoRefresh.refreshNow" />
+        <AoiTextField v-model="limit" label="Limit" type="number" icon="list-filter" @enter="autoRefresh.refreshNow" />
+        <AoiButton appearance="soft" icon="search" @click="autoRefresh.refreshNow">查询</AoiButton>
       </div>
       <div class="data-table-wrap">
         <table class="data-table">

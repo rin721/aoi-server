@@ -34,7 +34,8 @@ Status legend:
 
 ### Current Snapshot
 
-Last checked: 2026-06-12.
+Last local audit: 2026-06-13. External demo/source evidence below remains from
+2026-06-12 unless a slice states a newer date.
 
 - Demo access: `外部后台演示站` opened directly into an
   authenticated admin dashboard in the in-app Browser. A separate clean
@@ -86,6 +87,11 @@ Last checked: 2026-06-12.
   existing `internal/modules/*/{model,repository,service,handler}`,
   `internal/transport/http`, `internal/app/initapp`, `internal/config`, and
   `pkg` boundaries instead of renaming the backend to 外部后台的 folders.
+- Template/code generator stance checked on 2026-06-13: current local capability
+  is limited to offline `pkg/sqlgen` and `pkg/yaml2go` libraries plus the
+  sqlgen-backed `db` CLI demo workflow. There is no committed admin route,
+  backend API, menu entry, permission, runtime config, or static WebUI workflow
+  for template config/code generator/form generator/export template features.
 
 ### Route And Feature Board
 
@@ -112,14 +118,15 @@ Last checked: 2026-06-12.
 | [done] | Media library upload/download | `/admin/media`, `/api/v1/system/media/*` | External page and external source inspected on 2026-06-12 | 外部后台 feature is left-category media management with upload, URL import, keyword filter, preview, rename, download, and delete. |
 | [done] | Breakpoint upload | `/admin/media/resumable`, `/api/v1/system/media/assets/resumable/*` | External page and external source inspected on 2026-06-12 | Local implementation uses resumable sessions, SHA-256 chunk/full-file verification, Storage-backed chunk cleanup, and media asset completion. |
 | [done] | Customer/resource example | `/admin/customers`, `/api/v1/demo/customers` | Demo visual/source checked on 2026-06-12 | Protected resource CRUD example using local IAM principal scope. |
-| [defer] | Template config/code generator/form generator/export template | `pkg/sqlgen` plus explicit product spec | Research required, but do not copy wholesale | Needs product decision and security review before implementation. |
+| [audit] | Template config/code generator/form generator/export template | `pkg/sqlgen`, `pkg/yaml2go`, plus explicit product spec | External workflow/source and security review required before implementation | 2026-06-13 audit confirmed no runtime admin/API surface; keep implementation deferred until product scope is approved. |
 | [defer] | AI workflow, MCP Tools, Skills, AI page drawing | Separate AI tooling boundary | Research required before any local work | Keep AI artifacts under `docs/ai` or `tools/ai`; do not mix into app packages. |
 | [defer] | Plugin market/install/package/mail plugin/announcements | Existing `plugins` module plus product spec | Research required | Avoid remote marketplace/install behavior without an explicit requirement. |
 
 ### Next Slice Protocol
 
-Preferred next slice: Template config/code generator/form generator/export template audit, unless the user redirects
-to another external admin area.
+Preferred next slice: Template config/code generator/form generator/export
+template external workflow/source research and implementation decision, unless
+the user redirects to another external admin area.
 
 Before implementation:
 
@@ -155,6 +162,103 @@ Validation floor:
 - Run `pnpm typecheck` for changed `web/admin` TypeScript/Vue code.
 - For visible UI work, visually inspect desktop `1440x900` and mobile
   `390x844` routes with Browser and record results here or in the final note.
+
+### Active Slice: Template And Generator Audit
+
+Status: `[audit]` started and completed on 2026-06-13. Implementation remains
+deferred until product scope, security rules, and external workflow evidence are
+available.
+
+Research completed before implementation:
+
+- Read the repo-level and `web/admin` agent rules, AI workspace index, config
+  docs, WebUI docs, design rules, build docs, and known gaps before editing.
+- Inspected the current config and static chain:
+  `internal/config.WebUIConfig -> internal/app/initapp.NewHTTPServer ->
+  internal/transport/http.WebUIDeps -> pkg/web.MountStaticSPA`, with Nuxt
+  `NUXT_APP_BASE_URL` and Go `webui.mount_path` remaining the path-alignment
+  contract.
+- Inspected the frontend call chain: admin pages call `useAdminApi()`, shared
+  endpoints belong in `web/admin/app/config/admin-api.ts`, and Nuxt runtime
+  config only exposes `adminBaseURL`, `apiBaseURL`, `apiMock`, and
+  `showDemoTodo`.
+- Inspected the style system: admin layout, density, table, filter, status, and
+  local scroll values live under `--aoi-admin-*` and Aoi semantic tokens in
+  `web/admin/app/assets/css/main.css` and `tokens.css`.
+- Inspected local generation libraries: `pkg/sqlgen` supports offline SQL and
+  DDL-to-Go generation, while `pkg/yaml2go` is a pure conversion library that
+  deliberately does not write files. The committed `db` CLI uses sqlgen only
+  for database/Demo schema preview and Demo Todo operations.
+
+Local implementation plan:
+
+- Do not add a generator page, backend API, permissions, menu entries,
+  migrations, or build output in this slice.
+- Persist the audit result in this task book, configuration docs, and known
+  gaps so the next slice has a clear entry point.
+- Keep `configs/config.example.yaml`, `.env.example`, and production examples
+  unchanged because this audit introduces no runtime configuration.
+- Require a future slice to define a product spec before code work: generated
+  artifact types, write targets, overwrite policy, field mapping rules,
+  validation strategy, permission model, audit logging, export/download format,
+  cleanup/rollback behavior, and Browser verification route.
+
+Implementation completed:
+
+- Recorded that the template/code generator/form generator/export template area
+  is not a current runtime capability.
+- Documented that `pkg/sqlgen` and `pkg/yaml2go` are offline/development tools,
+  not user-visible admin workflows.
+- Added the follow-up gap to the backlog instead of introducing placeholder
+  runtime config or UI.
+- Added `docs/ai/generator-product-spec.md` as the product and security gate
+  that must be answered before any generator implementation.
+
+Validation completed:
+
+- Documentation-only change. No Go, Vue, Nuxt config, static asset, or CSS
+  runtime files were changed.
+- Browser visual checks were not required because there was no visible UI
+  change. They remain required before any future generator admin surface or
+  backend response shape becomes user-visible.
+
+### Active Slice: Template And Generator Product Spec Gate
+
+Status: `[audit]` started and completed on 2026-06-13. Implementation remains
+deferred; this slice only records the gated specification that future code work
+must satisfy.
+
+Research completed before implementation:
+
+- Re-read the local project structure, config docs, WebUI/static hosting docs,
+  frontend API chain, build notes, style rules, generator package READMEs, and
+  known gaps.
+- Confirmed again that no committed backend route, frontend page, permission,
+  menu, runtime config, Nuxt runtime config, or build output exists for the
+  generator area.
+
+Local implementation plan:
+
+- Add a durable product/security gate under `docs/ai`.
+- Link the gate from the AI index, this task book, configuration notes, and
+  known gaps.
+- Do not update Go code, Nuxt code, example config, static assets, migrations,
+  generated output, or `configs/config.yaml`.
+- Keep future configuration names as candidates only; do not imply that runtime
+  config exists today.
+
+Implementation completed:
+
+- Added `docs/ai/generator-product-spec.md`.
+- Updated `docs/ai/README.md`, `docs/environment/configuration.md`, and
+  `docs/backlog/known-gaps.md` so the next slice starts from the same gate.
+
+Risk notes:
+
+- The new document is intentionally marked `draft/gated` to avoid implying that
+  the feature is shipped.
+- Candidate config names are examples for a future config review, not accepted
+  keys.
 
 ### Active Slice: Session Security Management
 
@@ -951,6 +1055,18 @@ middleware remains in `internal/transport/http` and `internal/middleware`.
    infrastructure, while `pkg` does not import application modules.
 5. Avoid copying 外部后台's code generator, plugin market, or generated
    CRUD surface until this backend has an explicit product requirement for them.
+
+## Audit And Deferred Records
+
+- 2026-06-13: Template config/code generator/form generator/export template
+  audit confirmed the repo only has offline `pkg/sqlgen` and `pkg/yaml2go`
+  tool libraries plus the sqlgen-backed `db` CLI demo workflow. No runtime
+  admin route, API endpoint, permission, migration, WebUI page, build output,
+  YAML setting, env var, or Nuxt runtime config was added. The next phase must
+  start with a product specification and security review covering artifact
+  types, write targets, overwrite policy, field mapping, permissions, audit
+  logging, export/download format, cleanup, rollback, and Browser-visible
+  verification routes.
 
 ## Implemented Parity Slices
 

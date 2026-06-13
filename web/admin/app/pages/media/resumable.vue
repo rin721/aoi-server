@@ -54,8 +54,10 @@ const statusLabel = computed(() => {
   }
 })
 
-async function loadMediaStatus() {
-  loadingStatus.value = true
+async function loadMediaStatus(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loadingStatus.value = true
+  }
   try {
     const page = await api.listSystemMediaAssets({ page: 1, pageSize: 1 }) as SystemMediaAssetPage
     uploadMaxBytes.value = page.uploadMaxBytes
@@ -64,9 +66,16 @@ async function loadMediaStatus() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loadingStatus.value = false
+    if (!options.silent) {
+      loadingStatus.value = false
+    }
   }
 }
+
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loadingStatus.value || hashing.value || uploading.value || aborting.value),
+  load: loadMediaStatus
+})
 
 function openFilePicker() {
   if (canPickFile.value) {
@@ -248,7 +257,7 @@ function formatBytes(value: number) {
   return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
 }
 
-onMounted(loadMediaStatus)
+onMounted(autoRefresh.refreshNow)
 
 useHead({
   title: "断点上传 - Aoi Admin"
@@ -260,7 +269,13 @@ useHead({
     <PageHeader title="断点上传" icon="upload-cloud" description="按分片会话上传本地文件，完成后写入媒体库。">
       <template #actions>
         <AoiButton appearance="soft" icon="image-up" to="/media">媒体库</AoiButton>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loadingStatus" @click="loadMediaStatus">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loadingStatus" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 

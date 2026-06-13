@@ -10,6 +10,7 @@ const savingDictionary = ref(false)
 const updatingDictionary = ref(false)
 const savingItem = ref(false)
 const updatingItem = ref(false)
+const deleting = ref(false)
 const error = ref("")
 const success = ref("")
 
@@ -63,8 +64,10 @@ const dictionaryOptions = computed(() => dictionaries.value.map((dictionary) => 
 const selectedDictionary = computed(() => dictionaries.value.find((dictionary) => dictionary.id === selectedDictionaryId.value) || dictionaries.value[0] || null)
 const selectedItems = computed(() => selectedDictionary.value?.items || [])
 
-async function load() {
-  loading.value = true
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     catalog.value = await api.listSystemDictionaries()
@@ -74,9 +77,16 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
+
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || savingDictionary.value || updatingDictionary.value || savingItem.value || updatingItem.value || deleting.value),
+  load
+})
 
 async function createDictionary() {
   if (!createCode.value.trim() || !createName.value.trim()) {
@@ -140,6 +150,7 @@ async function deleteDictionary(dictionary: SystemDictionary) {
   if (!window.confirm(`删除字典 ${dictionary.name}？关联字典项会一并删除。`)) {
     return
   }
+  deleting.value = true
   error.value = ""
   success.value = ""
   try {
@@ -154,6 +165,8 @@ async function deleteDictionary(dictionary: SystemDictionary) {
     await load()
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -223,6 +236,7 @@ async function deleteItem(item: SystemDictionaryItem) {
   if (!window.confirm(`删除字典项 ${item.label}？`)) {
     return
   }
+  deleting.value = true
   error.value = ""
   success.value = ""
   try {
@@ -234,6 +248,8 @@ async function deleteItem(item: SystemDictionaryItem) {
     await load()
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -252,7 +268,7 @@ function toSort(value: string) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-onMounted(load)
+onMounted(autoRefresh.refreshNow)
 
 watch(selectedDictionary, (dictionary) => {
   if (dictionary && !editDictionaryId.value) {
@@ -281,7 +297,13 @@ useHead({
     <PageHeader title="字典管理" icon="book-open" description="维护系统字典与字典项，为状态、枚举和表单选项提供统一配置。">
       <template #actions>
         <AoiButton appearance="soft" icon="code-2" to="/apis">API 管理</AoiButton>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 

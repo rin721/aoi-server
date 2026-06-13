@@ -800,6 +800,7 @@ a {
   --aoi-admin-panel-gap-compact: 12px;
   --aoi-admin-card-gap: 12px;
   --aoi-admin-card-copy-gap: 4px;
+  --aoi-admin-auto-refresh-gap: 8px;
   --aoi-admin-card-header-min-height: 56px;
   --aoi-admin-card-header-padding: 14px 16px;
   --aoi-admin-card-body-padding: 16px;

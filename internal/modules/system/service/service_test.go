@@ -162,19 +162,20 @@ func TestListMenusIncludesSystemMenuCatalog(t *testing.T) {
 	}
 }
 
-func TestListConfigReturnsRuntimeSnapshotClone(t *testing.T) {
-	svc := New(Config{
-		RuntimeConfig: model.ConfigSnapshot{
-			Sections: []model.ConfigSection{
-				{
-					Code:  "server",
-					Label: "System",
-					Items: []model.ConfigItem{
-						{Key: "server.port", Label: "Port", Value: 9999},
-					},
+func TestListConfigUsesProviderAndReturnsSnapshotClone(t *testing.T) {
+	current := model.ConfigSnapshot{
+		Sections: []model.ConfigSection{
+			{
+				Code:  "server",
+				Label: "System",
+				Items: []model.ConfigItem{
+					{Key: "server.port", Label: "Port", Value: 9999},
 				},
 			},
 		},
+	}
+	svc := New(Config{
+		ConfigProvider: func() model.ConfigSnapshot { return current },
 	})
 
 	snapshot, err := svc.ListConfig(context.Background())
@@ -193,6 +194,75 @@ func TestListConfigReturnsRuntimeSnapshotClone(t *testing.T) {
 	}
 	if again.Sections[0].Items[0].Value != 9999 || len(again.Sections[0].Items) != 1 {
 		t.Fatalf("expected stored snapshot to remain unchanged, got %#v", again)
+	}
+
+	current = model.ConfigSnapshot{
+		Sections: []model.ConfigSection{
+			{
+				Code:  "server",
+				Label: "System",
+				Items: []model.ConfigItem{
+					{Key: "server.port", Label: "Port", Value: 10000},
+				},
+			},
+		},
+	}
+	latest, err := svc.ListConfig(context.Background())
+	if err != nil {
+		t.Fatalf("ListConfig() latest error = %v", err)
+	}
+	if latest.Sections[0].Items[0].Value != 10000 {
+		t.Fatalf("expected provider refresh to be reflected, got %#v", latest)
+	}
+}
+
+func TestUpdateConfigUsesUpdaterAndReturnsSnapshotClone(t *testing.T) {
+	var calls int
+	current := model.ConfigSnapshot{
+		Sections: []model.ConfigSection{
+			{
+				Code:  "server",
+				Label: "System",
+				Items: []model.ConfigItem{
+					{Key: "server.port", Label: "Port", Value: 9999},
+				},
+			},
+		},
+	}
+	svc := New(Config{
+		ConfigUpdater: func(_ context.Context, input UpdateConfigInput) (model.ConfigSnapshot, error) {
+			calls++
+			if !input.Persist || len(input.Items) != 1 || input.Items[0].Key != "server.port" || input.Items[0].Value != 10000 {
+				t.Fatalf("unexpected update input: %#v", input)
+			}
+			current.Sections[0].Items[0].Value = input.Items[0].Value
+			return current, nil
+		},
+	})
+
+	snapshot, err := svc.UpdateConfig(context.Background(), UpdateConfigInput{
+		Items:   []UpdateConfigItem{{Key: " server.port ", Value: 10000}},
+		Persist: true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateConfig() error = %v", err)
+	}
+	if calls != 1 || snapshot.Sections[0].Items[0].Value != 10000 {
+		t.Fatalf("expected updater result, calls=%d snapshot=%#v", calls, snapshot)
+	}
+	snapshot.Sections[0].Items[0].Value = 18081
+	if current.Sections[0].Items[0].Value != 10000 {
+		t.Fatalf("expected UpdateConfig() to return clone, current=%#v", current)
+	}
+}
+
+func TestUpdateConfigWithoutUpdaterReturnsUnavailable(t *testing.T) {
+	svc := New(Config{})
+
+	if _, err := svc.UpdateConfig(context.Background(), UpdateConfigInput{
+		Items: []UpdateConfigItem{{Key: "server.port", Value: 10000}},
+	}); !errors.Is(err, ErrConfigUnavailable) {
+		t.Fatalf("UpdateConfig() error = %v, want ErrConfigUnavailable", err)
 	}
 }
 

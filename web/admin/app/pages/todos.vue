@@ -7,20 +7,30 @@ const title = ref("")
 const description = ref("")
 const loading = ref(false)
 const saving = ref(false)
+const mutating = ref(false)
 const error = ref("")
 const success = ref("")
 
-async function load() {
-  loading.value = true
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     todos.value = await api.listTodos()
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
+
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || saving.value || mutating.value),
+  load
+})
 
 async function createTodo() {
   if (!title.value.trim()) {
@@ -47,25 +57,31 @@ async function createTodo() {
 }
 
 async function toggleTodo(todo: Todo) {
+  mutating.value = true
   try {
     await api.updateTodo(todo.id, { completed: !todo.completed })
     await load()
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    mutating.value = false
   }
 }
 
 async function removeTodo(id: number) {
+  mutating.value = true
   try {
     await api.deleteTodo(id)
     success.value = `Todo #${id} 已删除。`
     await load()
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    mutating.value = false
   }
 }
 
-onMounted(load)
+onMounted(autoRefresh.refreshNow)
 
 useHead({
   title: "Demo Todo - Aoi Admin"
@@ -76,7 +92,13 @@ useHead({
   <div class="page-grid">
     <PageHeader title="Demo Todo" icon="list-checks" description="使用公开 Demo Todo API 验证静态管理台与 Go Result 契约。">
       <template #actions>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 

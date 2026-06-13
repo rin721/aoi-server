@@ -1,25 +1,35 @@
-﻿<script setup lang="ts">
-withDefaults(defineProps<{
+<script setup lang="ts">
+const props = withDefaults(defineProps<{
   description?: string
   icon?: string
   id?: string
+  scope?: "derived" | "local" | "main"
   title: string
 }>(), {
   description: undefined,
   id: undefined,
-  icon: undefined
+  icon: undefined,
+  scope: "local"
 })
 </script>
 
 <template>
-  <AoiSurface :id="id" as="section" reveal="rise" surface="panel" padding="lg" class="settings-panel">
+  <AoiSurface
+    :id="props.id"
+    as="section"
+    reveal="rise"
+    surface="panel"
+    padding="lg"
+    class="settings-panel"
+    :data-settings-scope="props.scope"
+  >
     <header class="settings-panel__header">
-      <span v-if="icon" class="settings-panel__icon" aria-hidden="true">
-        <AoiIcon :name="icon" :size="18" decorative />
+      <span v-if="props.icon" class="settings-panel__icon" aria-hidden="true">
+        <AoiIcon :name="props.icon" :size="18" decorative />
       </span>
       <div class="settings-panel__copy">
-        <h2>{{ title }}</h2>
-        <p v-if="description">{{ description }}</p>
+        <h2>{{ props.title }}</h2>
+        <p v-if="props.description">{{ props.description }}</p>
       </div>
       <div v-if="$slots.actions" class="settings-panel__actions">
         <slot name="actions" />
@@ -92,5 +102,3 @@ withDefaults(defineProps<{
   }
 }
 </style>
-
-

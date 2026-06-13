@@ -79,6 +79,44 @@ func TestReloadUpdatesConfigWhenStopped(t *testing.T) {
 }
 
 // TestStartRejectsAlreadyRunningServer 固定 HTTP 服务器的配置校验、启动和重载边界，确保后续注释补全或结构调整不改变该场景。
+func TestReloadSameAddressUpdatesRunningServerInPlace(t *testing.T) {
+	srv, err := New(http.NewServeMux(), &Config{
+		Host:         "127.0.0.1",
+		Port:         18080,
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+		IdleTimeout:  time.Second,
+	}, noopLogger{})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	got := srv.(*httpServer)
+	got.server = &http.Server{
+		Addr:         "127.0.0.1:18080",
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+		IdleTimeout:  time.Second,
+	}
+	got.state.Store(int32(stateRunning))
+
+	next := &Config{
+		Host:         "127.0.0.1",
+		Port:         18080,
+		ReadTimeout:  2 * time.Second,
+		WriteTimeout: 3 * time.Second,
+		IdleTimeout:  4 * time.Second,
+	}
+	if err := srv.Reload(context.Background(), next); err != nil {
+		t.Fatalf("Reload(running same address) error = %v", err)
+	}
+	if got.server.ReadTimeout != 2*time.Second || got.server.WriteTimeout != 3*time.Second || got.server.IdleTimeout != 4*time.Second {
+		t.Fatalf("server timeouts = %s/%s/%s, want 2s/3s/4s", got.server.ReadTimeout, got.server.WriteTimeout, got.server.IdleTimeout)
+	}
+	if got.config.ReadTimeout != 2*time.Second || got.config.WriteTimeout != 3*time.Second || got.config.IdleTimeout != 4*time.Second {
+		t.Fatalf("config timeouts = %s/%s/%s, want 2s/3s/4s", got.config.ReadTimeout, got.config.WriteTimeout, got.config.IdleTimeout)
+	}
+}
+
 func TestStartRejectsAlreadyRunningServer(t *testing.T) {
 	srv, err := New(http.NewServeMux(), &Config{}, noopLogger{})
 	if err != nil {

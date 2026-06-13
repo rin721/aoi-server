@@ -25,8 +25,10 @@ const drawerTitle = computed(() => editing.value ? "编辑客户" : "新增客�
 const canSave = computed(() => Boolean(form.customerName.trim() && form.customerPhoneData.trim() && !saving.value))
 const persisted = computed(() => pageData.value.storageStatus === "persisted")
 
-async function load() {
-  loading.value = true
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     pageData.value = await api.listDemoCustomers({
@@ -37,9 +39,16 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
+
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || saving.value || deleting.value),
+  load
+})
 
 function openCreateDrawer() {
   editing.value = null
@@ -115,13 +124,13 @@ async function deleteCustomer(item: DemoCustomer) {
 
 async function search() {
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function resetFilters() {
   keyword.value = ""
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function previousPage() {
@@ -129,7 +138,7 @@ async function previousPage() {
     return
   }
   page.value -= 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function nextPage() {
@@ -137,14 +146,14 @@ async function nextPage() {
     return
   }
   page.value += 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 function ownerLabel(item: DemoCustomer) {
   return item.ownerUsername || `#${item.ownerUserId}`
 }
 
-onMounted(load)
+onMounted(autoRefresh.refreshNow)
 
 useHead({
   title: "客户列表 - Aoi Admin"
@@ -155,7 +164,13 @@ useHead({
   <div class="page-grid customer-page">
     <PageHeader title="客户列表" icon="id-card" description="演示登录主体、资源归属与可见范围。">
       <template #actions>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
         <AoiButton icon="plus" @click="openCreateDrawer">新增</AoiButton>
       </template>
     </PageHeader>

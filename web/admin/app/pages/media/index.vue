@@ -23,6 +23,7 @@ const loading = ref(false)
 const categoryLoading = ref(false)
 const uploading = ref(false)
 const importing = ref(false)
+const renaming = ref(false)
 const savingCategory = ref(false)
 const deleting = ref(false)
 const error = ref("")
@@ -79,19 +80,25 @@ const categoryOptions = computed(() => [
     .map((item) => ({ label: `${"　".repeat(item.depth)}${item.name}`, value: item.id }))
 ])
 
-async function loadCategories() {
-  categoryLoading.value = true
+async function loadCategories(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    categoryLoading.value = true
+  }
   try {
     categories.value = normalizeCategoryCatalog(await api.listSystemMediaCategories())
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    categoryLoading.value = false
+    if (!options.silent) {
+      categoryLoading.value = false
+    }
   }
 }
 
-async function loadAssets() {
-  loading.value = true
+async function loadAssets(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     pageData.value = normalizeAssetPage(await api.listSystemMediaAssets({
@@ -103,18 +110,25 @@ async function loadAssets() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
 
-async function refreshAll() {
-  await Promise.all([loadCategories(), loadAssets()])
+async function refreshAll(options: { silent?: boolean } = {}) {
+  await Promise.all([loadCategories(options), loadAssets(options)])
 }
+
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || categoryLoading.value || uploading.value || importing.value || renaming.value || savingCategory.value || deleting.value),
+  load: refreshAll
+})
 
 function chooseCategory(id: ID) {
   selectedCategoryId.value = id
   page.value = 1
-  void loadAssets()
+  void autoRefresh.refreshNow()
 }
 
 function openFilePicker() {
@@ -182,6 +196,7 @@ async function renameAsset() {
   if (!renameTarget.value || !renameValue.value.trim()) {
     return
   }
+  renaming.value = true
   error.value = ""
   success.value = ""
   try {
@@ -191,6 +206,8 @@ async function renameAsset() {
     await loadAssets()
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    renaming.value = false
   }
 }
 
@@ -272,6 +289,7 @@ async function deleteCategory(item: SystemMediaCategory) {
   if (!window.confirm(`删除分类 ${item.name}？分类下存在子分类或文件时不能删除。`)) {
     return
   }
+  deleting.value = true
   error.value = ""
   success.value = ""
   try {
@@ -285,13 +303,15 @@ async function deleteCategory(item: SystemMediaCategory) {
     await loadCategories()
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    deleting.value = false
   }
 }
 
 async function resetFilters() {
   keyword.value = ""
   page.value = 1
-  await loadAssets()
+  await autoRefresh.refreshNow()
 }
 
 async function previousPage() {
@@ -299,7 +319,7 @@ async function previousPage() {
     return
   }
   page.value -= 1
-  await loadAssets()
+  await autoRefresh.refreshNow()
 }
 
 async function nextPage() {
@@ -307,7 +327,12 @@ async function nextPage() {
     return
   }
   page.value += 1
-  await loadAssets()
+  await autoRefresh.refreshNow()
+}
+
+async function search() {
+  page.value = 1
+  await autoRefresh.refreshNow()
 }
 
 function flattenCategories(items: SystemMediaCategory[] | null | undefined, depth = 0): FlatCategory[] {
@@ -352,13 +377,11 @@ function saveBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-onMounted(async () => {
-  await refreshAll()
-})
+onMounted(autoRefresh.refreshNow)
 
 watch(pageSize, async () => {
   page.value = 1
-  await loadAssets()
+  await autoRefresh.refreshNow()
 })
 
 useHead({
@@ -370,7 +393,13 @@ useHead({
   <div class="page-grid">
     <PageHeader title="媒体库" icon="image-up" description="管理本地上传文件和外链资源。">
       <template #actions>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading || categoryLoading" @click="refreshAll">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading || categoryLoading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 
@@ -443,9 +472,9 @@ useHead({
             <input ref="fileInput" class="media-file-input" multiple type="file" @change="onFileSelected">
             <AoiButton appearance="soft" icon="upload" :disabled="uploadDisabled" :loading="uploading" @click="openFilePicker">普通上传</AoiButton>
             <AoiButton appearance="soft" icon="link" :disabled="!persisted" @click="openImportDialog">导入URL</AoiButton>
-            <AoiTextField v-model="keyword" label="文件名或备注" icon="search" placeholder="请输入文件名或备注" @enter="page = 1; loadAssets()" />
-            <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="page = 1; loadAssets()" />
-            <AoiButton appearance="soft" icon="search" :loading="loading" @click="page = 1; loadAssets()">查询</AoiButton>
+            <AoiTextField v-model="keyword" label="文件名或备注" icon="search" placeholder="请输入文件名或备注" @enter="search" />
+            <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="search" />
+            <AoiButton appearance="soft" icon="search" :loading="loading" @click="search">查询</AoiButton>
             <AoiButton appearance="plain" icon="rotate-ccw" @click="resetFilters">重置</AoiButton>
           </div>
 

@@ -184,7 +184,8 @@ Content-Type: application/json
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
 | GET | `/api/v1/system/menus` | 登录可见 | 返回当前用户可见的后台菜单分组。 |
-| GET | `/api/v1/system/config` | `config:read` | 返回当前进程脱敏后的运行配置快照，敏感字段只显示是否已配置。 |
+| GET | `/api/v1/system/config` | `config:read` | 返回后端配置管理器当前脱敏运行配置快照，敏感字段只显示是否已配置。 |
+| PATCH | `/api/v1/system/config` | `config:update` | 更新后端配置管理器当前快照；请求体 `persist=true` 时将支持的标量字段和字符串列表写回当前 YAML 配置文件，环境变量管理项拒绝持久化，保存后返回脱敏快照。 |
 | GET | `/api/v1/system/server-info` | `server:read` | 返回主机 CPU/RAM/磁盘以及当前后端进程的运行时、内存、GC 和构建信息快照。 |
 | GET | `/api/v1/system/apis` | `permission:read` | 返回当前进程真实注册的 HTTP API 目录。 |
 | POST | `/api/v1/system/apis/sync` | `permission:read` | 同步当前进程 HTTP API 目录到 `system_apis` 表；表未迁移时只刷新目录并返回未持久化状态。 |

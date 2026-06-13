@@ -28,8 +28,10 @@ const hasSelection = computed(() => selectedIds.value.length > 0)
 const editing = computed(() => Boolean(editParameterId.value))
 const selectedParameter = computed(() => pageData.value.items.find((item) => item.id === editParameterId.value) || null)
 
-async function load() {
-  loading.value = true
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     pageData.value = await api.listSystemParameters({
@@ -44,9 +46,16 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
+
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || saving.value || deleting.value),
+  load
+})
 
 async function resetFilters() {
   name.value = ""
@@ -54,7 +63,7 @@ async function resetFilters() {
   startCreatedAt.value = ""
   endCreatedAt.value = ""
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function submitParameter() {
@@ -145,7 +154,7 @@ async function previousPage() {
     return
   }
   page.value -= 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function nextPage() {
@@ -153,7 +162,12 @@ async function nextPage() {
     return
   }
   page.value += 1
-  await load()
+  await autoRefresh.refreshNow()
+}
+
+async function search() {
+  page.value = 1
+  await autoRefresh.refreshNow()
 }
 
 function toggleAll(event: Event) {
@@ -174,11 +188,11 @@ function toQueryDate(value: string) {
   return value || undefined
 }
 
-onMounted(load)
+onMounted(autoRefresh.refreshNow)
 
 watch(pageSize, async () => {
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 })
 
 useHead({
@@ -191,7 +205,13 @@ useHead({
     <PageHeader title="参数管理" icon="compass" description="维护系统运行期可读取的键值参数。">
       <template #actions>
         <AoiButton appearance="soft" icon="plus" @click="startCreate">新增</AoiButton>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
         <AoiButton appearance="soft" intent="danger" icon="trash-2" :disabled="!hasSelection || !persisted" :loading="deleting" @click="deleteSelected">删除</AoiButton>
       </template>
     </PageHeader>
@@ -215,12 +235,12 @@ useHead({
         </div>
 
         <div class="admin-filter-toolbar">
-          <AoiTextField v-model="name" label="参数名称" icon="search" placeholder="站点名称" @enter="page = 1; load()" />
-          <AoiTextField v-model="key" label="参数键" icon="key-round" placeholder="site.name" @enter="page = 1; load()" />
+          <AoiTextField v-model="name" label="参数名称" icon="search" placeholder="站点名称" @enter="search" />
+          <AoiTextField v-model="key" label="参数键" icon="key-round" placeholder="site.name" @enter="search" />
           <AoiTextField v-model="startCreatedAt" label="开始日期" icon="calendar" type="date" />
           <AoiTextField v-model="endCreatedAt" label="结束日期" icon="calendar" type="date" />
-          <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="page = 1; load()" />
-          <AoiButton appearance="soft" icon="search" :loading="loading" @click="page = 1; load()">查询</AoiButton>
+          <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="search" />
+          <AoiButton appearance="soft" icon="search" :loading="loading" @click="search">查询</AoiButton>
           <AoiButton appearance="plain" icon="rotate-ccw" @click="resetFilters">重置</AoiButton>
         </div>
 

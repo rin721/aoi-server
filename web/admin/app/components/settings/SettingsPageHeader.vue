@@ -1,19 +1,57 @@
-﻿<script setup lang="ts">
-withDefaults(defineProps<{
+<script setup lang="ts">
+const props = withDefaults(defineProps<{
+  autoRefresh?: {
+    disabled?: boolean
+    enabled: boolean
+    lastRefreshedLabel: string
+    nextRefreshLabel: string
+    statusLabel: string
+  }
   description?: string
+  refreshDisabled?: boolean
+  refreshLabel?: string
+  refreshLoading?: boolean
   title: string
 }>(), {
-  description: undefined
+  autoRefresh: undefined,
+  description: undefined,
+  refreshDisabled: false,
+  refreshLabel: "刷新",
+  refreshLoading: false
 })
+
+const emit = defineEmits<{
+  "refresh": []
+  "update:autoRefreshEnabled": [value: boolean]
+}>()
 </script>
 
 <template>
   <header v-aoi-reveal="'rise'" class="settings-page-header">
     <div class="settings-page-header__copy">
-      <h1>{{ title }}</h1>
-      <p v-if="description">{{ description }}</p>
+      <h1>{{ props.title }}</h1>
+      <p v-if="props.description">{{ props.description }}</p>
     </div>
-    <div v-if="$slots.actions" class="settings-page-header__actions">
+    <div v-if="props.autoRefresh || $slots.actions" class="settings-page-header__actions">
+      <AdminAutoRefreshControls
+        v-if="props.autoRefresh"
+        :model-value="props.autoRefresh.enabled"
+        :disabled="props.autoRefresh.disabled"
+        :last-refreshed-label="props.autoRefresh.lastRefreshedLabel"
+        :next-refresh-label="props.autoRefresh.nextRefreshLabel"
+        :status-label="props.autoRefresh.statusLabel"
+        @update:model-value="emit('update:autoRefreshEnabled', $event)"
+      />
+      <AoiButton
+        v-if="props.autoRefresh"
+        appearance="soft"
+        icon="refresh-cw"
+        :disabled="props.refreshDisabled"
+        :loading="props.refreshLoading"
+        @click="emit('refresh')"
+      >
+        {{ props.refreshLabel }}
+      </AoiButton>
       <slot name="actions" />
     </div>
   </header>
@@ -53,6 +91,7 @@ withDefaults(defineProps<{
   flex-wrap: wrap;
   gap: var(--aoi-grid-gap-compact);
   justify-content: end;
+  min-width: 0;
 }
 
 @media (max-width: 639px) {
@@ -65,5 +104,3 @@ withDefaults(defineProps<{
   }
 }
 </style>
-
-

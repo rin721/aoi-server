@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	appconstants "github.com/rei0721/go-scaffold/types/constants"
 )
 
 const (
@@ -91,7 +93,12 @@ func normalizeWebUIMountPath(value string) string {
 }
 
 func webUIReservedPath(value string) bool {
-	for _, reserved := range []string{"/api", "/api/v1", "/health", "/ready"} {
+	for _, reserved := range []string{
+		appconstants.APIPathRoot,
+		appconstants.APIBasePath,
+		appconstants.HTTPHealthPath,
+		appconstants.HTTPReadyPath,
+	} {
 		if value == reserved || strings.HasPrefix(value, reserved+"/") {
 			return true
 		}

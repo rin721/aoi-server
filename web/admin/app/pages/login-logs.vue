@@ -16,13 +16,15 @@ const error = ref("")
 const limitNumber = computed(() => Math.min(200, Math.max(1, Number(limit.value) || 50)))
 const loginLogs = computed(() => logs.value.filter((item) => item.action === "auth.login"))
 
-async function load() {
+async function load(options: { silent?: boolean } = {}) {
   if (!auth.currentOrgId) {
     logs.value = []
     return
   }
 
-  loading.value = true
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     const items = await api.listAuditLogs(auth.currentOrgId, {
@@ -37,9 +39,13 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
+
+const autoRefresh = useAdminAutoRefresh({ blocked: loading, load })
 
 async function resetFilters() {
   userId.value = ""
@@ -47,7 +53,7 @@ async function resetFilters() {
   from.value = ""
   to.value = ""
   limit.value = "50"
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 function deviceName(value: string) {
@@ -69,8 +75,10 @@ function deviceName(value: string) {
   return value.slice(0, 48)
 }
 
-onMounted(load)
-watch(() => auth.currentOrgId, load)
+onMounted(autoRefresh.refreshNow)
+watch(() => auth.currentOrgId, () => {
+  void autoRefresh.refreshNow()
+})
 
 useHead({
   title: "登录日志 - Aoi Admin"
@@ -81,7 +89,13 @@ useHead({
   <div class="page-grid">
     <PageHeader title="登录日志" icon="log-in" description="展示当前组织的登录审计记录，数据来自 IAM audit log 的 auth.login 事件。">
       <template #actions>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
       </template>
     </PageHeader>
 
@@ -97,12 +111,12 @@ useHead({
       </div>
 
       <div class="admin-filter-toolbar login-log-filter-toolbar">
-        <AoiTextField v-model="userId" label="用户 ID" icon="user" placeholder="10001" @enter="load" />
-        <AoiTextField v-model="ipAddress" label="登录 IP" icon="map-pin" placeholder="127.0.0.1" @enter="load" />
-        <AoiTextField v-model="from" label="开始时间" type="datetime-local" icon="calendar" @enter="load" />
-        <AoiTextField v-model="to" label="结束时间" type="datetime-local" icon="calendar" @enter="load" />
-        <AoiTextField v-model="limit" label="数量" type="number" min="1" max="200" step="1" icon="list-filter" @enter="load" />
-        <AoiButton appearance="soft" icon="search" :loading="loading" @click="load">查询</AoiButton>
+        <AoiTextField v-model="userId" label="用户 ID" icon="user" placeholder="10001" @enter="autoRefresh.refreshNow" />
+        <AoiTextField v-model="ipAddress" label="登录 IP" icon="map-pin" placeholder="127.0.0.1" @enter="autoRefresh.refreshNow" />
+        <AoiTextField v-model="from" label="开始时间" type="datetime-local" icon="calendar" @enter="autoRefresh.refreshNow" />
+        <AoiTextField v-model="to" label="结束时间" type="datetime-local" icon="calendar" @enter="autoRefresh.refreshNow" />
+        <AoiTextField v-model="limit" label="数量" type="number" min="1" max="200" step="1" icon="list-filter" @enter="autoRefresh.refreshNow" />
+        <AoiButton appearance="soft" icon="search" :loading="loading" @click="autoRefresh.refreshNow">查询</AoiButton>
         <AoiButton appearance="plain" icon="rotate-ccw" @click="resetFilters">重置</AoiButton>
       </div>
 

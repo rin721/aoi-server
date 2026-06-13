@@ -10,6 +10,7 @@
 | API 目录 | `/api/v1/system/apis` 来自当前进程真实注册路由，可同步到 `system_apis` 表。 |
 | 字典管理 | `system_dictionaries` 和 `system_dictionary_items` 存储可维护字典。 |
 | 参数管理 | `system_parameters` 存储运行期可读参数。 |
+| 系统配置 | `/api/v1/system/config` 返回后端配置管理器当前脱敏快照；PATCH 默认更新运行时快照，`persist=true` 时写回当前 YAML 配置文件，支持标量字段和字符串列表。 |
 | 操作记录 | `system_operation_records` 记录受保护 API 请求。 |
 | 服务器状态 | `/api/v1/system/server-info` 暴露运行时、主机指标和构建信息快照。 |
 | 版本发布包 | `system_versions` 存储菜单、API、字典的发布包 JSON，用于发版留痕、下载和跨环境导入。 |
@@ -43,7 +44,7 @@
 - 断点上传复用媒体库资产模型，先创建 `system_media_upload_sessions` 会话，再把分片写到 `media/chunks/<session-id>/`，完成时校验整文件 SHA-256 并合并为普通媒体资产。
 - URL 导入只登记外链元数据，不抓取远程内容，避免把远程下载、类型探测和安全扫描混进导入请求。
 - `storage.enabled=false` 时仍可查看数据库中的媒体记录和导入外链；普通上传、断点上传、本地文件下载和本地对象删除会返回 storage unavailable。
-- 下载本地文件需要 IAM 鉴权，前端通过带 Bearer Token 的 blob 请求保存文件，不暴露匿名静态下载链接。
+- 下载本地文件需要 IAM 鉴权，前端通过带 Bearer Token 的 blob 请求保存文件，不暴露匿名静态下载链接。资产记录中的本地下载 URL 由 `types/constants.MediaAssetDownloadPath()` 生成，保持普通上传、断点上传和 HTTP 路由契约一致。
 
 常用权限：
 
@@ -71,7 +72,8 @@
 前端治理入口：
 
 - `web/admin/app/config/admin-api.ts` 集中保存后台 API endpoint。
-- `web/admin/app/config/server-status-dashboard.ts` 集中保存 KPI 顺序、资源面板顺序、字段 label、阈值、状态文案、状态权重、格式化规则、刷新策略和空状态文案。
+- `web/admin/app/config/admin-auto-refresh.ts` 集中保存后台通用自动刷新默认值、最小间隔、倒计时 tick、默认手动刷新冷却、时间单位、时间 locale 和共享控件/状态文案。
+- `web/admin/app/config/server-status-dashboard.ts` 集中保存 KPI 顺序、资源面板顺序、字段 label、阈值、状态文案、状态权重、格式化规则、页面级刷新策略、手动刷新冷却和空状态文案。
 - `web/admin/app/utils/serverStatusDashboard.ts` 负责把真实接口数据派生为页面模型，统一处理状态判断、异常优先、容量换算、百分比边界和空值 fallback。
 - `web/admin/app/pages/server-info.vue` 只渲染派生模型，不直接定义阈值、字段映射、排序规则、单位换算或接口路径。
 
@@ -80,4 +82,4 @@
 - 新增指标时，先确认后端是否真实返回字段；没有字段时只记录扩展点，不在前端 mock。
 - 新增资源卡片、KPI 或表格列时，优先扩展 `SERVER_STATUS_DASHBOARD_CONFIG`，页面按配置渲染。
 - 新增状态类型时，同步更新 `ServerStatusHealthLevel`、`statusLabels`、`statusWeights` 和派生函数，不要在页面中单独判断颜色或文案。
-- 调整刷新策略时修改 `refresh.autoEnabled`、`refresh.intervalMs` 或 `refresh.manualCooldownMs`，不要在页面里散落定时器数字。
+- 调整服务器状态页刷新策略时修改 `refresh.autoEnabled`、`refresh.intervalMs` 或 `refresh.manualCooldownMs`；调整通用控件文案、默认间隔、默认手动冷却或倒计时单位时修改 `admin-auto-refresh.ts`。手动冷却只约束真实点击刷新，不应阻塞自动静默刷新、筛选分页或数据变更后的程序化刷新。自动刷新控件布局参数继续使用共享 CSS token；窄屏换行由控件自身的 flex wrapping 兜底，不在页面内新增断点。

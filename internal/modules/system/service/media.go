@@ -15,6 +15,7 @@ import (
 	"github.com/rei0721/go-scaffold/internal/modules/system/model"
 	"github.com/rei0721/go-scaffold/internal/modules/system/repository"
 	"github.com/rei0721/go-scaffold/pkg/database"
+	appconstants "github.com/rei0721/go-scaffold/types/constants"
 )
 
 type MediaObjectStorage interface {
@@ -265,7 +266,7 @@ func (s *service) UploadMediaAsset(ctx context.Context, input UploadMediaAssetIn
 		UpdatedAt:          now,
 		UploadedBy:         input.UploadedBy,
 		UploadedByUsername: cleanMediaName(input.UploadedByUsername, 128),
-		URL:                "/api/v1/system/media/assets/" + strconv.FormatInt(id, 10) + "/download",
+		URL:                appconstants.MediaAssetDownloadPath(id),
 	}
 	if err := s.repo.CreateMediaAsset(ctx, asset); err != nil {
 		_ = s.objectStore.Remove(key)

@@ -18,8 +18,10 @@ const pageSizeNumber = computed(() => Math.min(100, Math.max(1, Number(pageSize.
 const totalPages = computed(() => Math.max(1, Math.ceil(pageData.value.total / pageSizeNumber.value)))
 const hasSelection = computed(() => selectedIds.value.length > 0)
 
-async function load() {
-  loading.value = true
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   try {
     pageData.value = await api.listSystemOperationRecords({
@@ -33,16 +35,23 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
+
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || deleting.value),
+  load
+})
 
 async function resetFilters() {
   method.value = ""
   path.value = ""
   status.value = ""
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function deleteSelected() {
@@ -67,7 +76,7 @@ async function previousPage() {
     return
   }
   page.value -= 1
-  await load()
+  await autoRefresh.refreshNow()
 }
 
 async function nextPage() {
@@ -75,7 +84,12 @@ async function nextPage() {
     return
   }
   page.value += 1
-  await load()
+  await autoRefresh.refreshNow()
+}
+
+async function search() {
+  page.value = 1
+  await autoRefresh.refreshNow()
 }
 
 function toggleAll(event: Event) {
@@ -111,11 +125,11 @@ function payloadPreview(value: string) {
   }
 }
 
-onMounted(load)
+onMounted(autoRefresh.refreshNow)
 
 watch([pageSize], async () => {
   page.value = 1
-  await load()
+  await autoRefresh.refreshNow()
 })
 
 useHead({
@@ -127,7 +141,13 @@ useHead({
   <div class="page-grid">
     <PageHeader title="操作历史" icon="history" description="记录后台受保护 API 的请求方法、路径、状态码、耗时和操作者。">
       <template #actions>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
         <AoiButton appearance="soft" intent="danger" icon="trash-2" :disabled="!hasSelection || !persisted" :loading="deleting" @click="deleteSelected">删除</AoiButton>
       </template>
     </PageHeader>
@@ -149,11 +169,11 @@ useHead({
       </div>
 
       <div class="admin-filter-toolbar">
-        <AoiTextField v-model="method" label="请求方法" icon="activity" placeholder="GET" @enter="load" />
-        <AoiTextField v-model="path" label="请求路径" icon="route" placeholder="/api/v1/system" @enter="load" />
-        <AoiTextField v-model="status" label="结果状态码" icon="hash" placeholder="200" @enter="load" />
-        <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="load" />
-        <AoiButton appearance="soft" icon="search" :loading="loading" @click="page = 1; load()">查询</AoiButton>
+        <AoiTextField v-model="method" label="请求方法" icon="activity" placeholder="GET" @enter="search" />
+        <AoiTextField v-model="path" label="请求路径" icon="route" placeholder="/api/v1/system" @enter="search" />
+        <AoiTextField v-model="status" label="结果状态码" icon="hash" placeholder="200" @enter="search" />
+        <AoiTextField v-model="pageSize" label="每页" icon="list-filter" type="number" min="1" max="100" step="1" @enter="search" />
+        <AoiButton appearance="soft" icon="search" :loading="loading" @click="search">查询</AoiButton>
         <AoiButton appearance="plain" icon="rotate-ccw" @click="resetFilters">重置</AoiButton>
       </div>
 

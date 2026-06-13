@@ -18,12 +18,14 @@ import (
 )
 
 type Config struct {
-	DemoEnabled   bool
-	MediaMaxBytes int64
-	MediaPrefix   string
-	RuntimeConfig model.ConfigSnapshot
-	Now           func() time.Time
-	StartTime     time.Time
+	DemoEnabled    bool
+	MediaMaxBytes  int64
+	MediaPrefix    string
+	RuntimeConfig  model.ConfigSnapshot
+	ConfigProvider func() model.ConfigSnapshot
+	ConfigUpdater  func(context.Context, UpdateConfigInput) (model.ConfigSnapshot, error)
+	Now            func() time.Time
+	StartTime      time.Time
 }
 
 type Service interface {
@@ -66,6 +68,7 @@ type Service interface {
 	SeedDefaults(context.Context) (SeedResult, error)
 	SyncAPIs(context.Context) (model.APISyncResult, error)
 	SyncPermissions(context.Context) (model.PermissionSyncResult, error)
+	UpdateConfig(context.Context, UpdateConfigInput) (model.ConfigSnapshot, error)
 	UpdateDictionary(context.Context, int64, UpdateDictionaryInput) (*model.Dictionary, error)
 	UpdateDictionaryItem(context.Context, int64, UpdateDictionaryItemInput) (*model.DictionaryItem, error)
 	UpdateMediaAsset(context.Context, int64, UpdateMediaAssetInput) (*model.MediaAsset, error)
@@ -125,6 +128,16 @@ type UpdateParameterInput struct {
 	Value       *string
 }
 
+type UpdateConfigInput struct {
+	Items   []UpdateConfigItem
+	Persist bool
+}
+
+type UpdateConfigItem struct {
+	Key   string
+	Value any
+}
+
 type OperationRecordInput struct {
 	Body         string
 	ErrorMessage string
@@ -161,6 +174,7 @@ type ParameterFilter struct {
 var (
 	ErrDuplicate          = errors.New("system resource already exists")
 	ErrExternalMedia      = errors.New("external media can be opened by url")
+	ErrConfigUnavailable  = errors.New("runtime config manager unavailable")
 	ErrInvalidInput       = errors.New("invalid system input")
 	ErrNotFound           = errors.New("system resource not found")
 	ErrStorageUnavailable = errors.New("system storage unavailable")
@@ -227,7 +241,35 @@ func (s *service) ListMenus(context.Context) ([]model.MenuGroup, error) {
 }
 
 func (s *service) ListConfig(context.Context) (model.ConfigSnapshot, error) {
+	if s.cfg.ConfigProvider != nil {
+		return cloneConfigSnapshot(s.cfg.ConfigProvider()), nil
+	}
 	return cloneConfigSnapshot(s.cfg.RuntimeConfig), nil
+}
+
+func (s *service) UpdateConfig(ctx context.Context, input UpdateConfigInput) (model.ConfigSnapshot, error) {
+	if s.cfg.ConfigUpdater == nil {
+		return model.ConfigSnapshot{}, ErrConfigUnavailable
+	}
+	items := make([]UpdateConfigItem, 0, len(input.Items))
+	for _, item := range input.Items {
+		key := strings.TrimSpace(item.Key)
+		if key == "" {
+			return model.ConfigSnapshot{}, ErrInvalidInput
+		}
+		items = append(items, UpdateConfigItem{
+			Key:   key,
+			Value: item.Value,
+		})
+	}
+	if len(items) == 0 {
+		return model.ConfigSnapshot{}, ErrInvalidInput
+	}
+	snapshot, err := s.cfg.ConfigUpdater(ctx, UpdateConfigInput{Items: items, Persist: input.Persist})
+	if err != nil {
+		return model.ConfigSnapshot{}, err
+	}
+	return cloneConfigSnapshot(snapshot), nil
 }
 
 func (s *service) GetServerInfo(ctx context.Context) (model.ServerInfo, error) {

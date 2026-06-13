@@ -55,8 +55,10 @@ const filteredGroups = computed(() => {
     .filter((group) => group.items.length > 0)
 })
 
-async function load() {
-  loading.value = true
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    loading.value = true
+  }
   error.value = ""
   success.value = ""
   try {
@@ -64,9 +66,16 @@ async function load() {
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
-    loading.value = false
+    if (!options.silent) {
+      loading.value = false
+    }
   }
 }
+
+const autoRefresh = useAdminAutoRefresh({
+  blocked: computed(() => loading.value || syncing.value || syncingPermissions.value),
+  load
+})
 
 async function syncAPIs() {
   syncing.value = true
@@ -156,7 +165,7 @@ function accessClass(value: SystemAPIEntry["access"]) {
   }
 }
 
-onMounted(load)
+onMounted(autoRefresh.refreshNow)
 
 useHead({
   title: "API 管理 - Aoi Admin"
@@ -167,7 +176,13 @@ useHead({
   <div class="page-grid">
     <PageHeader title="API 管理" icon="code-2" description="查看当前后端注册的 HTTP API 目录，作为权限、菜单和审计治理的基础索引。">
       <template #actions>
-        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" @click="load">刷新</AoiButton>
+        <AdminAutoRefreshControls
+          v-model="autoRefresh.enabled.value"
+          :last-refreshed-label="autoRefresh.lastRefreshedLabel.value"
+          :next-refresh-label="autoRefresh.nextRefreshLabel.value"
+          :status-label="autoRefresh.statusLabel.value"
+        />
+        <AoiButton appearance="soft" icon="refresh-cw" :loading="loading" :disabled="autoRefresh.refreshDisabled.value" @click="autoRefresh.refreshNow">刷新</AoiButton>
         <AoiButton icon="repeat" :loading="syncing" @click="syncAPIs">同步路由</AoiButton>
         <AoiButton icon="shield-check" :loading="syncingPermissions" @click="syncPermissions">同步权限</AoiButton>
       </template>
@@ -191,7 +206,7 @@ useHead({
         </div>
       </div>
       <div class="admin-filter-toolbar">
-        <AoiTextField v-model="query" label="关键词" icon="search" placeholder="/api/v1/orgs" @enter="load" />
+        <AoiTextField v-model="query" label="关键字" icon="search" placeholder="/api/v1/orgs" @enter="autoRefresh.refreshNow" />
         <AoiSelect
           :model-value="groupCode"
           label="分组"
