@@ -400,14 +400,23 @@ func (m *manager) Update(fn func(*Config), options ...UpdateOption) error {
 	// 用户在这里修改配置
 	fn(newCfg)
 
+	persistPaths := updateOptions.persistPaths
+	if updateOptions.envManagedPersistMode == EnvManagedPersistRuntimeEnvOnly && len(persistPaths) > 0 {
+		runtimeOnlyPaths, err := m.applyRuntimeEnvOnlyPersistPaths(newCfg, persistPaths)
+		if err != nil {
+			return err
+		}
+		persistPaths = removeConfigPaths(persistPaths, runtimeOnlyPaths)
+	}
+
 	// 验证新配置
 	// 确保修改后的配置仍然有效
 	if err := newCfg.Validate(); err != nil {
 		return fmt.Errorf("config validation failed: %w", err)
 	}
 
-	if len(updateOptions.persistPaths) > 0 {
-		if err := m.persistConfigUpdate(newCfg, updateOptions.persistPaths); err != nil {
+	if len(persistPaths) > 0 {
+		if err := m.persistConfigUpdate(newCfg, persistPaths, updateOptions); err != nil {
 			return err
 		}
 	}

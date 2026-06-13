@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -260,6 +261,97 @@ func TestUpdateWithPersistRejectsActiveEnvOverride(t *testing.T) {
 	}
 	if got := m.Get().Server.Port; got != 19090 {
 		t.Fatalf("expected current config to remain env value, got port %d", got)
+	}
+}
+
+func TestUpdateWithPersistForceFileOverwritesEnvManagedFileNode(t *testing.T) {
+	configPath := copyConfigExampleForTest(t)
+	unsetEnvForTest(t, EnvNamesForPath("auth.signing_key")...)
+
+	m := NewManager()
+	if err := m.Load(configPath); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if err := m.Update(func(cfg *Config) {
+		cfg.Auth.SigningKey = "forced-signing-secret-at-least-32-bytes"
+	}, WithPersistedPaths("auth.signing_key"), WithEnvManagedPersistMode(EnvManagedPersistForceFile)); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	text := string(content)
+	if !strings.Contains(text, `signing_key: "forced-signing-secret-at-least-32-bytes"`) {
+		t.Fatalf("forced persisted config missing signing key:\n%s", text)
+	}
+	if strings.Contains(text, "${AUTH_SIGNING_KEY") {
+		t.Fatalf("forced update should overwrite signing key placeholder:\n%s", text)
+	}
+}
+
+func TestUpdateWithPersistRuntimeEnvOnlyUsesEnvironmentWithoutWritingFile(t *testing.T) {
+	configPath := copyConfigExampleForTest(t)
+	unsetEnvForTest(t, EnvNamesForPath("auth.signing_key")...)
+	envNames := EnvNamesForPath("auth.signing_key")
+	if len(envNames) == 0 {
+		t.Fatal("auth.signing_key should expose environment names")
+	}
+	envValue := "runtime-env-signing-secret-at-least-32-bytes"
+	t.Setenv(envNames[0], envValue)
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config before update: %v", err)
+	}
+
+	m := NewManager()
+	if err := m.Load(configPath); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if err := m.Update(func(cfg *Config) {
+		cfg.Auth.SigningKey = "ignored-generated-signing-secret-at-least-32-bytes"
+	}, WithPersistedPaths("auth.signing_key"), WithEnvManagedPersistMode(EnvManagedPersistRuntimeEnvOnly)); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config after update: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("runtime env-only update should not write file\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	if got := m.Get().Auth.SigningKey; got != envValue {
+		t.Fatalf("runtime signing key = %q, want %q", got, envValue)
+	}
+}
+
+func TestUpdateWithPersistRuntimeEnvOnlyRejectsMissingEnvironment(t *testing.T) {
+	configPath := copyConfigExampleForTest(t)
+	unsetEnvForTest(t, EnvNamesForPath("auth.signing_key")...)
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config before update: %v", err)
+	}
+
+	m := NewManager()
+	if err := m.Load(configPath); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	err = m.Update(func(cfg *Config) {
+		cfg.Auth.SigningKey = "ignored-generated-signing-secret-at-least-32-bytes"
+	}, WithPersistedPaths("auth.signing_key"), WithEnvManagedPersistMode(EnvManagedPersistRuntimeEnvOnly))
+	if err == nil || !strings.Contains(err.Error(), "set one of") {
+		t.Fatalf("expected missing environment error, got %v", err)
+	}
+
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config after update: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("failed runtime env-only update should not write file\nbefore:\n%s\nafter:\n%s", before, after)
 	}
 }
 
@@ -786,6 +878,24 @@ cors:
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
+}
+
+func copyConfigExampleForTest(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	raw, err := os.ReadFile(filepath.Join(root, "configs", "config.example.yaml"))
+	if err != nil {
+		t.Fatalf("read config example: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatalf("write config copy: %v", err)
+	}
+	return path
 }
 
 // unsetEnvForTest 清理测试期间设置的环境变量或全局状态，避免用例之间互相污染。

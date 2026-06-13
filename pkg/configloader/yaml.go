@@ -28,12 +28,27 @@ type YAMLScalarUpdate struct {
 	Values []string
 }
 
+// YAMLUpdateOption 调整 YAML 标量持久化行为。
+type YAMLUpdateOption func(*yamlUpdateOptions)
+
+type yamlUpdateOptions struct {
+	allowEnvPlaceholderOverwrite bool
+}
+
 var envPlaceholderPattern = regexp.MustCompile(`\$\{[^}]+\}`)
 
-func UpdateYAMLScalars(path string, updates []YAMLScalarUpdate) error {
+// WithEnvPlaceholderOverwrite 允许显式覆盖包含 ${...} 环境变量占位符的 YAML 节点。
+func WithEnvPlaceholderOverwrite() YAMLUpdateOption {
+	return func(options *yamlUpdateOptions) {
+		options.allowEnvPlaceholderOverwrite = true
+	}
+}
+
+func UpdateYAMLScalars(path string, updates []YAMLScalarUpdate, options ...YAMLUpdateOption) error {
 	if !isYAMLFile(path) {
 		return fmt.Errorf("persistent config update only supports YAML files")
 	}
+	updateOptions := collectYAMLUpdateOptions(options)
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read config file: %w", err)
@@ -57,7 +72,7 @@ func UpdateYAMLScalars(path string, updates []YAMLScalarUpdate) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", update.Path, err)
 		}
-		if yamlNodeContainsEnvPlaceholder(node) {
+		if yamlNodeContainsEnvPlaceholder(node) && !updateOptions.allowEnvPlaceholderOverwrite {
 			return fmt.Errorf("%s is managed by environment placeholder", update.Path)
 		}
 		if err := setYAMLScalarValue(node, update); err != nil {
@@ -76,6 +91,41 @@ func UpdateYAMLScalars(path string, updates []YAMLScalarUpdate) error {
 		return fmt.Errorf("write config file: %w", err)
 	}
 	return nil
+}
+
+func collectYAMLUpdateOptions(options []YAMLUpdateOption) yamlUpdateOptions {
+	var collected yamlUpdateOptions
+	for _, option := range options {
+		if option != nil {
+			option(&collected)
+		}
+	}
+	return collected
+}
+
+// YAMLPathContainsEnvPlaceholder 判断 YAML 文件中指定路径是否包含 ${...} 环境变量占位符。
+func YAMLPathContainsEnvPlaceholder(path string, valuePath string) (bool, error) {
+	if !isYAMLFile(path) {
+		return false, fmt.Errorf("persistent config update only supports YAML files")
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false, fmt.Errorf("read config file: %w", err)
+	}
+
+	var document yaml.Node
+	if err := yaml.Unmarshal(content, &document); err != nil {
+		return false, fmt.Errorf("parse config file: %w", err)
+	}
+	root, err := yamlDocumentRoot(&document)
+	if err != nil {
+		return false, err
+	}
+	node, err := yamlValueNodeForPath(root, valuePath)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", valuePath, err)
+	}
+	return yamlNodeContainsEnvPlaceholder(node), nil
 }
 
 func isYAMLFile(path string) bool {

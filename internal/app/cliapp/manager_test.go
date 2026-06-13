@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	appconfig "github.com/rei0721/go-scaffold/internal/config"
 	"github.com/rei0721/go-scaffold/pkg/cli"
 )
 
@@ -257,6 +258,130 @@ func TestRunStartFlowShowsDependencyServicesThroughCLIUI(t *testing.T) {
 	}
 }
 
+func TestRunStartFlowForceWritesGeneratedEnvManagedPrivacy(t *testing.T) {
+	unsetEnvForTest(t, appconfig.EnvNamesForPath("auth.signing_key")...)
+	configPath := copyExampleConfig(t)
+	runner := &fakeProcessRunner{
+		startInfos:     []ProcessInfo{{PID: 321, ProcessStartTime: 12345}},
+		runningResults: []bool{true},
+	}
+	restoreFlowManager(t, testManager(t, runner))
+	ui := &fakePromptUI{
+		selects:  []string{ServiceServer, privacyActionForceFile, privacyActionSkip, privacyActionSkip},
+		confirms: []bool{true},
+		inputs:   []string{"generate"},
+	}
+	ctx := &cli.Context{
+		Context:      context.Background(),
+		Flags:        map[string]interface{}{"config": configPath},
+		ChangedFlags: map[string]bool{"config": true},
+		Stdout:       &bytes.Buffer{},
+		UI:           ui,
+	}
+
+	if err := RunStartFlow(ctx); err != nil {
+		t.Fatalf("RunStartFlow() error = %v", err)
+	}
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read updated config: %v", err)
+	}
+	text := string(content)
+	if strings.Contains(text, "${AUTH_SIGNING_KEY") || strings.Contains(text, "dev-signing-key-change-me-32-bytes") {
+		t.Fatalf("force generated signing key should replace placeholder:\n%s", text)
+	}
+	if !strings.Contains(text, `signing_key: "`) {
+		t.Fatalf("force generated signing key should be persisted as a quoted scalar:\n%s", text)
+	}
+	if len(runner.starts) != 1 {
+		t.Fatalf("StartProcess calls = %d, want 1", len(runner.starts))
+	}
+	if len(ui.infos) != 1 {
+		t.Fatalf("Info calls = %#v, want one privacy completion message", ui.infos)
+	}
+}
+
+func TestRunStartFlowRuntimeEnvOnlyKeepsConfigFile(t *testing.T) {
+	envNames := appconfig.EnvNamesForPath("auth.signing_key")
+	unsetEnvForTest(t, envNames...)
+	if len(envNames) == 0 {
+		t.Fatal("auth.signing_key should expose environment names")
+	}
+	t.Setenv(envNames[0], "runtime-env-signing-secret-at-least-32-bytes")
+	configPath := copyExampleConfig(t)
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config before run: %v", err)
+	}
+	runner := &fakeProcessRunner{
+		startInfos:     []ProcessInfo{{PID: 321, ProcessStartTime: 12345}},
+		runningResults: []bool{true},
+	}
+	restoreFlowManager(t, testManager(t, runner))
+	ctx := &cli.Context{
+		Context: context.Background(),
+		Flags: map[string]interface{}{
+			"config": configPath,
+		},
+		ChangedFlags: map[string]bool{"config": true},
+		Stdout:       &bytes.Buffer{},
+		UI: &fakePromptUI{
+			selects:  []string{ServiceServer, privacyActionRuntimeEnvOnly, privacyActionSkip, privacyActionSkip},
+			confirms: []bool{true},
+		},
+	}
+
+	if err := RunStartFlow(ctx); err != nil {
+		t.Fatalf("RunStartFlow() error = %v", err)
+	}
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config after run: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("runtime env-only flow should not write config\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	if len(runner.starts) != 1 {
+		t.Fatalf("StartProcess calls = %d, want 1", len(runner.starts))
+	}
+}
+
+func TestRunStartFlowRuntimeEnvOnlyRejectsMissingEnv(t *testing.T) {
+	unsetEnvForTest(t, appconfig.EnvNamesForPath("auth.signing_key")...)
+	configPath := copyExampleConfig(t)
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config before run: %v", err)
+	}
+	runner := &fakeProcessRunner{}
+	restoreFlowManager(t, testManager(t, runner))
+	ctx := &cli.Context{
+		Context:      context.Background(),
+		Flags:        map[string]interface{}{"config": configPath},
+		ChangedFlags: map[string]bool{"config": true},
+		Stdout:       &bytes.Buffer{},
+		UI: &fakePromptUI{
+			selects:  []string{ServiceServer, privacyActionRuntimeEnvOnly, privacyActionSkip, privacyActionSkip},
+			confirms: []bool{true},
+		},
+	}
+
+	err = RunStartFlow(ctx)
+	if err == nil || !strings.Contains(err.Error(), "set one of") {
+		t.Fatalf("expected missing environment error, got %v", err)
+	}
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config after run: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("failed runtime env-only flow should not write config\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	if len(runner.starts) != 0 {
+		t.Fatalf("StartProcess calls = %d, want 0", len(runner.starts))
+	}
+}
+
 // TestControlRequestMatchingRequiresServicePIDAndCreateTime 固定控制文件只作用于匹配的托管进程。
 func TestControlRequestMatchingRequiresServicePIDAndCreateTime(t *testing.T) {
 	self := ProcessInfo{PID: 10, ProcessStartTime: 20}
@@ -359,6 +484,39 @@ func copyWritablePrivacyConfig(t *testing.T) string {
 	return path
 }
 
+func restoreFlowManager(t *testing.T, manager *Manager) {
+	t.Helper()
+	previous := newFlowManager
+	newFlowManager = func() *Manager {
+		return manager
+	}
+	t.Cleanup(func() {
+		newFlowManager = previous
+	})
+}
+
+func unsetEnvForTest(t *testing.T, keys ...string) {
+	t.Helper()
+	for _, key := range keys {
+		key := key
+		oldValue, existed := os.LookupEnv(key)
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatalf("unset %s: %v", key, err)
+		}
+		t.Cleanup(func() {
+			if existed {
+				if err := os.Setenv(key, oldValue); err != nil {
+					t.Errorf("restore %s: %v", key, err)
+				}
+				return
+			}
+			if err := os.Unsetenv(key); err != nil {
+				t.Errorf("restore unset %s: %v", key, err)
+			}
+		})
+	}
+}
+
 func envContainsPrefix(values []string, prefix string) bool {
 	for _, value := range values {
 		if strings.HasPrefix(value, prefix) {
@@ -406,7 +564,10 @@ func (f *fakeProcessRunner) KillProcess(info ProcessInfo) error {
 }
 
 type fakePromptUI struct {
-	selects []string
+	selects  []string
+	confirms []bool
+	inputs   []string
+	infos    []string
 }
 
 func (f *fakePromptUI) Select(context.Context, string, []cli.SelectOption) (string, error) {
@@ -419,17 +580,28 @@ func (f *fakePromptUI) Select(context.Context, string, []cli.SelectOption) (stri
 }
 
 func (f *fakePromptUI) Confirm(context.Context, string, bool) (bool, error) {
-	return false, nil
+	if len(f.confirms) == 0 {
+		return false, nil
+	}
+	value := f.confirms[0]
+	f.confirms = f.confirms[1:]
+	return value, nil
 }
 
 func (f *fakePromptUI) Input(context.Context, string, string) (string, error) {
-	return "", nil
+	if len(f.inputs) == 0 {
+		return "", nil
+	}
+	value := f.inputs[0]
+	f.inputs = f.inputs[1:]
+	return value, nil
 }
 
 func (f *fakePromptUI) Password(context.Context, string) (string, error) {
 	return "", nil
 }
 
-func (f *fakePromptUI) Info(string) error {
+func (f *fakePromptUI) Info(message string) error {
+	f.infos = append(f.infos, message)
 	return nil
 }

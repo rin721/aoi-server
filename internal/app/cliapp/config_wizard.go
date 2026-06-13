@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	appconfig "github.com/rei0721/go-scaffold/internal/config"
+	"github.com/rei0721/go-scaffold/pkg/configloader"
 	"github.com/rei0721/go-scaffold/types/constants"
 )
 
@@ -18,6 +19,29 @@ var coreSecretPaths = []string{
 	"auth.signing_key",
 	"auth.refresh_token_pepper",
 	"auth.mfa_secret_key",
+}
+
+const (
+	privacyActionForceFile      = "force_file"
+	privacyActionRuntimeEnvOnly = "runtime_env_only"
+	privacyActionSkip           = "skip"
+)
+
+type privacyPersistPlan struct {
+	fileUpdates         map[string]string
+	forceFileUpdates    map[string]string
+	runtimeEnvOnlyPaths []string
+}
+
+func newPrivacyPersistPlan() privacyPersistPlan {
+	return privacyPersistPlan{
+		fileUpdates:      map[string]string{},
+		forceFileUpdates: map[string]string{},
+	}
+}
+
+func (plan privacyPersistPlan) hasChanges() bool {
+	return len(plan.fileUpdates) > 0 || len(plan.forceFileUpdates) > 0 || len(plan.runtimeEnvOnlyPaths) > 0
 }
 
 // DiscoverConfigFiles 返回启动向导可选配置，默认配置优先。
@@ -65,7 +89,7 @@ func PrintConfigSummary(stdout io.Writer, configPath string) error {
 }
 
 // ApplyPrivacyUpdates 使用配置管理器持久化隐私配置。
-func ApplyPrivacyUpdates(configPath string, updates map[string]string) error {
+func ApplyPrivacyUpdates(configPath string, updates map[string]string, options ...appconfig.UpdateOption) error {
 	paths := make([]string, 0, len(updates))
 	normalized := make(map[string]string, len(updates))
 	for path, value := range updates {
@@ -83,15 +107,43 @@ func ApplyPrivacyUpdates(configPath string, updates map[string]string) error {
 	if err := manager.Load(configPath); err != nil {
 		return err
 	}
+	updateOptions := []appconfig.UpdateOption{appconfig.WithPersistedPaths(paths...)}
+	updateOptions = append(updateOptions, options...)
 	err := manager.Update(func(cfg *appconfig.Config) {
 		for path, value := range normalized {
 			applyPrivacyValue(cfg, path, value)
 		}
-	}, appconfig.WithPersistedPaths(paths...))
+	}, updateOptions...)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+// ApplyPrivacyRuntimeEnvOnly 校验并应用真实环境变量中的隐私配置，不改写配置文件。
+func ApplyPrivacyRuntimeEnvOnly(configPath string, paths []string) error {
+	normalized := make([]string, 0, len(paths))
+	seen := map[string]struct{}{}
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" || !supportedPrivacyPath(path) {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		normalized = append(normalized, path)
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+
+	manager := appconfig.NewManager()
+	if err := manager.Load(configPath); err != nil {
+		return err
+	}
+	return manager.Update(func(*appconfig.Config) {}, appconfig.WithPersistedPaths(normalized...), appconfig.WithEnvManagedPersistMode(appconfig.EnvManagedPersistRuntimeEnvOnly))
 }
 
 func applyPrivacyValue(cfg *appconfig.Config, path string, value string) bool {
@@ -142,4 +194,13 @@ func randomSecret() string {
 
 func isExampleConfig(path string) bool {
 	return strings.Contains(strings.ToLower(filepath.Base(path)), ".example.")
+}
+
+func privacyPathIsEnvManaged(configPath string, path string) (bool, error) {
+	for _, envName := range appconfig.EnvNamesForPath(path) {
+		if value, ok := os.LookupEnv(envName); ok && value != "" {
+			return true, nil
+		}
+	}
+	return configloader.YAMLPathContainsEnvPlaceholder(configPath, path)
 }

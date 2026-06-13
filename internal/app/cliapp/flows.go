@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	appconfig "github.com/rei0721/go-scaffold/internal/config"
 	"github.com/rei0721/go-scaffold/pkg/cli"
 	"github.com/rei0721/go-scaffold/types/constants"
 )
@@ -51,11 +52,17 @@ func RunStartFlow(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		if len(updates) > 0 {
-			if err := ApplyPrivacyUpdates(configPath, updates); err != nil {
+		if updates.hasChanges() {
+			if err := ApplyPrivacyRuntimeEnvOnly(configPath, updates.runtimeEnvOnlyPaths); err != nil {
 				return err
 			}
-			_ = ui.Info("隐私配置已持久化。")
+			if err := ApplyPrivacyUpdates(configPath, updates.fileUpdates); err != nil {
+				return err
+			}
+			if err := ApplyPrivacyUpdates(configPath, updates.forceFileUpdates, appconfig.WithEnvManagedPersistMode(appconfig.EnvManagedPersistForceFile)); err != nil {
+				return err
+			}
+			_ = ui.Info("隐私配置已处理。")
 		}
 	}
 	state, err := newFlowManager().StartServer(ctx.Context, configPath)
@@ -239,30 +246,75 @@ func selectConfigPath(ctx *cli.Context) (string, error) {
 	return selected, nil
 }
 
-func promptPrivacyUpdates(ctx *cli.Context, configPath string) (map[string]string, error) {
+func promptPrivacyUpdates(ctx *cli.Context, configPath string) (privacyPersistPlan, error) {
 	paths, err := privacyPaths(configPath)
 	if err != nil {
-		return nil, err
+		return privacyPersistPlan{}, err
 	}
-	updates := map[string]string{}
+	updates := newPrivacyPersistPlan()
 	for _, path := range paths {
-		hint := "留空跳过"
-		if isGeneratedSecretPath(path) {
-			hint = "输入 generate 自动生成，留空跳过"
-		}
-		value, err := ctx.UI.Input(ctx.Context, path+"（"+hint+"）", "")
+		envManaged, err := privacyPathIsEnvManaged(configPath, path)
 		if err != nil {
-			return nil, err
+			return privacyPersistPlan{}, err
+		}
+		if envManaged {
+			action, err := ctx.UI.Select(ctx.Context, path+" 由环境变量管理，选择处理方式", []cli.SelectOption{
+				{Value: privacyActionForceFile, Label: "强制写入配置文件", Description: "替换配置文件中的环境变量占位符"},
+				{Value: privacyActionRuntimeEnvOnly, Label: "只使用当前环境变量启动", Description: "校验真实环境变量，配置文件保持不变"},
+				{Value: privacyActionSkip, Label: "跳过", Description: "保留当前配置"},
+			})
+			if err != nil {
+				return privacyPersistPlan{}, err
+			}
+			switch action {
+			case privacyActionRuntimeEnvOnly:
+				updates.runtimeEnvOnlyPaths = append(updates.runtimeEnvOnlyPaths, path)
+				continue
+			case privacyActionSkip, "":
+				continue
+			case privacyActionForceFile:
+				value, err := promptPrivacyValue(ctx, path)
+				if err != nil {
+					return privacyPersistPlan{}, err
+				}
+				if value != "" {
+					updates.forceFileUpdates[path] = value
+				}
+				continue
+			default:
+				return privacyPersistPlan{}, fmt.Errorf("unknown privacy config action %q", action)
+			}
+		}
+
+		value, err := promptPrivacyValue(ctx, path)
+		if err != nil {
+			return privacyPersistPlan{}, err
 		}
 		if value == "" {
 			continue
 		}
-		if strings.EqualFold(value, "generate") && isGeneratedSecretPath(path) {
-			value = randomSecret()
-		}
-		updates[path] = value
+		updates.fileUpdates[path] = value
 	}
 	return updates, nil
+}
+
+func promptPrivacyValue(ctx *cli.Context, path string) (string, error) {
+	hint := "留空跳过"
+	if isGeneratedSecretPath(path) {
+		hint = "输入 generate 自动生成，留空跳过"
+	}
+	value, err := ctx.UI.Input(ctx.Context, path+"（"+hint+"）", "")
+	if err != nil {
+		return "", err
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	if strings.EqualFold(value, "generate") && isGeneratedSecretPath(path) {
+		return randomSecret(), nil
+	}
+	return value, nil
 }
 
 func privacyPaths(configPath string) ([]string, error) {
