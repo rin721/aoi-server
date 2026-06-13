@@ -108,9 +108,12 @@ func (m homeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.help = ""
 				return m, nil
 			}
-			m.cancelled = true
+			m.exited = true
 			return m, tea.Quit
-		case "q", "ctrl+c":
+		case "q":
+			m.exited = true
+			return m, tea.Quit
+		case "ctrl+c":
 			m.cancelled = true
 			return m, tea.Quit
 		}

@@ -1,0 +1,162 @@
+# 场景：本地 SQLite + debug 通知 + Demo/IAM/WebUI 一体化。
+# 适合第一次运行、开发联调和演示。复制为 configs/config.yaml 后无需外部数据库或 Redis。
+
+server:
+  host: 127.0.0.1
+  port: 9999
+  mode: debug
+  read_timeout: 10
+  write_timeout: 10
+  idle_timeout: 30
+
+webui:
+  enabled: true
+  mount_path: /admin
+  dist_dir: ./web/admin/.output/public
+  public_base_url: /admin
+
+rpc:
+  enabled: false
+  host: 127.0.0.1
+  port: 10099
+  read_timeout: 10
+  write_timeout: 10
+  idle_timeout: 30
+
+plugins:
+  enabled: false
+  manifests:
+    - ./plugins/demo1/plugin.yaml
+  items: []
+  health_timeout_seconds: 3
+  proxy_timeout_seconds: 30
+
+database:
+  # SQLite 只需要 dbname 文件路径；host/port/user/password 保留为空用于展示完整字段。
+  driver: sqlite
+  host: ""
+  port: 0
+  user: ""
+  password: ""
+  dbname: ./data/app.db
+  max_open_conns: 1
+  max_idle_conns: 1
+
+redis:
+  # 本地默认不依赖 Redis。
+  enabled: false
+  host: 127.0.0.1
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 0
+  min_idle_conns: 0
+  max_retries: 0
+  dial_timeout: 5
+  read_timeout: 3
+  write_timeout: 3
+
+logger:
+  level: debug
+  format: console
+  console_format: console
+  file_format: json
+  output: stdout
+  file_path: ./logs/app.log
+  max_size: 100
+  max_backups: 7
+  max_age: 30
+
+i18n:
+  default: zh-CN
+  supported:
+    - zh-CN
+    - en-US
+  messages_dir: ./configs/locales
+
+executor:
+  enabled: true
+  pools:
+    - name: background
+      size: 8
+      expiry: 30
+      non_blocking: true
+
+storage:
+  # 只浏览记录时可关闭；需要媒体上传时改用 storage-media.example.yaml。
+  enabled: false
+  fs_type: basepath
+  base_path: ./data
+  enable_watch: false
+  watch_buffer_size: 100
+
+demo:
+  enabled: true
+  apply_schema_on_start: true
+
+system:
+  seed_defaults_on_start: true
+
+cors:
+  enabled: true
+  allow_origins:
+    - "*"
+  allow_methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - PATCH
+    - OPTIONS
+  allow_headers:
+    - Origin
+    - Content-Type
+    - X-Request-ID
+    - Authorization
+  expose_headers:
+    - X-Request-ID
+  allow_credentials: false
+  max_age: 3600
+
+auth:
+  enabled: true
+  self_signup_enabled: true
+  issuer: go-scaffold
+  audience:
+    - go-scaffold-api
+  signing_key: ${AUTH_SIGNING_KEY:dev-signing-key-change-me-32-bytes}
+  access_token_ttl_seconds: 900
+  refresh_token_ttl_seconds: 604800
+  refresh_token_pepper: ${AUTH_REFRESH_TOKEN_PEPPER:dev-refresh-pepper-change-me-32}
+  mfa_issuer: go-scaffold
+  mfa_secret_key: ${AUTH_MFA_SECRET_KEY:dev-mfa-secret-key-change-me-32-bytes}
+  login_max_failures: 5
+  login_lock_minutes: 15
+  login_captcha_enabled: false
+  captcha_ttl_seconds: 120
+  invitation_ttl_seconds: 86400
+  password_reset_ttl_seconds: 1800
+  # debug 通知会把邀请/重置 token 返回给调用方，只适合本地和测试。
+  notification_driver: debug
+  smtp:
+    host: ${AUTH_SMTP_HOST:}
+    port: ${AUTH_SMTP_PORT:587}
+    username: ${AUTH_SMTP_USERNAME:}
+    password: ${AUTH_SMTP_PASSWORD:}
+    from: ${AUTH_SMTP_FROM:}
+    from_name: ${AUTH_SMTP_FROM_NAME:Aoi Admin}
+    starttls: true
+  password_policy:
+    min_length: 8
+    require_lower: false
+    require_upper: false
+    require_number: false
+    require_symbol: false
+  casbin_reload_interval_seconds: 300
+
+migration:
+  auto_apply: true
+  dir: ./internal/migrations
+
+env_override:
+  disabled_paths: []

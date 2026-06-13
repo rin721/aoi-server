@@ -1,95 +1,245 @@
+# 本地开发完整示例。
+# 复制为 configs/config.yaml 后即可用于本地启动；生产环境请优先参考 deploy/config.production.example.yaml。
+# 配置加载顺序：读取 YAML -> 替换 ${VAR:default} 占位符 -> 应用 RIN_APP_* 环境变量覆盖 -> 校验。
+# 环境变量覆盖优先级高于配置文件；如需让某个路径固定使用文件值，可使用 env_override.disabled_paths。
+
 server:
-  # 服务器状态页会自动采集主机 CPU、内存和磁盘指标，无需额外配置。
+  # HTTP 服务监听地址。127.0.0.1 只允许本机访问，适合本地开发；容器或公网部署通常改为 0.0.0.0。
+  # 环境变量：RIN_APP_SERVER_HOST，兼容 SERVER_HOST。
   host: 127.0.0.1
+  # HTTP 监听端口，范围 1-65535。启动向导和状态页会用它展示访问地址。
+  # 环境变量：RIN_APP_SERVER_PORT，兼容 SERVER_PORT。
   port: 9999
+  # Gin 运行模式：debug、release、test。debug 会输出更详细日志；生产应使用 release。
+  # 环境变量：RIN_APP_SERVER_MODE，兼容 SERVER_MODE。
   mode: debug
+  # 读取请求头和请求体的超时时间，单位秒。过小会影响慢网络客户端，过大可能放大慢连接占用。
+  # 环境变量：RIN_APP_SERVER_READ_TIMEOUT，兼容 SERVER_READ_TIMEOUT。
   read_timeout: 10
+  # 写响应的超时时间，单位秒。大文件或长耗时接口可以适当调高。
+  # 环境变量：RIN_APP_SERVER_WRITE_TIMEOUT，兼容 SERVER_WRITE_TIMEOUT。
   write_timeout: 10
+  # keep-alive 空闲连接保留时间，单位秒。0 不是推荐值，示例使用 30 秒平衡复用和资源占用。
+  # 环境变量：RIN_APP_SERVER_IDLE_TIMEOUT，兼容 SERVER_IDLE_TIMEOUT。
   idle_timeout: 30
 
 webui:
-  # Admin WebUI 静态产物由 web/admin 的 pnpm generate 生成。
-  # mount_path、dist_dir 与 Nuxt NUXT_APP_BASE_URL 需要保持同一部署语义。
-  # Server Status Dashboard 的指标阈值、状态文案和刷新策略位于前端配置，不在示例 YAML 中写死。
+  # 是否由 Go HTTP 服务托管 Admin WebUI 静态产物。nil/缺省时默认启用；这里显式写出便于理解。
+  # 环境变量：RIN_APP_WEBUI_ENABLED，兼容 WEBUI_ENABLED。
   enabled: true
+  # Admin WebUI 挂载路径，必须是非根绝对路径，不能与 /api、/health、/ready 冲突。
+  # Nuxt 构建时的 NUXT_APP_BASE_URL 应与该路径保持一致，通常是 /admin/。
+  # 环境变量：RIN_APP_WEBUI_MOUNT_PATH，兼容 WEBUI_MOUNT_PATH。
   mount_path: /admin
+  # Nuxt 静态产物目录。运行 Go 静态托管前，需要在 web/admin 执行 pnpm generate。
+  # 如果目录不存在，HTTP 装配阶段会降级处理，不在配置校验阶段阻断。
+  # 环境变量：RIN_APP_WEBUI_DIST_DIR，兼容 WEBUI_DIST_DIR。
   dist_dir: ./web/admin/.output/public
+  # 对外访问 Admin WebUI 的 base URL，用于生成邀请和密码重置链接。
+  # 反向代理改路径或域名时应同步调整；留空时运行时回退到 mount_path。
+  # 环境变量：RIN_APP_WEBUI_PUBLIC_BASE_URL，兼容 WEBUI_PUBLIC_BASE_URL。
   public_base_url: /admin
 
 rpc:
+  # 独立 JSON-RPC 入口开关。默认关闭，避免本地开发暴露不需要的端口。
+  # 环境变量：RIN_APP_RPC_ENABLED，兼容 RPC_ENABLED。
   enabled: false
+  # RPC 监听地址。启用后本地建议仍绑定 127.0.0.1；跨主机访问再改为内网地址或 0.0.0.0。
+  # 环境变量：RIN_APP_RPC_HOST，兼容 RPC_HOST。
   host: 127.0.0.1
+  # RPC 监听端口，默认 10099，应避免与 HTTP 端口冲突。
+  # 环境变量：RIN_APP_RPC_PORT，兼容 RPC_PORT。
   port: 10099
+  # RPC 读取超时时间，单位秒。
+  # 环境变量：RIN_APP_RPC_READ_TIMEOUT，兼容 RPC_READ_TIMEOUT。
   read_timeout: 10
+  # RPC 写入超时时间，单位秒。
+  # 环境变量：RIN_APP_RPC_WRITE_TIMEOUT，兼容 RPC_WRITE_TIMEOUT。
   write_timeout: 10
+  # RPC 空闲连接保留时间，单位秒。
+  # 环境变量：RIN_APP_RPC_IDLE_TIMEOUT，兼容 RPC_IDLE_TIMEOUT。
   idle_timeout: 30
 
 plugins:
+  # 外部 sidecar 插件系统总开关。启用插件时 IAM 也必须启用，否则聚合校验会拒绝启动。
+  # 环境变量：RIN_APP_PLUGINS_ENABLED，兼容 PLUGINS_ENABLED。
   enabled: false
+  # 插件 manifest 文件路径列表。启用插件系统后会按顺序读取这些 JSON/YAML manifest。
+  # 环境变量：RIN_APP_PLUGINS_MANIFESTS，兼容 PLUGINS_MANIFESTS；环境变量中多个路径用逗号分隔。
   manifests:
     - ./plugins/demo1/plugin.yaml
+  # 内联插件清单列表。适合不想单独维护 manifest 文件的场景；本地默认保持空列表。
+  # 单个 item 支持 id、name、version、base_url、health_path、frontend.entry、menus、permissions、proxy.prefixes、secret_ref。
+  # 如果配置 proxy.prefixes，则 secret_ref 必填，值是 sidecar 共享密钥所在环境变量名。
+  items: []
+  # 插件健康检查超时时间，单位秒；0 会补默认值 3 秒。
+  # 环境变量：RIN_APP_PLUGINS_HEALTH_TIMEOUT_SECONDS，兼容 PLUGINS_HEALTH_TIMEOUT_SECONDS。
   health_timeout_seconds: 3
+  # 插件代理请求超时时间，单位秒；0 会补默认值 30 秒。
+  # 环境变量：RIN_APP_PLUGINS_PROXY_TIMEOUT_SECONDS，兼容 PLUGINS_PROXY_TIMEOUT_SECONDS。
   proxy_timeout_seconds: 30
 
 database:
-  # 本地默认使用 SQLite。只有在目标数据库可用时才切换到 mysql/postgres。
+  # 数据库驱动，可选 sqlite、mysql、postgres。SQLite 适合本地开发；生产建议使用 mysql 或 postgres。
+  # 环境变量：RIN_APP_DB_DRIVER，兼容 DB_DRIVER。
   driver: sqlite
+  # 网络数据库主机。SQLite 不使用该字段，但仍完整写出，便于切换 mysql/postgres 时补齐。
+  # 环境变量：RIN_APP_DB_HOST，兼容 DB_HOST。
+  host: ""
+  # 网络数据库端口。SQLite 可保持 0；mysql 通常 3306，postgres 通常 5432。
+  # 环境变量：RIN_APP_DB_PORT，兼容 DB_PORT。
+  port: 0
+  # 网络数据库用户名。SQLite 不使用；mysql/postgres 启用时必填。
+  # 环境变量：RIN_APP_DB_USER，兼容 DB_USER。
+  user: ""
+  # 网络数据库密码。可以为空但不推荐；生产不要写入 Git，应通过环境变量或密钥系统注入。
+  # 环境变量：RIN_APP_DB_PASSWORD，兼容 DB_PASSWORD。
+  password: ""
+  # 数据库名称。SQLite 表示文件路径；mysql/postgres 表示数据库名。
+  # 环境变量：RIN_APP_DB_NAME，兼容 DB_NAME。
   dbname: ./data/app.db
+  # 最大打开连接数。SQLite 本地建议 1，避免文件写锁竞争；网络数据库按并发调整。
+  # 环境变量：RIN_APP_DB_MAX_OPEN_CONNS，兼容 DB_MAX_OPEN_CONNS。
   max_open_conns: 1
+  # 最大空闲连接数。通常不应超过 max_open_conns。
+  # 环境变量：RIN_APP_DB_MAX_IDLE_CONNS，兼容 DB_MAX_IDLE_CONNS。
   max_idle_conns: 1
 
 redis:
+  # Redis 缓存开关。关闭时应用以无缓存模式运行，不会连接 Redis。
+  # 环境变量：RIN_APP_REDIS_ENABLED，兼容 REDIS_ENABLED。
   enabled: false
+  # Redis 主机。只有 enabled=true 时参与校验。
+  # 环境变量：RIN_APP_REDIS_HOST，兼容 REDIS_HOST。
   host: 127.0.0.1
+  # Redis 端口，范围 1-65535。
+  # 环境变量：RIN_APP_REDIS_PORT，兼容 REDIS_PORT。
   port: 6379
+  # Redis 密码；无密码实例保持空字符串。生产建议通过环境变量注入。
+  # 环境变量：RIN_APP_REDIS_PASSWORD，兼容 REDIS_PASSWORD。
+  password: ""
+  # Redis DB 编号，范围 0-15。
+  # 环境变量：RIN_APP_REDIS_DB，兼容 REDIS_DB。
   db: 0
+  # Redis 连接池大小。0 表示使用底层默认值；高并发场景按请求量调高。
+  # 环境变量：RIN_APP_REDIS_POOL_SIZE，兼容 REDIS_POOL_SIZE。
+  pool_size: 0
+  # 最小空闲连接数。0 表示不强制保留空闲连接。
+  # 环境变量：RIN_APP_REDIS_MIN_IDLE_CONNS，兼容 REDIS_MIN_IDLE_CONNS。
+  min_idle_conns: 0
+  # 命令失败时的最大重试次数。0 表示不重试。
+  # 环境变量：RIN_APP_REDIS_MAX_RETRIES，兼容 REDIS_MAX_RETRIES。
+  max_retries: 0
+  # 建立连接超时时间，单位秒。0 表示底层默认值。
+  # 环境变量：RIN_APP_REDIS_DIAL_TIMEOUT，兼容 REDIS_DIAL_TIMEOUT。
+  dial_timeout: 5
+  # 读取响应超时时间，单位秒。
+  # 环境变量：RIN_APP_REDIS_READ_TIMEOUT，兼容 REDIS_READ_TIMEOUT。
+  read_timeout: 3
+  # 写入命令超时时间，单位秒。
+  # 环境变量：RIN_APP_REDIS_WRITE_TIMEOUT，兼容 REDIS_WRITE_TIMEOUT。
+  write_timeout: 3
 
 logger:
+  # 最低日志级别：debug、info、warn、error。本地排查可改 debug。
+  # 环境变量：RIN_APP_LOG_LEVEL，兼容 LOG_LEVEL。
   level: info
+  # 默认日志格式：console 便于本地阅读，json 便于日志平台采集。
+  # 环境变量：RIN_APP_LOG_FORMAT，兼容 LOG_FORMAT。
   format: console
+  # 控制台输出格式。留空时使用 format；示例显式写出便于区分控制台和文件。
+  # 环境变量：RIN_APP_LOG_CONSOLE_FORMAT，兼容 LOG_CONSOLE_FORMAT。
+  console_format: console
+  # 文件输出格式。留空时使用 format；文件日志通常建议 json。
+  # 环境变量：RIN_APP_LOG_FILE_FORMAT，兼容 LOG_FILE_FORMAT。
+  file_format: json
+  # 输出目标：stdout、file、both。本地和容器默认 stdout；传统部署可改 file 或 both。
+  # 环境变量：RIN_APP_LOG_OUTPUT，兼容 LOG_OUTPUT。
   output: stdout
+  # 文件日志路径。仅 output=file 或 both 时使用；目录需要有写权限。
+  # 环境变量：RIN_APP_LOG_FILE_PATH，兼容 LOG_FILE_PATH。
+  file_path: ./logs/app.log
+  # 单个日志文件最大大小，单位 MB；用于文件轮转。
+  # 环境变量：RIN_APP_LOG_MAX_SIZE，兼容 LOG_MAX_SIZE。
+  max_size: 100
+  # 保留旧日志文件数量。
+  # 环境变量：RIN_APP_LOG_MAX_BACKUPS，兼容 LOG_MAX_BACKUPS。
+  max_backups: 7
+  # 旧日志保留天数。
+  # 环境变量：RIN_APP_LOG_MAX_AGE，兼容 LOG_MAX_AGE。
+  max_age: 30
 
 i18n:
+  # 默认语言；请求未提供语言偏好或语言不受支持时使用。
+  # 环境变量：RIN_APP_I18N_DEFAULT，兼容 I18N_DEFAULT。
   default: zh-CN
+  # 支持语言列表，必须包含 default。
+  # 环境变量：RIN_APP_I18N_SUPPORTED，兼容 I18N_SUPPORTED；环境变量中多个值用逗号分隔。
   supported:
     - zh-CN
     - en-US
+  # 后端国际化消息目录，目录下按语言保存 YAML 文件。
+  # 环境变量：RIN_APP_I18N_MESSAGES_DIR，兼容 I18N_MESSAGES_DIR。
   messages_dir: ./configs/locales
 
 executor:
+  # 后台执行器开关。关闭时不会创建协程池；启用时至少需要一个 pool。
+  # 环境变量：RIN_APP_EXECUTOR_ENABLED，兼容 EXECUTOR_ENABLED。
   enabled: true
+  # 执行器池列表。当前环境变量只覆盖 enabled，池结构通过 YAML 管理。
   pools:
+    # 默认后台池名称。业务代码通过名称选择执行池。
     - name: background
+      # 最大并发 worker 数量；CPU 密集型取较小值，IO 密集型可适当调高。
       size: 8
+      # worker 空闲回收时间，单位秒。0 表示不主动回收。
       expiry: 30
+      # true 表示池满时立即返回错误；false 表示阻塞等待。
       non_blocking: true
 
 storage:
-  # 媒体库普通上传、断点上传、分片合并和本地下载依赖 storage.enabled=true。
-  # 仅浏览记录或使用外链导入时可以保持禁用。
-  # 本地开发建议使用 basepath + ./data，让媒体对象写入 data/media/...，临时分片写入 data/media/chunks/...。
+  # 文件存储服务开关。媒体库普通上传、断点上传、本地下载依赖该开关。
+  # 环境变量：RIN_APP_STORAGE_ENABLED，兼容 STORAGE_ENABLED。
   enabled: false
+  # 文件系统类型：os、memory、readonly、basepath。媒体库本地持久化建议 basepath。
+  # 环境变量：RIN_APP_STORAGE_FS_TYPE，兼容 STORAGE_FS_TYPE。
   fs_type: basepath
+  # basepath 根目录。媒体对象写入 media/YYYY/MM/...，断点上传临时分片写入 media/chunks/...。
+  # 环境变量：RIN_APP_STORAGE_BASE_PATH，兼容 STORAGE_BASE_PATH。
   base_path: ./data
+  # 文件监听开关。大量文件变化场景会增加开销，本地默认关闭。
+  # 环境变量：RIN_APP_STORAGE_ENABLE_WATCH，兼容 STORAGE_ENABLE_WATCH。
   enable_watch: false
+  # 文件监听事件缓冲区大小，必须非负。
+  # 环境变量：RIN_APP_STORAGE_WATCH_BUFFER_SIZE，兼容 STORAGE_WATCH_BUFFER_SIZE。
   watch_buffer_size: 100
 
 demo:
-  # Demo 模块包含公开 Todo 与受 IAM 保护的客户资源示例。
+  # Demo 模块开关。包含公开 Todo 与受 IAM 保护的客户资源示例。
+  # nil/缺省时默认启用；生产或正式业务库建议关闭。
+  # 环境变量：RIN_APP_DEMO_ENABLED，兼容 DEMO_ENABLED。
   enabled: true
-  # 启动时应用 demo_todos 与 demo_customers 表结构；生产示例应关闭。
+  # 服务启动时是否应用 demo_todos 和 demo_customers 示例表结构。
+  # 热重载不会隐式改表；生产建议关闭，由迁移或业务流程显式管理表结构。
+  # 环境变量：RIN_APP_DEMO_APPLY_SCHEMA_ON_START，兼容 DEMO_APPLY_SCHEMA_ON_START。
   apply_schema_on_start: true
 
 system:
-  # 版本管理使用 system_versions 迁移和 IAM version:* 权限，不需要额外运行期开关。
-  # 媒体库使用 system_media_categories/system_media_assets 迁移和 IAM media:* 权限。
-  # 断点上传还需要 system_media_upload_sessions/system_media_upload_chunks 迁移。
+  # 启动时幂等补齐系统默认数据，例如字典、参数、媒体分类和权限。已有数据不会被覆盖。
+  # nil/缺省时默认启用。
+  # 环境变量：RIN_APP_SYSTEM_SEED_DEFAULTS_ON_START，兼容 SYSTEM_SEED_DEFAULTS_ON_START。
   seed_defaults_on_start: true
 
 cors:
+  # 是否启用 CORS 中间件。前后端不同源时需要开启；同源部署也可以保持开启。
+  # 环境变量：RIN_APP_CORS_ENABLED，兼容 CORS_ENABLED。
   enabled: true
+  # 允许的来源。本地示例使用 "*" 方便调试；生产如果 allow_credentials=true，不能使用 "*"。
+  # 环境变量：RIN_APP_CORS_ALLOW_ORIGINS，兼容 CORS_ALLOW_ORIGINS；多个来源用逗号分隔。
   allow_origins:
     - "*"
+  # 允许的 HTTP 方法。OPTIONS 用于浏览器预检请求。
+  # 环境变量：RIN_APP_CORS_ALLOW_METHODS，兼容 CORS_ALLOW_METHODS。
   allow_methods:
     - GET
     - POST
@@ -97,57 +247,132 @@ cors:
     - DELETE
     - PATCH
     - OPTIONS
+  # 允许的请求头。Authorization 用于 IAM Bearer Token 和 API Token。
+  # 环境变量：RIN_APP_CORS_ALLOW_HEADERS，兼容 CORS_ALLOW_HEADERS。
   allow_headers:
     - Origin
     - Content-Type
     - X-Request-ID
     - Authorization
+  # 暴露给浏览器读取的响应头。X-Request-ID 便于前端反馈问题时定位日志。
+  # 环境变量：RIN_APP_CORS_EXPOSE_HEADERS，兼容 CORS_EXPOSE_HEADERS。
   expose_headers:
     - X-Request-ID
+  # 是否允许跨域携带 Cookie/HTTP Auth。使用 "*" 来源时必须保持 false。
+  # 环境变量：RIN_APP_CORS_ALLOW_CREDENTIALS，兼容 CORS_ALLOW_CREDENTIALS。
   allow_credentials: false
+  # 预检请求缓存时间，单位秒。减少 OPTIONS 请求频率。
+  # 环境变量：RIN_APP_CORS_MAX_AGE，兼容 CORS_MAX_AGE。
   max_age: 3600
 
 auth:
+  # IAM 模块开关。关闭后账号、角色、权限、会话、API Token 等能力不可用；插件启用时必须保持 true。
+  # 环境变量：RIN_APP_AUTH_ENABLED，兼容 AUTH_ENABLED。
   enabled: true
+  # 是否允许用户公开自助注册。本地演示可开启；生产通常关闭，改由管理员邀请。
+  # 环境变量：RIN_APP_AUTH_SELF_SIGNUP_ENABLED，兼容 AUTH_SELF_SIGNUP_ENABLED。
   self_signup_enabled: true
+  # JWT issuer，用于标识签发方；多环境部署时建议使用稳定且可区分的应用标识。
+  # 环境变量：RIN_APP_AUTH_ISSUER，兼容 AUTH_ISSUER。
   issuer: go-scaffold
+  # JWT audience，服务端校验 token 目标受众。
+  # 环境变量：RIN_APP_AUTH_AUDIENCE，兼容 AUTH_AUDIENCE；多个值用逗号分隔。
   audience:
     - go-scaffold-api
+  # JWT 签名密钥，长度至少 32 字节。示例保留占位符，本地没有环境变量时使用开发默认值。
+  # 生产必须通过 RIN_APP_AUTH_SIGNING_KEY、AUTH_SIGNING_KEY 或密钥系统注入高强度 secret。
   signing_key: ${AUTH_SIGNING_KEY:dev-signing-key-change-me-32-bytes}
+  # Access Token 有效期，单位秒。短有效期可降低泄露影响。
+  # 环境变量：RIN_APP_AUTH_ACCESS_TOKEN_TTL_SECONDS，兼容 AUTH_ACCESS_TOKEN_TTL_SECONDS。
   access_token_ttl_seconds: 900
+  # Refresh Token 有效期，单位秒。过短影响体验，过长增加吊销压力。
+  # 环境变量：RIN_APP_AUTH_REFRESH_TOKEN_TTL_SECONDS，兼容 AUTH_REFRESH_TOKEN_TTL_SECONDS。
   refresh_token_ttl_seconds: 604800
-  # Also hashes IAM API Token values. Rotating this invalidates existing refresh tokens and API tokens.
+  # Refresh Token 与 IAM API Token 的 HMAC pepper。轮换会使既有 refresh token 和 API Token 全部失效。
+  # 环境变量：RIN_APP_AUTH_REFRESH_TOKEN_PEPPER，兼容 AUTH_REFRESH_TOKEN_PEPPER。
   refresh_token_pepper: ${AUTH_REFRESH_TOKEN_PEPPER:dev-refresh-pepper-change-me-32}
+  # MFA TOTP issuer，显示在认证器 App 中。
+  # 环境变量：RIN_APP_AUTH_MFA_ISSUER，兼容 AUTH_MFA_ISSUER。
   mfa_issuer: go-scaffold
+  # MFA secret 加密密钥，长度至少 32 字节。生产必须使用高强度 secret。
+  # 环境变量：RIN_APP_AUTH_MFA_SECRET_KEY，兼容 AUTH_MFA_SECRET_KEY。
   mfa_secret_key: ${AUTH_MFA_SECRET_KEY:dev-mfa-secret-key-change-me-32-bytes}
+  # 登录失败锁定阈值，必须为正数。
+  # 环境变量：RIN_APP_AUTH_LOGIN_MAX_FAILURES，兼容 AUTH_LOGIN_MAX_FAILURES。
   login_max_failures: 5
+  # 登录锁定时间，单位分钟，必须为正数。
+  # 环境变量：RIN_APP_AUTH_LOGIN_LOCK_MINUTES，兼容 AUTH_LOGIN_LOCK_MINUTES。
   login_lock_minutes: 15
+  # 登录验证码开关。开启后 captcha_ttl_seconds 必须为正数。
+  # 环境变量：RIN_APP_AUTH_LOGIN_CAPTCHA_ENABLED，兼容 AUTH_LOGIN_CAPTCHA_ENABLED。
   login_captcha_enabled: false
+  # 验证码有效期，单位秒。
+  # 环境变量：RIN_APP_AUTH_CAPTCHA_TTL_SECONDS，兼容 AUTH_CAPTCHA_TTL_SECONDS。
   captcha_ttl_seconds: 120
+  # 邀请链接有效期，单位秒，必须为正数。
+  # 环境变量：RIN_APP_AUTH_INVITATION_TTL_SECONDS，兼容 AUTH_INVITATION_TTL_SECONDS。
   invitation_ttl_seconds: 86400
+  # 密码重置链接有效期，单位秒，必须为正数。
+  # 环境变量：RIN_APP_AUTH_PASSWORD_RESET_TTL_SECONDS，兼容 AUTH_PASSWORD_RESET_TTL_SECONDS。
   password_reset_ttl_seconds: 1800
+  # 通知驱动。debug/noop 会在 API 响应中返回调试 token/link；生产应使用 smtp 或外部通知实现。
+  # 当值为 smtp 时，auth.smtp.host、auth.smtp.port、auth.smtp.from 必填。
+  # 环境变量：RIN_APP_AUTH_NOTIFICATION_DRIVER，兼容 AUTH_NOTIFICATION_DRIVER。
   notification_driver: debug
   smtp:
+    # SMTP 主机。notification_driver=smtp 时必填。
+    # 环境变量：RIN_APP_AUTH_SMTP_HOST，兼容 AUTH_SMTP_HOST。
     host: ${AUTH_SMTP_HOST:}
+    # SMTP 端口。587 通常配合 STARTTLS；465 通常是隐式 TLS，本实现当前使用 STARTTLS 逻辑。
+    # 环境变量：RIN_APP_AUTH_SMTP_PORT，兼容 AUTH_SMTP_PORT。
     port: ${AUTH_SMTP_PORT:587}
+    # SMTP 用户名。部分内网 SMTP 允许为空。
+    # 环境变量：RIN_APP_AUTH_SMTP_USERNAME，兼容 AUTH_SMTP_USERNAME。
     username: ${AUTH_SMTP_USERNAME:}
+    # SMTP 密码或授权码。生产必须通过环境变量或密钥系统注入。
+    # 环境变量：RIN_APP_AUTH_SMTP_PASSWORD，兼容 AUTH_SMTP_PASSWORD。
     password: ${AUTH_SMTP_PASSWORD:}
+    # 发件人邮箱。notification_driver=smtp 时必填。
+    # 环境变量：RIN_APP_AUTH_SMTP_FROM，兼容 AUTH_SMTP_FROM。
     from: ${AUTH_SMTP_FROM:}
+    # 发件人展示名。
+    # 环境变量：RIN_APP_AUTH_SMTP_FROM_NAME，兼容 AUTH_SMTP_FROM_NAME。
     from_name: ${AUTH_SMTP_FROM_NAME:Aoi Admin}
+    # 是否使用 STARTTLS。587 端口通常开启；如果服务器不支持 STARTTLS 可设为 false。
+    # 环境变量：RIN_APP_AUTH_SMTP_STARTTLS，兼容 AUTH_SMTP_STARTTLS。
     starttls: true
   password_policy:
+    # 密码最小长度，必须为正数。
+    # 环境变量：RIN_APP_AUTH_PASSWORD_MIN_LENGTH，兼容 AUTH_PASSWORD_MIN_LENGTH。
     min_length: 8
+    # 是否要求小写字母。
+    # 环境变量：RIN_APP_AUTH_PASSWORD_REQUIRE_LOWER，兼容 AUTH_PASSWORD_REQUIRE_LOWER。
     require_lower: false
+    # 是否要求大写字母。
+    # 环境变量：RIN_APP_AUTH_PASSWORD_REQUIRE_UPPER，兼容 AUTH_PASSWORD_REQUIRE_UPPER。
     require_upper: false
+    # 是否要求数字。
+    # 环境变量：RIN_APP_AUTH_PASSWORD_REQUIRE_NUMBER，兼容 AUTH_PASSWORD_REQUIRE_NUMBER。
     require_number: false
+    # 是否要求符号。
+    # 环境变量：RIN_APP_AUTH_PASSWORD_REQUIRE_SYMBOL，兼容 AUTH_PASSWORD_REQUIRE_SYMBOL。
     require_symbol: false
+  # Casbin 权限策略自动重载间隔，单位秒；调小可更快感知权限变化但增加数据库开销。
+  # 环境变量：RIN_APP_AUTH_CASBIN_RELOAD_INTERVAL_SECONDS，兼容 AUTH_CASBIN_RELOAD_INTERVAL_SECONDS。
   casbin_reload_interval_seconds: 300
 
 migration:
+  # 启动时自动执行 goose 迁移。本地默认开启，便于首次启动后直接进入初始化流程。
+  # 生产建议关闭，发布流程中显式执行 db migrate status/up。
+  # 环境变量：RIN_APP_MIGRATION_AUTO_APPLY，兼容 MIGRATION_AUTO_APPLY。
   auto_apply: true
+  # goose 迁移文件目录。
+  # 环境变量：RIN_APP_MIGRATION_DIR，兼容 MIGRATION_DIR。
   dir: ./internal/migrations
 
 env_override:
-  # disabled_paths 中的配置路径会优先使用配置文件值，跳过同名环境变量覆盖。
-  # 启动向导选择“写入配置文件并禁用环境变量覆盖”时会自动维护该列表。
+  # 配置文件优先路径列表。列表中的 mapstructure 点路径会跳过同名环境变量覆盖。
+  # 典型用途：启动向导把 secret 写入配置文件，并希望后续启动固定使用配置文件值。
+  # 示例：auth.signing_key、auth.notification_driver。
+  # 选择“恢复使用环境变量”时，启动向导会从该列表移除对应路径。
   disabled_paths: []

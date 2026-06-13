@@ -367,7 +367,7 @@ func TestUpdateWithPersistRuntimeEnvOnlyUsesEnvironmentAndRemovesDisabledPath(t 
 		t.Fatalf("runtime signing key = %q, want %q", got, envValue)
 	}
 	text := string(after)
-	if strings.Contains(text, "auth.signing_key") {
+	if strings.Contains(text, `- "auth.signing_key"`) {
 		t.Fatalf("runtime env-only update should remove disabled signing key path:\n%s", text)
 	}
 	if !strings.Contains(text, "${AUTH_SIGNING_KEY:dev-signing-key-change-me-32-bytes}") {

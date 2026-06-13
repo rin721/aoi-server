@@ -145,8 +145,9 @@ System Center CLI 提供本地初始化和受管服务入口：
 
 ```bash
 go run ./cmd/main init --admin-username=admin --admin-email=admin@example.com --admin-password-stdin
-go run ./cmd/main run server
-go run ./cmd/main service status server
+go build -mod=readonly -o ./tmp/go-scaffold-server.exe ./cmd/main
+./tmp/go-scaffold-server.exe run server --config=configs/config.yaml
+./tmp/go-scaffold-server.exe service status server
 ```
 
 ## Admin WebUI
@@ -310,6 +311,8 @@ go run ./cmd/main iam bootstrap-admin --org-code=acme --username=admin --email=a
 ## System Center CLI
 
 `init` 会应用迁移、同步系统默认数据、可选创建管理员和服务 API Token；`run server` 会以受管服务方式启动后端；`service` 子命令读取运行态记录并提供状态、信息、日志、终端、重启和停止入口。默认运行态目录是 `data/cli-runtime`，可通过 `RIN_CLI_RUNTIME_DIR` 覆盖；受管进程会设置 `RIN_CLI_MANAGED` 和 `RIN_CLI_SERVICE`。
+
+前台开发调试可以继续使用 `go run ./cmd/main server --config=configs/config.yaml`。后台托管建议先构建稳定二进制再执行 `run server`；Windows 下直接用 `go run ./cmd/main run server` 时，Go 会生成临时 `go-build...\main.exe`，后台服务若继续占用该临时 exe，父级 `go run` 退出清理时可能提示 `unlinkat ... Access is denied`。当前 CLI 会在检测到 `go run` 临时 exe 时复制到 `data/cli-runtime/bin/go-scaffold-managed.exe` 后再派生受管服务；如果复制失败，先执行 `service stop server` 或改用固定二进制启动。
 
 ## 工程工作流
 

@@ -54,6 +54,9 @@ func TestManagerStartServerPersistsStateAndLaunchesManagedProcess(t *testing.T) 
 	if start.Executable != manager.Executable {
 		t.Fatalf("executable = %q, want %q", start.Executable, manager.Executable)
 	}
+	if state.ExecutablePath != manager.Executable {
+		t.Fatalf("executable path = %q, want %q", state.ExecutablePath, manager.Executable)
+	}
 	wantArgs := []string{"server", "--config", filepath.Clean(configPath)}
 	if !reflect.DeepEqual(start.Args, wantArgs) {
 		t.Fatalf("args = %#v, want %#v", start.Args, wantArgs)
@@ -71,6 +74,9 @@ func TestManagerStartServerPersistsStateAndLaunchesManagedProcess(t *testing.T) 
 	if persisted.Status != StatusRunning || persisted.PID != 321 {
 		t.Fatalf("persisted state = %#v", persisted)
 	}
+	if persisted.ExecutablePath != manager.Executable {
+		t.Fatalf("persisted executable path = %q, want %q", persisted.ExecutablePath, manager.Executable)
+	}
 
 	refreshed, err := manager.Status(context.Background(), ServiceServer)
 	if err != nil {
@@ -78,6 +84,59 @@ func TestManagerStartServerPersistsStateAndLaunchesManagedProcess(t *testing.T) 
 	}
 	if refreshed.Status != StatusRunning {
 		t.Fatalf("refreshed status = %q", refreshed.Status)
+	}
+}
+
+func TestManagerStartServerCopiesGoRunTemporaryExecutable(t *testing.T) {
+	exeName := "main"
+	if runtime.GOOS == "windows" {
+		exeName += ".exe"
+	}
+	source := filepath.Join(t.TempDir(), "go-build123456789", "b001", "exe", exeName)
+	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
+		t.Fatalf("create temp exe dir: %v", err)
+	}
+	if err := os.WriteFile(source, []byte("managed executable"), 0o755); err != nil {
+		t.Fatalf("write temp exe: %v", err)
+	}
+
+	runner := &fakeProcessRunner{
+		startInfos:     []ProcessInfo{{PID: 654, ProcessStartTime: 98765}},
+		runningResults: []bool{true, true},
+	}
+	manager := testManager(t, runner)
+	manager.Executable = source
+	configPath := copyExampleConfig(t)
+
+	state, err := manager.StartServer(context.Background(), configPath)
+	if err != nil {
+		t.Fatalf("StartServer() error = %v", err)
+	}
+
+	wantExecutable := filepath.Join(manager.RuntimeDir, "bin", managedExecutableFileName(source))
+	if len(runner.starts) != 1 {
+		t.Fatalf("StartProcess calls = %d, want 1", len(runner.starts))
+	}
+	if runner.starts[0].Executable != wantExecutable {
+		t.Fatalf("managed executable = %q, want %q", runner.starts[0].Executable, wantExecutable)
+	}
+	if state.ExecutablePath != wantExecutable {
+		t.Fatalf("state executable path = %q, want %q", state.ExecutablePath, wantExecutable)
+	}
+	raw, err := os.ReadFile(wantExecutable)
+	if err != nil {
+		t.Fatalf("read managed executable: %v", err)
+	}
+	if string(raw) != "managed executable" {
+		t.Fatalf("managed executable content = %q", raw)
+	}
+
+	persisted, err := manager.readState(ServiceServer)
+	if err != nil {
+		t.Fatalf("readState() error = %v", err)
+	}
+	if persisted.ExecutablePath != wantExecutable {
+		t.Fatalf("persisted executable path = %q, want %q", persisted.ExecutablePath, wantExecutable)
 	}
 }
 
@@ -356,7 +415,7 @@ func TestRunStartFlowRuntimeEnvOnlyRestoresEnvOverride(t *testing.T) {
 	if string(after) == string(before) {
 		t.Fatalf("runtime env-only flow should remove disabled env override metadata")
 	}
-	if strings.Contains(string(after), "auth.signing_key") {
+	if strings.Contains(string(after), `- "auth.signing_key"`) {
 		t.Fatalf("runtime env-only flow should restore env override for signing key:\n%s", after)
 	}
 	if len(runner.starts) != 1 {

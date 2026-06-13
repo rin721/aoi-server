@@ -110,6 +110,18 @@ func TestShellModelPaletteAndCommandActivation(t *testing.T) {
 	}
 }
 
+func TestShellHomeQuitReturnsNormalExit(t *testing.T) {
+	model := newTestShellModel(t)
+	updated, cmd := model.Update(tea.KeyPressMsg(tea.Key{Text: "q", Code: 'q'}))
+	model = requireShellModel(t, updated)
+	if !model.exited || model.cancelled {
+		t.Fatalf("quit state exited=%v cancelled=%v, want normal exit", model.exited, model.cancelled)
+	}
+	if cmd == nil {
+		t.Fatal("quit command = nil")
+	}
+}
+
 func TestShellPromptUIUsesEventChannel(t *testing.T) {
 	events := make(chan tea.Msg, 1)
 	ui := &shellPromptUI{events: events}

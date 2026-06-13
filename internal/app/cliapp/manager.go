@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 )
 
 const defaultStopTimeout = 30 * time.Second
+const managedExecutableBaseName = "go-scaffold-managed"
 
 // Manager 管理 CLI 托管的后台服务进程。
 type Manager struct {
@@ -70,7 +72,21 @@ func (m *Manager) StartServer(ctx context.Context, configPath string) (ServiceSt
 		return state, err
 	}
 
+	runtimeDir, err := filepath.Abs(m.runtimeDir())
+	if err != nil {
+		runtimeDir = m.runtimeDir()
+	}
 	state := m.baseState(ServiceServer, configPath, cfg)
+	executablePath, err := m.managedExecutable(runtimeDir)
+	if err != nil {
+		failedAt := m.now()
+		state.Status = StatusFailed
+		state.LastError = err.Error()
+		state.StoppedAt = &failedAt
+		_ = m.writeState(state)
+		return state, err
+	}
+	state.ExecutablePath = executablePath
 	startedAt := m.now()
 	state.Status = StatusStarting
 	state.StartedAt = &startedAt
@@ -81,12 +97,8 @@ func (m *Manager) StartServer(ctx context.Context, configPath string) (ServiceSt
 	}
 	_ = os.Remove(m.controlPath(ServiceServer))
 
-	runtimeDir, err := filepath.Abs(m.runtimeDir())
-	if err != nil {
-		runtimeDir = m.runtimeDir()
-	}
 	info, err := m.runner().StartProcess(ProcessStartRequest{
-		Executable: m.executable(),
+		Executable: executablePath,
 		Args:       []string{constants.AppServerCommandName, "--config", configPath},
 		WorkDir:    m.workDir(),
 		Env: []string{
@@ -360,6 +372,93 @@ func (m *Manager) executable() string {
 	}
 	executable, _ := os.Executable()
 	return executable
+}
+
+func (m *Manager) managedExecutable(runtimeDir string) (string, error) {
+	executable := strings.TrimSpace(m.executable())
+	if executable == "" {
+		return "", errors.New("executable is required")
+	}
+	executable = filepath.Clean(executable)
+	if !isGoRunTemporaryExecutable(executable) {
+		return executable, nil
+	}
+	target := filepath.Join(runtimeDir, "bin", managedExecutableFileName(executable))
+	if err := copyExecutable(executable, target); err != nil {
+		return "", fmt.Errorf("prepare managed executable: copy %s to %s: %w; stop the existing managed service or build a stable binary with go build before running it in the background", executable, target, err)
+	}
+	return target, nil
+}
+
+func managedExecutableFileName(source string) string {
+	if strings.EqualFold(filepath.Ext(source), ".exe") {
+		return managedExecutableBaseName + ".exe"
+	}
+	return managedExecutableBaseName
+}
+
+func isGoRunTemporaryExecutable(path string) bool {
+	path = filepath.Clean(path)
+	base := strings.ToLower(filepath.Base(path))
+	if base != "main" && base != "main.exe" {
+		return false
+	}
+	if strings.ToLower(filepath.Base(filepath.Dir(path))) != "exe" {
+		return false
+	}
+	dir := filepath.Dir(filepath.Dir(path))
+	for {
+		name := strings.ToLower(filepath.Base(dir))
+		if strings.HasPrefix(name, "go-build") {
+			return true
+		}
+		next := filepath.Dir(dir)
+		if next == dir {
+			return false
+		}
+		dir = next
+	}
+}
+
+func copyExecutable(source string, target string) error {
+	sourceAbs, sourceErr := filepath.Abs(source)
+	targetAbs, targetErr := filepath.Abs(target)
+	if sourceErr == nil && targetErr == nil && sourceAbs == targetAbs {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	in, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	tmp := target + ".tmp"
+	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Chmod(tmp, 0o755); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	_ = os.Remove(target)
+	if err := os.Rename(tmp, target); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 func (m *Manager) workDir() string {

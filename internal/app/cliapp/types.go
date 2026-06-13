@@ -28,6 +28,7 @@ type ServiceState struct {
 	StoppedAt        *time.Time `json:"stoppedAt,omitempty"`
 	ConfigPath       string     `json:"configPath"`
 	ListenAddr       string     `json:"listenAddr"`
+	ExecutablePath   string     `json:"executablePath,omitempty"`
 	StdoutLogPath    string     `json:"stdoutLogPath"`
 	StderrLogPath    string     `json:"stderrLogPath"`
 	AppLogPath       string     `json:"appLogPath"`

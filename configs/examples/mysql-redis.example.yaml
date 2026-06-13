@@ -1,0 +1,161 @@
+# 场景：MySQL + Redis 缓存。
+# 适合本地 docker compose、开发共享环境或预发环境验证网络数据库和缓存配置。
+# 示例值仅用于说明；数据库密码和 Redis 密码应通过环境变量覆盖。
+
+server:
+  host: 127.0.0.1
+  port: 9999
+  mode: debug
+  read_timeout: 10
+  write_timeout: 10
+  idle_timeout: 30
+
+webui:
+  enabled: true
+  mount_path: /admin
+  dist_dir: ./web/admin/.output/public
+  public_base_url: /admin
+
+rpc:
+  enabled: false
+  host: 127.0.0.1
+  port: 10099
+  read_timeout: 10
+  write_timeout: 10
+  idle_timeout: 30
+
+plugins:
+  enabled: false
+  manifests:
+    - ./plugins/demo1/plugin.yaml
+  items: []
+  health_timeout_seconds: 3
+  proxy_timeout_seconds: 30
+
+database:
+  # MySQL 场景必须配置 host、port、user、dbname；password 可为空但生产不推荐。
+  driver: mysql
+  host: ${RIN_APP_DB_HOST:127.0.0.1}
+  port: ${RIN_APP_DB_PORT:3306}
+  user: ${RIN_APP_DB_USER:go_scaffold}
+  password: ${RIN_APP_DB_PASSWORD:dev-db-password-change-me}
+  dbname: ${RIN_APP_DB_NAME:go_scaffold}
+  max_open_conns: ${RIN_APP_DB_MAX_OPEN_CONNS:20}
+  max_idle_conns: ${RIN_APP_DB_MAX_IDLE_CONNS:10}
+
+redis:
+  # 启用 Redis 后 host、port、db 必须有效；连接失败不会阻断启动，但会降级为无缓存模式。
+  enabled: true
+  host: ${RIN_APP_REDIS_HOST:127.0.0.1}
+  port: ${RIN_APP_REDIS_PORT:6379}
+  password: ${RIN_APP_REDIS_PASSWORD:}
+  db: ${RIN_APP_REDIS_DB:0}
+  pool_size: ${RIN_APP_REDIS_POOL_SIZE:20}
+  min_idle_conns: ${RIN_APP_REDIS_MIN_IDLE_CONNS:5}
+  max_retries: ${RIN_APP_REDIS_MAX_RETRIES:3}
+  dial_timeout: ${RIN_APP_REDIS_DIAL_TIMEOUT:5}
+  read_timeout: ${RIN_APP_REDIS_READ_TIMEOUT:3}
+  write_timeout: ${RIN_APP_REDIS_WRITE_TIMEOUT:3}
+
+logger:
+  level: info
+  format: console
+  console_format: console
+  file_format: json
+  output: stdout
+  file_path: ./logs/app.log
+  max_size: 100
+  max_backups: 7
+  max_age: 30
+
+i18n:
+  default: zh-CN
+  supported:
+    - zh-CN
+    - en-US
+  messages_dir: ./configs/locales
+
+executor:
+  enabled: true
+  pools:
+    - name: background
+      size: 16
+      expiry: 30
+      non_blocking: true
+
+storage:
+  enabled: false
+  fs_type: basepath
+  base_path: ./data
+  enable_watch: false
+  watch_buffer_size: 100
+
+demo:
+  enabled: true
+  apply_schema_on_start: true
+
+system:
+  seed_defaults_on_start: true
+
+cors:
+  enabled: true
+  allow_origins:
+    - "*"
+  allow_methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - PATCH
+    - OPTIONS
+  allow_headers:
+    - Origin
+    - Content-Type
+    - X-Request-ID
+    - Authorization
+  expose_headers:
+    - X-Request-ID
+  allow_credentials: false
+  max_age: 3600
+
+auth:
+  enabled: true
+  self_signup_enabled: true
+  issuer: go-scaffold
+  audience:
+    - go-scaffold-api
+  signing_key: ${AUTH_SIGNING_KEY:dev-signing-key-change-me-32-bytes}
+  access_token_ttl_seconds: 900
+  refresh_token_ttl_seconds: 604800
+  refresh_token_pepper: ${AUTH_REFRESH_TOKEN_PEPPER:dev-refresh-pepper-change-me-32}
+  mfa_issuer: go-scaffold
+  mfa_secret_key: ${AUTH_MFA_SECRET_KEY:dev-mfa-secret-key-change-me-32-bytes}
+  login_max_failures: 5
+  login_lock_minutes: 15
+  login_captcha_enabled: false
+  captcha_ttl_seconds: 120
+  invitation_ttl_seconds: 86400
+  password_reset_ttl_seconds: 1800
+  notification_driver: debug
+  smtp:
+    host: ${AUTH_SMTP_HOST:}
+    port: ${AUTH_SMTP_PORT:587}
+    username: ${AUTH_SMTP_USERNAME:}
+    password: ${AUTH_SMTP_PASSWORD:}
+    from: ${AUTH_SMTP_FROM:}
+    from_name: ${AUTH_SMTP_FROM_NAME:Aoi Admin}
+    starttls: true
+  password_policy:
+    min_length: 8
+    require_lower: false
+    require_upper: false
+    require_number: false
+    require_symbol: false
+  casbin_reload_interval_seconds: 300
+
+migration:
+  auto_apply: true
+  dir: ./internal/migrations
+
+env_override:
+  disabled_paths: []

@@ -29,6 +29,8 @@ main.go
 
 `init`、`run` 和 `service` 是本地 System Center 入口。`init` 会执行迁移、可选 Demo schema、System 默认数据同步、API/权限同步、可选管理员和服务 API Token 创建；`run server` 会以受管服务方式启动后端；`service status/info/logs/terminal/restart/stop server` 读取默认 `data/cli-runtime` 下的运行态记录。可以通过 `RIN_CLI_RUNTIME_DIR` 改变运行态目录；受管服务进程会设置 `RIN_CLI_MANAGED` 和 `RIN_CLI_SERVICE`。
 
+受管服务启动时会记录实际派生的可执行文件路径。普通构建产物会直接复用当前可执行文件；如果入口来自 `go run` 的 `go-build.../exe/main(.exe)` 临时路径，CLI 会复制到 `data/cli-runtime/bin/go-scaffold-managed(.exe)` 再启动后台服务，避免 Windows 清理 Go 临时 exe 时出现 `unlinkat ... Access is denied`。长期后台运行仍建议先 `go build` 出固定二进制，再执行 `run server`。
+
 ## 应用构建
 
 `internal/app.New` 通过应用子包构建应用：

@@ -15,6 +15,9 @@ func PrintServiceState(w io.Writer, state ServiceState) {
 	if state.ListenAddr != "" {
 		fmt.Fprintf(w, "监听：%s\n", state.ListenAddr)
 	}
+	if state.ExecutablePath != "" {
+		fmt.Fprintf(w, "可执行文件：%s\n", state.ExecutablePath)
+	}
 	if state.ConfigPath != "" {
 		fmt.Fprintf(w, "配置：%s\n", state.ConfigPath)
 	}

@@ -9,6 +9,6 @@ import (
 
 func configureDetachedProcess(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
+		Setsid: true,
 	}
 }

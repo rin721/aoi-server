@@ -67,13 +67,15 @@ go run ./cmd/main init \
 `init` 会在应用装配后执行迁移、同步 System 默认数据、同步 API/权限，并按 flag 创建管理员和可选服务 API Token。受管服务入口位于同一组命令：
 
 ```bash
-go run ./cmd/main run server --config=configs/config.yaml
-go run ./cmd/main service status server
-go run ./cmd/main service info server
-go run ./cmd/main service logs server
-go run ./cmd/main service terminal server
-go run ./cmd/main service restart server
-go run ./cmd/main service stop server
+go build -mod=readonly -o ./tmp/go-scaffold-server.exe ./cmd/main
+./tmp/go-scaffold-server.exe run server --config=configs/config.yaml
+./tmp/go-scaffold-server.exe service status server
+./tmp/go-scaffold-server.exe service info server
+./tmp/go-scaffold-server.exe service logs server
+./tmp/go-scaffold-server.exe service terminal server
+./tmp/go-scaffold-server.exe service restart server
+./tmp/go-scaffold-server.exe service stop server
 ```
 
 System Center 默认把运行态记录放在 `data/cli-runtime`，可通过 `RIN_CLI_RUNTIME_DIR` 覆盖。受管进程会设置 `RIN_CLI_MANAGED` 和 `RIN_CLI_SERVICE`，用于区分手动启动和 CLI 托管启动。
+前台调试可继续使用 `go run ./cmd/main server --config=configs/config.yaml`。后台托管优先使用固定二进制；Windows 下 `go run ./cmd/main run server` 会先落到 Go 临时目录，服务常驻时可能锁住 `go-build...\main.exe` 并导致父进程清理时报 `Access is denied`。

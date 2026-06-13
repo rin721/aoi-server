@@ -271,22 +271,32 @@ func TestHomeModelNavigationHelpAndQuit(t *testing.T) {
 
 	updated, cmd = model.Update(tea.KeyPressMsg(tea.Key{Text: "q", Code: 'q'}))
 	model = updated.(homeModel)
-	if !model.cancelled {
-		t.Fatal("cancelled = false, want true")
+	if !model.exited || model.cancelled {
+		t.Fatalf("quit state exited=%v cancelled=%v, want exited normal", model.exited, model.cancelled)
 	}
 	if cmd == nil {
 		t.Fatal("quit command = nil")
 	}
+
+	model = newHomeModel(homeConfig{Name: "tool", Theme: DefaultTheme()})
+	updated, cmd = model.Update(tea.KeyPressMsg(tea.Key{Code: 'c', Mod: tea.ModCtrl}))
+	model = updated.(homeModel)
+	if !model.cancelled || model.exited {
+		t.Fatalf("ctrl+c state exited=%v cancelled=%v, want cancelled", model.exited, model.cancelled)
+	}
+	if cmd == nil {
+		t.Fatal("ctrl+c command = nil")
+	}
 }
 
-func TestDefaultHomeRunnerMapsBubbleTeaQuitToCancelled(t *testing.T) {
+func TestDefaultHomeRunnerMapsQToNormalExit(t *testing.T) {
 	model := newHomeModel(homeConfig{
 		Name:  "tool",
 		Theme: DefaultTheme(),
 	})
 
 	var stdout, stderr bytes.Buffer
-	_, err := defaultHomeRunner(
+	result, err := defaultHomeRunner(
 		context.Background(),
 		model,
 		streams{
@@ -296,9 +306,11 @@ func TestDefaultHomeRunnerMapsBubbleTeaQuitToCancelled(t *testing.T) {
 		},
 		[]ProgramOption{tea.WithoutRenderer(), tea.WithoutSignals()},
 	)
-	var cancelled *CancelledError
-	if !errors.As(err, &cancelled) {
-		t.Fatalf("defaultHomeRunner() error = %T, want *CancelledError", err)
+	if err != nil {
+		t.Fatalf("defaultHomeRunner() error = %v", err)
+	}
+	if !result.exited {
+		t.Fatal("defaultHomeRunner() exited = false, want true")
 	}
 }
 

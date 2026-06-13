@@ -269,7 +269,7 @@ func (m shellModel) handleHomeKey(key string) (tea.Model, tea.Cmd) {
 		}
 		return m.activateCommand(m.commands[m.selected])
 	case "q", "esc":
-		return m.quit(true)
+		return m.quit(false)
 	}
 	return m, nil
 }
