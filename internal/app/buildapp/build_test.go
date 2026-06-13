@@ -106,6 +106,19 @@ func TestBuilderRunsWebGenerateAndGoBuild(t *testing.T) {
 	}
 }
 
+func TestBuilderGenerateRequiresWebDist(t *testing.T) {
+	root := newBuildSource(t, false)
+	builder := NewBuilder(WithRoot(root), WithRunner(&recordingRunner{t: t, root: root}))
+
+	_, err := builder.Build(context.Background(), Options{
+		Targets:   []string{"linux/amd64"},
+		OutputDir: "out",
+	}, io.Discard, io.Discard)
+	if !errors.Is(err, ErrWebUIDistMissing) {
+		t.Fatalf("Build() error = %v, want ErrWebUIDistMissing", err)
+	}
+}
+
 func TestBuilderUsesCGOWhenRequested(t *testing.T) {
 	root := newBuildSource(t, true)
 	runner := &recordingRunner{t: t, root: root}
@@ -131,17 +144,30 @@ func TestBuilderUsesCGOWhenRequested(t *testing.T) {
 	}
 }
 
-func TestBuilderSkipWebGenerateRequiresExistingDist(t *testing.T) {
+func TestBuilderSkipWebGenerateAllowsBackendOnlyPackage(t *testing.T) {
 	root := newBuildSource(t, false)
-	builder := NewBuilder(WithRoot(root), WithRunner(&recordingRunner{t: t, root: root}))
+	runner := &recordingRunner{t: t, root: root}
+	builder := NewBuilder(WithRoot(root), WithRunner(runner))
 
-	_, err := builder.Build(context.Background(), Options{
+	var stdout strings.Builder
+	artifacts, err := builder.Build(context.Background(), Options{
 		Targets:         []string{"linux/amd64"},
 		OutputDir:       "out",
 		SkipWebGenerate: true,
-	}, io.Discard, io.Discard)
-	if !errors.Is(err, ErrWebUIDistMissing) {
-		t.Fatalf("Build() error = %v, want ErrWebUIDistMissing", err)
+	}, &stdout, io.Discard)
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if len(runner.requests) != 1 || runner.requests[0].Name != "go" {
+		t.Fatalf("requests = %#v, want only go build", runner.requests)
+	}
+	entries := readTarGzEntries(t, artifacts[0].ArchivePath)
+	linuxPrefix := artifactBaseName(Target{GOOS: "linux", GOARCH: "amd64"}) + "/"
+	if containsString(entries, linuxPrefix+"web/admin/.output/public/index.html") {
+		t.Fatalf("backend-only package should not include web dist:\n%v", entries)
+	}
+	if !strings.Contains(stdout.String(), "backend-only") {
+		t.Fatalf("stdout missing backend-only notice:\n%s", stdout.String())
 	}
 }
 

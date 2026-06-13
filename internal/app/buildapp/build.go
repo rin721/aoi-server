@@ -155,7 +155,7 @@ func PromptOptions(ctx context.Context, ui cli.PromptUI, opts Options) (Options,
 		opts.OutputDir = strings.TrimSpace(output)
 	}
 
-	generateWeb, err := ui.Confirm(ctx, "是否执行 pnpm generate 生成 Admin WebUI？", true)
+	generateWeb, err := ui.Confirm(ctx, "是否执行 pnpm generate 生成并打包 Admin WebUI？选择否时若无既有产物将构建后端-only 包。", true)
 	if err != nil {
 		return Options{}, false, err
 	}
@@ -253,14 +253,21 @@ func (b *Builder) Build(ctx context.Context, opts Options, stdout, stderr io.Wri
 		return nil, fmt.Errorf("create output dir: %w", err)
 	}
 
+	includeWebUI, err := webUIDistExists(root)
+	if err != nil {
+		return nil, err
+	}
 	if !opts.SkipWebGenerate {
 		fmt.Fprintln(stdout, "Generating Admin WebUI static files...")
 		if err := b.generateWebUI(ctx, root, opts, stdout, stderr); err != nil {
 			return nil, err
 		}
-	}
-	if err := requireWebUIDist(root); err != nil {
-		return nil, err
+		if err := requireWebUIDist(root); err != nil {
+			return nil, err
+		}
+		includeWebUI = true
+	} else if !includeWebUI {
+		fmt.Fprintln(stdout, "Admin WebUI static dist not found; packaging backend-only release.")
 	}
 
 	if !opts.CGOEnabled {
@@ -275,7 +282,7 @@ func (b *Builder) Build(ctx context.Context, opts Options, stdout, stderr io.Wri
 
 	artifacts := make([]Artifact, 0, len(targets))
 	for _, target := range targets {
-		artifact, err := b.buildTarget(ctx, root, outputDir, stagingRoot, opts, target, stdout, stderr)
+		artifact, err := b.buildTarget(ctx, root, outputDir, stagingRoot, opts, target, includeWebUI, stdout, stderr)
 		if err != nil {
 			return nil, err
 		}
@@ -301,7 +308,7 @@ func (b *Builder) generateWebUI(ctx context.Context, root string, opts Options, 
 	})
 }
 
-func (b *Builder) buildTarget(ctx context.Context, root, outputDir, stagingRoot string, opts Options, target Target, stdout, stderr io.Writer) (Artifact, error) {
+func (b *Builder) buildTarget(ctx context.Context, root, outputDir, stagingRoot string, opts Options, target Target, includeWebUI bool, stdout, stderr io.Writer) (Artifact, error) {
 	artifactBase := artifactBaseName(target)
 	packageRoot := filepath.Join(stagingRoot, artifactBase)
 	if err := os.MkdirAll(packageRoot, 0o755); err != nil {
@@ -334,7 +341,7 @@ func (b *Builder) buildTarget(ctx context.Context, root, outputDir, stagingRoot 
 	if err := os.Chmod(filepath.Join(packageRoot, binaryName), 0o755); err != nil {
 		return Artifact{}, fmt.Errorf("chmod binary: %w", err)
 	}
-	if err := populateRuntimePackage(root, packageRoot, opts); err != nil {
+	if err := populateRuntimePackage(root, packageRoot, opts, includeWebUI); err != nil {
 		return Artifact{}, err
 	}
 
@@ -422,7 +429,19 @@ func requireWebUIDist(root string) error {
 	return nil
 }
 
-func populateRuntimePackage(root, packageRoot string, opts Options) error {
+func webUIDistExists(root string) (bool, error) {
+	indexPath := filepath.Join(root, defaultWebUIDistDir, "index.html")
+	info, err := os.Stat(indexPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("stat admin webui static dist: %w", err)
+	}
+	return !info.IsDir(), nil
+}
+
+func populateRuntimePackage(root, packageRoot string, opts Options, includeWebUI bool) error {
 	operations := []struct {
 		src string
 		dst string
@@ -433,7 +452,13 @@ func populateRuntimePackage(root, packageRoot string, opts Options) error {
 		{src: filepath.Join(root, "configs", "locales"), dst: filepath.Join(packageRoot, "configs", "locales"), dir: true},
 		{src: filepath.Join(root, "internal", "migrations"), dst: filepath.Join(packageRoot, "internal", "migrations"), dir: true},
 		{src: filepath.Join(root, "plugins", "demo1", "plugin.yaml"), dst: filepath.Join(packageRoot, "plugins", "demo1", "plugin.yaml")},
-		{src: filepath.Join(root, defaultWebUIDistDir), dst: filepath.Join(packageRoot, defaultWebUIPackageDir), dir: true},
+	}
+	if includeWebUI {
+		operations = append(operations, struct {
+			src string
+			dst string
+			dir bool
+		}{src: filepath.Join(root, defaultWebUIDistDir), dst: filepath.Join(packageRoot, defaultWebUIPackageDir), dir: true})
 	}
 	for _, op := range operations {
 		var err error
@@ -451,11 +476,11 @@ func populateRuntimePackage(root, packageRoot string, opts Options) error {
 			return fmt.Errorf("create runtime dir %s: %w", name, err)
 		}
 	}
-	return writeReleaseReadme(packageRoot, opts)
+	return writeReleaseReadme(packageRoot, opts, includeWebUI)
 }
 
-func writeReleaseReadme(packageRoot string, opts Options) error {
-	content := strings.Join([]string{
+func writeReleaseReadme(packageRoot string, opts Options, includeWebUI bool) error {
+	lines := []string{
 		constants.AppName + " release package",
 		"",
 		"Run:",
@@ -464,11 +489,18 @@ func writeReleaseReadme(packageRoot string, opts Options) error {
 		"Windows:",
 		"  .\\go-scaffold-server.exe server --config=.\\configs\\config.yaml",
 		"",
-		"This package includes Admin WebUI static files under web/admin/.output/public.",
+	}
+	if includeWebUI {
+		lines = append(lines, "This package includes Admin WebUI static files under web/admin/.output/public.")
+	} else {
+		lines = append(lines, "This package does not include Admin WebUI static files.")
+	}
+	lines = append(lines,
 		"Default packages are built with CGO_ENABLED=0 unless --cgo was used.",
 		"With CGO disabled, the SQLite driver is not available at runtime; use MySQL/Postgres or rebuild with --cgo on a compatible toolchain.",
-		"Nuxt base URL: " + opts.WebUIBuildBaseURL,
-	}, "\n") + "\n"
+		"Nuxt base URL: "+opts.WebUIBuildBaseURL,
+	)
+	content := strings.Join(lines, "\n") + "\n"
 	return os.WriteFile(filepath.Join(packageRoot, "README.txt"), []byte(content), 0o644)
 }
 

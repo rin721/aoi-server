@@ -61,7 +61,7 @@ func (c *BuildCommand) Flags() []cli.FlagSpec {
 			Name:        "skip-web-generate",
 			Type:        cli.FlagTypeBool,
 			Default:     false,
-			Description: "Skip pnpm generate and require an existing Admin WebUI dist",
+			Description: "Skip pnpm generate; package existing Admin WebUI dist when present",
 		},
 		{
 			Name:        "webui-build-base-url",
