@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEFAULT_REPO_URL="https://github.com/rin721/go-scaffold.git"
 DEFAULT_REPO_REF="main"
-DEFAULT_REPO_SLUG="rin721/go-scaffold"
 
 log() {
 	printf '[deploy] %s\n' "$*"
@@ -25,18 +23,19 @@ usage() {
   bash deploy.sh --docker y --image go-scaffold:local --confirm
 
 直接安装:
-  curl -fsSL -o deploy.sh https://raw.githubusercontent.com/rin721/go-scaffold/main/deploy.sh
-  bash deploy.sh --docker y --image go-scaffold:local --confirm
+  curl -fsSL -o deploy.sh https://raw.githubusercontent.com/<owner>/<repo>/main/deploy.sh
+  bash deploy.sh --repo https://github.com/<owner>/<repo>.git --docker y --image go-scaffold:local --confirm
 
 GitHub 代理安装:
-  curl -fsSL -o deploy.sh https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-scaffold/main/deploy.sh
-  bash deploy.sh --github-proxy-host github-com-gh.helloworlds.eu.org --docker y --image go-scaffold:local --confirm
+  curl -fsSL -o deploy.sh https://raw-githubusercontent-com-gh.helloworlds.eu.org/<owner>/<repo>/main/deploy.sh
+  bash deploy.sh --github-proxy-host github-com-gh.helloworlds.eu.org --repo-slug <owner>/<repo> --docker y --image go-scaffold:local --confirm
 
 部署选项:
   --docker <y|n>              使用 Docker Compose 部署；当前仅支持 "y"。
   --repo <url>                脚本不在仓库目录内运行时要克隆的仓库地址。
+  --repo-slug <owner>/<repo>  GitHub 仓库 slug；配合 --github-proxy-host 生成克隆地址。
   --ref <ref>                 要克隆的 Git ref，默认 main。
-  --github-proxy-host <host>  GitHub 克隆代理主机；未传时直接克隆 github.com。
+  --github-proxy-host <host>  GitHub 克隆代理主机；必须配合 --repo-slug 或 --repo。
   --path <path>               运行目录，默认 /opt/go-scaffold。
   --config-dir <path>         宿主机配置目录，默认 <path>/configs。
   --data-dir <path>           宿主机数据目录，默认 <path>/data。
@@ -229,12 +228,22 @@ require_cmd() {
 
 repo_url_from_github_proxy() {
 	local host="$1"
+	local slug="$2"
 
 	host="${host#https://}"
 	host="${host#http://}"
 	host="${host%/}"
+	slug="${slug#https://github.com/}"
+	slug="${slug#http://github.com/}"
+	slug="${slug%.git}"
+	slug="${slug#/}"
+	slug="${slug%/}"
 	[ -n "$host" ] || die "github proxy host cannot be empty"
-	printf 'https://%s/%s.git' "$host" "$DEFAULT_REPO_SLUG"
+	[ -n "$slug" ] || die "--repo-slug is required with --github-proxy-host when --repo is not set"
+	[[ "$slug" != *"://"* ]] || die "--repo-slug must be owner/name, not a URL"
+	[[ "$slug" == */* ]] || die "--repo-slug must be owner/name"
+	[[ "$slug" != */*/* ]] || die "--repo-slug must be owner/name"
+	printf 'https://%s/%s.git' "$host" "$slug"
 }
 
 clone_repo() {
@@ -256,6 +265,7 @@ clone_repo() {
 DEPLOY_DOCKER="${DEPLOY_DOCKER:-}"
 REPO_URL="${REPO_URL:-${DEPLOY_REPO_URL:-}}"
 REPO_REF="${REPO_REF:-${DEPLOY_REPO_REF:-$DEFAULT_REPO_REF}}"
+REPO_SLUG="${REPO_SLUG:-${DEPLOY_REPO_SLUG:-}}"
 GITHUB_PROXY_HOST="${GITHUB_PROXY_HOST:-${DEPLOY_GITHUB_PROXY_HOST:-}}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/go-scaffold}"
 HOST_CONFIG_DIR="${HOST_CONFIG_DIR:-}"
@@ -306,6 +316,11 @@ while [ "$#" -gt 0 ]; do
 	--ref)
 		require_arg "$1" "${2:-}"
 		REPO_REF="$2"
+		shift 2
+		;;
+	--repo-slug)
+		require_arg "$1" "${2:-}"
+		REPO_SLUG="$2"
 		shift 2
 		;;
 	--github-proxy-host)
@@ -925,12 +940,8 @@ DEPLOY_BUILD="$(normalize_yn "$DEPLOY_BUILD")"
 DEPLOY_PULL="$(normalize_yn "$DEPLOY_PULL")"
 WEBUI_CHECK="$(normalize_yn "$WEBUI_CHECK")"
 
-if [ -z "$REPO_URL" ]; then
-	if [ -n "$GITHUB_PROXY_HOST" ]; then
-		REPO_URL="$(repo_url_from_github_proxy "$GITHUB_PROXY_HOST")"
-	else
-		REPO_URL="$DEFAULT_REPO_URL"
-	fi
+if [ -z "$REPO_URL" ] && [ -n "$GITHUB_PROXY_HOST" ]; then
+	REPO_URL="$(repo_url_from_github_proxy "$GITHUB_PROXY_HOST" "$REPO_SLUG")"
 fi
 
 [ "$DEPLOY_CONFIRM" = "y" ] || die "--confirm is required"
@@ -958,6 +969,7 @@ HOST_CONFIG_FILE="${HOST_CONFIG_DIR%/}/config.yaml"
 [[ "$APP_CONTAINER_PORT" =~ ^[0-9]+$ ]] || die "--server-port must be numeric"
 validate_value REPO_URL "$REPO_URL"
 validate_value REPO_REF "$REPO_REF"
+validate_value REPO_SLUG "$REPO_SLUG"
 validate_value GITHUB_PROXY_HOST "$GITHUB_PROXY_HOST"
 validate_value DEPLOY_PATH "$DEPLOY_PATH"
 validate_value HOST_CONFIG_DIR "$HOST_CONFIG_DIR"
@@ -1028,6 +1040,7 @@ if [ -n "$SOURCE_DIR" ]; then
 elif [ -f "./Dockerfile" ] && [ -f "./deploy/docker-compose.production.example.yml" ]; then
 	SOURCE_DIR="$(pwd)"
 else
+	[ -n "$REPO_URL" ] || die "--repo is required when deploy.sh is not run from a repository checkout; use --repo, or --github-proxy-host with --repo-slug"
 	cleanup_dir="$(mktemp -d "${TMPDIR:-/tmp}/go-scaffold.XXXXXX")"
 	clone_repo "$REPO_URL" "$REPO_REF" "$cleanup_dir"
 	SOURCE_DIR="$cleanup_dir"

@@ -255,7 +255,11 @@ jobs:
           mask_secret "${REDIS_PASSWORD:-}"
 
           deploy_port="${DEPLOY_PORT:-22}"
-          deploy_repo="${DEPLOY_REPO:-https://github.com/rin721/go-scaffold.git}"
+          deploy_repo="${DEPLOY_REPO:-}"
+          if [ -z "${deploy_repo}" ]; then
+            echo "::error::DEPLOY_REPO repository URL is required."
+            exit 1
+          fi
           deploy_ref="${DEPLOY_REF:-${GITHUB_SHA}}"
           deploy_path="${DEPLOY_PATH:-/opt/go-scaffold}"
           deploy_image="${DEPLOY_IMAGE:-go-scaffold:local}"

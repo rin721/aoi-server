@@ -58,16 +58,19 @@ curl http://127.0.0.1:9999/admin/server-info
 | raw 脚本下载 | `raw.githubusercontent.com` | `raw-githubusercontent-com-gh.helloworlds.eu.org` |
 | Git 克隆 | `github.com` | `github-com-gh.helloworlds.eu.org` |
 
-远程 raw 文件只会执行 GitHub 上已经发布的脚本版本。如果远程 `main` 的
+远程 raw 文件只会执行 GitHub 上已经发布的脚本版本。仓库名必须由调用方显式传入；
+raw URL 只负责下载入口脚本，后续 Git 克隆源由 `--repo` 或
+`--github-proxy-host` + `--repo-slug` 决定。如果远程 `main` 的
 `script/install.sh` 还只支持 `--repo` 和 `--ref`，使用下面这个兼容命令：
 
 ```bash
+export GITHUB_REPO_SLUG=rin721/aoi-server
 export RIN_APP_AUTH_SIGNING_KEY=change-me-at-least-32-bytes-long
 export RIN_APP_AUTH_REFRESH_TOKEN_PEPPER=change-me-refresh-pepper
 export RIN_APP_AUTH_MFA_SECRET_KEY=change-me-mfa-secret-key-32-bytes
 
-curl -fsSL https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-scaffold/main/script/install.sh | bash -s -- \
-  --repo https://github-com-gh.helloworlds.eu.org/rin721/go-scaffold.git \
+curl -fsSL "https://raw-githubusercontent-com-gh.helloworlds.eu.org/${GITHUB_REPO_SLUG}/main/script/install.sh" | bash -s -- \
+  --repo "https://github-com-gh.helloworlds.eu.org/${GITHUB_REPO_SLUG}.git" \
   --docker y \
   --path /opt/go-scaffold \
   --image go-scaffold:local \
@@ -78,14 +81,20 @@ curl -fsSL https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-sca
   --confirm
 ```
 
+如果仓库不是 `rin721/aoi-server`，只需要把 `GITHUB_REPO_SLUG` 改成实际的
+`<owner>/<repo>`；脚本不会内置仓库名。
+
 这个兼容命令会把配置、数据和日志放在 `--path` 下的默认目录：
 `/opt/go-scaffold/configs`、`/opt/go-scaffold/data`、`/opt/go-scaffold/logs`。
 
 脚本更新发布后，可以改用更明确的 `--github-proxy-host` 和宿主机目录映射参数：
 
 ```bash
-curl -fsSL https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-scaffold/main/script/install.sh | bash -s -- \
+export GITHUB_REPO_SLUG=rin721/aoi-server
+
+curl -fsSL "https://raw-githubusercontent-com-gh.helloworlds.eu.org/${GITHUB_REPO_SLUG}/main/script/install.sh" | bash -s -- \
   --github-proxy-host github-com-gh.helloworlds.eu.org \
+  --repo-slug "$GITHUB_REPO_SLUG" \
   --docker y \
   --path /opt/go-scaffold \
   --config-dir /opt/go-scaffold/configs \
@@ -100,8 +109,9 @@ curl -fsSL https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-sca
 ```
 
 在新版 `script/install.sh` 入口中，`--github-proxy-host` 只影响 bootstrap 阶段自动
-生成的 Git 克隆地址，不会继续传给仓库内的 `deploy.sh`；如果已经传入 `--repo`，
-则以 `--repo` 为准。raw 代理只解决入口脚本下载，不能替代后续 Git 克隆代理。
+生成的 Git 克隆地址，必须配合显式的 `--repo-slug <owner>/<repo>` 使用，且不会继续
+传给仓库内的 `deploy.sh`；如果已经传入 `--repo`，则以 `--repo` 为准。raw 代理
+只解决入口脚本下载，不能替代后续 Git 克隆代理。
 若目标机器访问该 raw 代理时仍被重定向到 `raw.githubusercontent.com` 且无法连通，
 需要换成可用的 raw 代理地址，或先把 `script/install.sh` 上传到目标机器再运行。
 
@@ -119,7 +129,9 @@ curl -fsSL https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-sca
 | `--data-dir /var/lib/go-scaffold` | 宿主机数据目录，映射到容器 `/app/data`；必须是非根绝对路径。 |
 | `--logs-dir /var/log/go-scaffold` | 宿主机日志目录，映射到容器 `/app/logs`；必须是非根绝对路径。 |
 | `--image go-scaffold:local` | 构建或拉取后运行的镜像。 |
-| `--github-proxy-host github-com-gh.helloworlds.eu.org` | 生成 Git 克隆代理地址；未传时直接克隆 `github.com`。 |
+| `--repo https://github-com-gh.helloworlds.eu.org/<owner>/<repo>.git` | 显式 Git 克隆地址；传入后优先于 `--repo-slug`。 |
+| `--repo-slug <owner>/<repo>` | 显式 GitHub 仓库 slug；配合 `--github-proxy-host` 生成 Git 克隆代理地址。 |
+| `--github-proxy-host github-com-gh.helloworlds.eu.org` | Git 克隆代理主机；不会内置仓库名，必须配合 `--repo-slug` 或直接传 `--repo`。 |
 | `--port 9999` | 宿主机 HTTP 端口，映射到容器内应用端口。 |
 | `--server-port 9999` | 容器内 HTTP 端口，同时写入 `RIN_APP_SERVER_PORT`；默认 `9999`。 |
 | `--build y` / `--pull y` | 二选一；本机源码构建或从镜像仓库拉取。 |
@@ -161,7 +173,7 @@ bash deploy.sh \
 生产环境更推荐由 CI/CD secrets、主机密钥管理或受控 shell 会话注入，避免命令行
 历史和进程列表暴露敏感值。
 
-远程执行时，GitHub Actions 会把当前仓库的 `script/install.sh` 通过 SSH 传入远端 Bash；该入口会克隆目标 ref，再委托仓库内 `deploy.sh` 执行真实部署。直接在目标机器运行时，也可以下载 `deploy.sh` 后让它自行克隆仓库。
+远程执行时，GitHub Actions 会把当前仓库的 `script/install.sh` 通过 SSH 传入远端 Bash；该入口会克隆目标 ref，再委托仓库内 `deploy.sh` 执行真实部署。`DEPLOY_REPO` 必须在 GitHub Environment 或 Repository Variables 中显式配置为完整 Git URL，workflow 不会提供默认仓库。直接在目标机器运行时，也可以下载 `deploy.sh` 后让它自行克隆仓库。
 
 ## 发布清单
 
