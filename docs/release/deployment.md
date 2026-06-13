@@ -58,13 +58,32 @@ curl http://127.0.0.1:9999/admin/server-info
 | raw 脚本下载 | `raw.githubusercontent.com` | `raw-githubusercontent-com-gh.helloworlds.eu.org` |
 | Git 克隆 | `github.com` | `github-com-gh.helloworlds.eu.org` |
 
-推荐远程一键入口是下载 `script/install.sh`，由它克隆仓库后委托仓库内的 `deploy.sh`：
+远程 raw 文件只会执行 GitHub 上已经发布的脚本版本。如果远程 `main` 的
+`script/install.sh` 还只支持 `--repo` 和 `--ref`，使用下面这个兼容命令：
 
 ```bash
 export RIN_APP_AUTH_SIGNING_KEY=change-me-at-least-32-bytes-long
 export RIN_APP_AUTH_REFRESH_TOKEN_PEPPER=change-me-refresh-pepper
 export RIN_APP_AUTH_MFA_SECRET_KEY=change-me-mfa-secret-key-32-bytes
 
+curl -fsSL https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-scaffold/main/script/install.sh | bash -s -- \
+  --repo https://github-com-gh.helloworlds.eu.org/rin721/go-scaffold.git \
+  --docker y \
+  --path /opt/go-scaffold \
+  --image go-scaffold:local \
+  --build y \
+  --webui-mount-path /admin \
+  --webui-build-base-url /admin/ \
+  --webui-check-path /admin/server-info \
+  --confirm
+```
+
+这个兼容命令会把配置、数据和日志放在 `--path` 下的默认目录：
+`/opt/go-scaffold/configs`、`/opt/go-scaffold/data`、`/opt/go-scaffold/logs`。
+
+脚本更新发布后，可以改用更明确的 `--github-proxy-host` 和宿主机目录映射参数：
+
+```bash
 curl -fsSL https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-scaffold/main/script/install.sh | bash -s -- \
   --github-proxy-host github-com-gh.helloworlds.eu.org \
   --docker y \
@@ -80,9 +99,9 @@ curl -fsSL https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-sca
   --confirm
 ```
 
-在 `script/install.sh` 入口中，`--github-proxy-host` 只影响 bootstrap 阶段自动生成
-的 Git 克隆地址，不会继续传给仓库内的 `deploy.sh`；如果已经传入 `--repo`，则以
-`--repo` 为准。raw 代理只解决入口脚本下载，不能替代后续 Git 克隆代理。
+在新版 `script/install.sh` 入口中，`--github-proxy-host` 只影响 bootstrap 阶段自动
+生成的 Git 克隆地址，不会继续传给仓库内的 `deploy.sh`；如果已经传入 `--repo`，
+则以 `--repo` 为准。raw 代理只解决入口脚本下载，不能替代后续 Git 克隆代理。
 若目标机器访问该 raw 代理时仍被重定向到 `raw.githubusercontent.com` 且无法连通，
 需要换成可用的 raw 代理地址，或先把 `script/install.sh` 上传到目标机器再运行。
 
