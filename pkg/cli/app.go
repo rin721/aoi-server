@@ -21,6 +21,7 @@ type streams struct {
 	stdin  io.Reader
 	stdout io.Writer
 	stderr io.Writer
+	ui     PromptUI
 }
 
 type app struct {
@@ -30,7 +31,8 @@ type app struct {
 	names    map[string]struct{}
 	mu       sync.RWMutex
 
-	runHome func(context.Context, homeModel, streams, []ProgramOption) (homeResult, error)
+	runHome  func(context.Context, homeModel, streams, []ProgramOption) (homeResult, error)
+	runShell func(context.Context, *app, homeModel, streams, []ProgramOption) (homeResult, error)
 }
 
 // NewApp 创建一个由 Cobra 和 Bubble Tea 驱动的 CLI 应用。
@@ -45,10 +47,11 @@ func NewApp(cfg Config) (App, error) {
 	}
 
 	return &app{
-		cfg:     cfg,
-		theme:   theme,
-		names:   make(map[string]struct{}),
-		runHome: defaultHomeRunner,
+		cfg:      cfg,
+		theme:    theme,
+		names:    make(map[string]struct{}),
+		runHome:  defaultHomeRunner,
+		runShell: defaultShellRunner,
 	}, nil
 }
 
@@ -109,7 +112,7 @@ func (a *app) run(ctx context.Context, args []string, s streams) error {
 		if err != nil {
 			return err
 		}
-		result, err := a.runHome(ctx, model, s, a.cfg.ProgramOptions)
+		result, err := a.runShell(ctx, a, model, s, a.cfg.ProgramOptions)
 		if err != nil {
 			return err
 		}
@@ -129,10 +132,13 @@ func (a *app) run(ctx context.Context, args []string, s streams) error {
 	root.SetArgs(args)
 
 	_, err = root.ExecuteC()
+	return normalizeExecuteError(err)
+}
+
+func normalizeExecuteError(err error) error {
 	if err == nil {
 		return nil
 	}
-
 	var usageErr *UsageError
 	if errors.As(err, &usageErr) {
 		return usageErr
@@ -146,6 +152,18 @@ func (a *app) run(ctx context.Context, args []string, s streams) error {
 		return cancelledErr
 	}
 	return &UsageError{Message: err.Error()}
+}
+
+func (a *app) runCommandWithUI(ctx context.Context, args []string, s streams, ui PromptUI) error {
+	commandStreams := s
+	commandStreams.ui = ui
+	root, err := a.rootCommand(ctx, commandStreams)
+	if err != nil {
+		return err
+	}
+	root.SetArgs(args)
+	_, err = root.ExecuteC()
+	return normalizeExecuteError(err)
 }
 
 func (a *app) rootCommand(ctx context.Context, s streams) (*cobra.Command, error) {
@@ -351,6 +369,10 @@ func (a *app) commandContext(ctx context.Context, cmd *cobra.Command, args []str
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	ui := s.ui
+	if ui == nil {
+		ui = newPromptUI(s)
+	}
 	return &Context{
 		Context:      ctx,
 		CommandName:  cmd.Name(),
@@ -361,7 +383,7 @@ func (a *app) commandContext(ctx context.Context, cmd *cobra.Command, args []str
 		Stdin:        s.stdin,
 		Stdout:       s.stdout,
 		Stderr:       s.stderr,
-		UI:           newPromptUI(s),
+		UI:           ui,
 	}, nil
 }
 

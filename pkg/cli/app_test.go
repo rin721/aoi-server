@@ -197,14 +197,15 @@ func TestRunWithoutArgsStartsInteractiveHome(t *testing.T) {
 	appImpl := impl.(*app)
 
 	var called bool
-	appImpl.runHome = func(_ context.Context, model homeModel, _ streams, _ []ProgramOption) (homeResult, error) {
+	appImpl.runShell = func(_ context.Context, _ *app, model homeModel, _ streams, _ []ProgramOption) (homeResult, error) {
 		called = true
-		view := model.View()
+		shell := newShellModel(context.Background(), func() {}, appImpl, model, streams{}, make(chan tea.Msg, 1))
+		view := shell.View()
 		if !view.AltScreen {
-			t.Fatal("home view AltScreen = false, want true")
+			t.Fatal("shell view AltScreen = false, want true")
 		}
 		if !strings.Contains(view.Content, "tool v1.2.3") {
-			t.Fatalf("home content %q does not contain title", view.Content)
+			t.Fatalf("shell content %q does not contain title", view.Content)
 		}
 		return homeResult{}, &CancelledError{}
 	}
@@ -368,7 +369,7 @@ func TestHomeSelectionExecutesCommand(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("AddCommand() error = %v", err)
 	}
-	appImpl.runHome = func(context.Context, homeModel, streams, []ProgramOption) (homeResult, error) {
+	appImpl.runShell = func(context.Context, *app, homeModel, streams, []ProgramOption) (homeResult, error) {
 		return homeResult{command: "run"}, nil
 	}
 	if err := appImpl.RunWithIO(context.Background(), nil, strings.NewReader(""), &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
