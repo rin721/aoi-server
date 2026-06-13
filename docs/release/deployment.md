@@ -80,8 +80,9 @@ curl -fsSL https://raw-githubusercontent-com-gh.helloworlds.eu.org/rin721/go-sca
   --confirm
 ```
 
-`--github-proxy-host` 只影响脚本自动生成的 Git 克隆地址；如果已经传入 `--repo`，
-则以 `--repo` 为准。raw 代理只解决入口脚本下载，不能替代后续 Git 克隆代理。
+在 `script/install.sh` 入口中，`--github-proxy-host` 只影响 bootstrap 阶段自动生成
+的 Git 克隆地址，不会继续传给仓库内的 `deploy.sh`；如果已经传入 `--repo`，则以
+`--repo` 为准。raw 代理只解决入口脚本下载，不能替代后续 Git 克隆代理。
 若目标机器访问该 raw 代理时仍被重定向到 `raw.githubusercontent.com` 且无法连通，
 需要换成可用的 raw 代理地址，或先把 `script/install.sh` 上传到目标机器再运行。
 

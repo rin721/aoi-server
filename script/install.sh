@@ -85,7 +85,6 @@ while [ "$#" -gt 0 ]; do
 	--github-proxy-host)
 		require_arg "$1" "${2:-}"
 		github_proxy_host="$2"
-		args+=("$1" "$2")
 		shift 2
 		;;
 	-h | --help)
