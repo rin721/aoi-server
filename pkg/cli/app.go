@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 type streams struct {
@@ -28,7 +30,7 @@ type app struct {
 	names    map[string]struct{}
 	mu       sync.RWMutex
 
-	runHome func(context.Context, homeModel, streams, []ProgramOption) error
+	runHome func(context.Context, homeModel, streams, []ProgramOption) (homeResult, error)
 }
 
 // NewApp 创建一个由 Cobra 和 Bubble Tea 驱动的 CLI 应用。
@@ -107,7 +109,17 @@ func (a *app) run(ctx context.Context, args []string, s streams) error {
 		if err != nil {
 			return err
 		}
-		return a.runHome(ctx, model, s, a.cfg.ProgramOptions)
+		result, err := a.runHome(ctx, model, s, a.cfg.ProgramOptions)
+		if err != nil {
+			return err
+		}
+		if result.exited {
+			return nil
+		}
+		if result.command != "" {
+			return a.run(ctx, []string{result.command}, s)
+		}
+		return nil
 	}
 
 	root, err := a.rootCommand(ctx, s)
@@ -304,6 +316,10 @@ func flagDefaultError(cmd *cobra.Command, spec FlagSpec, err error) error {
 
 func (a *app) commandContext(ctx context.Context, cmd *cobra.Command, args []string, specs []FlagSpec, s streams) (*Context, error) {
 	values := make(map[string]interface{}, len(specs))
+	changed := make(map[string]bool, len(specs))
+	cmd.Flags().Visit(func(flag *pflag.Flag) {
+		changed[flag.Name] = true
+	})
 	for _, spec := range specs {
 		switch spec.Type {
 		case FlagTypeString:
@@ -336,14 +352,16 @@ func (a *app) commandContext(ctx context.Context, cmd *cobra.Command, args []str
 		ctx = context.Background()
 	}
 	return &Context{
-		Context:     ctx,
-		CommandName: cmd.Name(),
-		CommandPath: cmd.CommandPath(),
-		Args:        append([]string(nil), args...),
-		Flags:       values,
-		Stdin:       s.stdin,
-		Stdout:      s.stdout,
-		Stderr:      s.stderr,
+		Context:      ctx,
+		CommandName:  cmd.Name(),
+		CommandPath:  cmd.CommandPath(),
+		Args:         append([]string(nil), args...),
+		Flags:        values,
+		ChangedFlags: changed,
+		Stdin:        s.stdin,
+		Stdout:       s.stdout,
+		Stderr:       s.stderr,
+		UI:           newPromptUI(s),
 	}, nil
 }
 
@@ -468,14 +486,43 @@ func (a *app) homeModel(ctx context.Context, s streams) (homeModel, error) {
 	}
 
 	commands := make([]homeCommand, 0, len(specs))
-	for _, spec := range specs {
+	for index, spec := range specs {
+		if spec.HomeHidden {
+			continue
+		}
 		help := commandHelp(root, spec.Name)
 		commands = append(commands, homeCommand{
 			Name:        spec.Name,
+			Label:       firstString(spec.HomeLabel, spec.Name),
 			Description: spec.Description,
 			Help:        help,
+			Order:       spec.HomeOrder,
+			index:       index,
 		})
 	}
+	sort.SliceStable(commands, func(i, j int) bool {
+		if commands[i].Order == commands[j].Order {
+			return commands[i].index < commands[j].index
+		}
+		return commands[i].Order < commands[j].Order
+	})
+	commands = append(commands,
+		homeCommand{
+			Name:        "help",
+			Label:       "帮助 / help",
+			Description: "查看命令和配置说明",
+			Help:        rootHelp(root),
+			Builtin:     homeBuiltinHelp,
+			Order:       9000,
+		},
+		homeCommand{
+			Name:        "exit",
+			Label:       "退出 / exit",
+			Description: "退出 CLI 首页，不影响后台服务",
+			Builtin:     homeBuiltinExit,
+			Order:       10000,
+		},
+	)
 
 	return newHomeModel(homeConfig{
 		Name:        a.cfg.Name,
@@ -498,7 +545,15 @@ func commandHelp(root *cobra.Command, name string) string {
 	return out.String()
 }
 
-func defaultHomeRunner(ctx context.Context, model homeModel, s streams, opts []ProgramOption) error {
+func rootHelp(root *cobra.Command) string {
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(io.Discard)
+	_ = root.Help()
+	return out.String()
+}
+
+func defaultHomeRunner(ctx context.Context, model homeModel, s streams, opts []ProgramOption) (homeResult, error) {
 	options := []ProgramOption{
 		tea.WithContext(ctx),
 		tea.WithInput(s.stdin),
@@ -510,14 +565,16 @@ func defaultHomeRunner(ctx context.Context, model homeModel, s streams, opts []P
 	finalModel, err := program.Run()
 	if err != nil {
 		if errors.Is(err, tea.ErrInterrupted) || errors.Is(err, tea.ErrProgramKilled) {
-			return &CancelledError{}
+			return homeResult{}, &CancelledError{}
 		}
-		return err
+		return homeResult{}, err
 	}
 	if finalHome, ok := finalModel.(homeModel); ok && finalHome.cancelled {
-		return &CancelledError{}
+		return homeResult{}, &CancelledError{}
+	} else if ok {
+		return finalHome.result(), nil
 	}
-	return nil
+	return homeResult{}, nil
 }
 
 func firstReader(value io.Reader, fallback io.Reader) io.Reader {

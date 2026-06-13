@@ -63,6 +63,12 @@ type CommandSpec struct {
 	Long string
 	// Example 是命令示例文本。
 	Example string
+	// HomeLabel 覆盖交互首页中的显示文案；为空时使用 Name。
+	HomeLabel string
+	// HomeOrder 控制交互首页排序，数值越小越靠前。
+	HomeOrder int
+	// HomeHidden 表示该命令不出现在交互首页中，但仍可直接调用。
+	HomeHidden bool
 
 	// Flags 声明命令支持的 flag。
 	Flags []FlagSpec
@@ -116,11 +122,15 @@ type Context struct {
 	Args []string
 	// Flags 是解析后的 flag 值集合。
 	Flags map[string]interface{}
+	// ChangedFlags 标记本次调用中显式传入的 flag。
+	ChangedFlags map[string]bool
 
 	// Stdin、Stdout、Stderr 是本次命令调用使用的 I/O。
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
+	// UI 提供通用交互式输入输出能力，业务层不需要直接读取 stdin。
+	UI PromptUI
 }
 
 // GetString 返回字符串 flag 值；不存在或类型不匹配时返回空字符串。
@@ -173,4 +183,28 @@ func (c *Context) GetStringSlice(name string) []string {
 		}
 	}
 	return nil
+}
+
+// IsFlagChanged 返回指定 flag 是否由本次命令行显式传入。
+func (c *Context) IsFlagChanged(name string) bool {
+	if c == nil || c.ChangedFlags == nil {
+		return false
+	}
+	return c.ChangedFlags[name]
+}
+
+// PromptUI 是业务命令可使用的通用交互抽象。
+type PromptUI interface {
+	Select(context.Context, string, []SelectOption) (string, error)
+	Confirm(context.Context, string, bool) (bool, error)
+	Input(context.Context, string, string) (string, error)
+	Password(context.Context, string) (string, error)
+	Info(string) error
+}
+
+// SelectOption 声明一个通用选择项。
+type SelectOption struct {
+	Value       string
+	Label       string
+	Description string
 }

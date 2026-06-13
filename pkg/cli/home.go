@@ -17,8 +17,12 @@ type homeConfig struct {
 
 type homeCommand struct {
 	Name        string
+	Label       string
 	Description string
 	Help        string
+	Builtin     string
+	Order       int
+	index       int
 }
 
 type homeModel struct {
@@ -35,7 +39,19 @@ type homeModel struct {
 	showingHelp bool
 	help        string
 	cancelled   bool
+	exited      bool
+	selectedCmd string
 }
+
+type homeResult struct {
+	command string
+	exited  bool
+}
+
+const (
+	homeBuiltinHelp = "help"
+	homeBuiltinExit = "exit"
+)
 
 func newHomeModel(cfg homeConfig) homeModel {
 	return homeModel{
@@ -68,10 +84,33 @@ func (m homeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			if len(m.commands) > 0 && !m.showingHelp {
+				current := m.commands[m.selected]
+				switch current.Builtin {
+				case homeBuiltinHelp:
+					m.showingHelp = true
+					m.help = current.Help
+				case homeBuiltinExit:
+					m.exited = true
+					return m, tea.Quit
+				default:
+					m.selectedCmd = current.Name
+					return m, tea.Quit
+				}
+			}
+		case "?", "h":
+			if len(m.commands) > 0 && !m.showingHelp {
 				m.showingHelp = true
 				m.help = m.commands[m.selected].Help
 			}
-		case "q", "esc", "ctrl+c":
+		case "esc":
+			if m.showingHelp {
+				m.showingHelp = false
+				m.help = ""
+				return m, nil
+			}
+			m.cancelled = true
+			return m, tea.Quit
+		case "q", "ctrl+c":
 			m.cancelled = true
 			return m, tea.Quit
 		}
@@ -106,9 +145,9 @@ func (m homeModel) render() string {
 		b.WriteString(m.theme.Empty.Render("暂无已注册命令。"))
 	} else {
 		for i, command := range m.commands {
-			line := command.Name
+			line := firstString(command.Label, command.Name)
 			if command.Description != "" {
-				line = fmt.Sprintf("%s  %s", command.Name, command.Description)
+				line = fmt.Sprintf("%s  %s", line, command.Description)
 			}
 			if i == m.selected {
 				b.WriteString(m.theme.Selected.Render("> " + line))
@@ -122,7 +161,7 @@ func (m homeModel) render() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(m.theme.Hint.Render("使用 up/down 或 j/k 移动，enter 查看帮助，q/esc/ctrl+c 退出"))
+	b.WriteString(m.theme.Hint.Render("使用 up/down 或 j/k 移动，enter 执行，?/h 查看帮助，q/esc/ctrl+c 退出"))
 	return b.String()
 }
 
@@ -138,4 +177,11 @@ func keyName(msg tea.KeyPressMsg) string {
 		return msg.Keystroke()
 	}
 	return msg.String()
+}
+
+func (m homeModel) result() homeResult {
+	return homeResult{
+		command: m.selectedCmd,
+		exited:  m.exited,
+	}
 }

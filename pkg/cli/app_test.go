@@ -197,7 +197,7 @@ func TestRunWithoutArgsStartsInteractiveHome(t *testing.T) {
 	appImpl := impl.(*app)
 
 	var called bool
-	appImpl.runHome = func(_ context.Context, model homeModel, _ streams, _ []ProgramOption) error {
+	appImpl.runHome = func(_ context.Context, model homeModel, _ streams, _ []ProgramOption) (homeResult, error) {
 		called = true
 		view := model.View()
 		if !view.AltScreen {
@@ -206,7 +206,7 @@ func TestRunWithoutArgsStartsInteractiveHome(t *testing.T) {
 		if !strings.Contains(view.Content, "tool v1.2.3") {
 			t.Fatalf("home content %q does not contain title", view.Content)
 		}
-		return &CancelledError{}
+		return homeResult{}, &CancelledError{}
 	}
 
 	err = appImpl.RunWithIO(context.Background(), nil, nil, &bytes.Buffer{}, &bytes.Buffer{})
@@ -226,12 +226,12 @@ func TestHomeModelNavigationHelpAndQuit(t *testing.T) {
 		Description: "test cli",
 		Theme:       DefaultTheme(),
 		Commands: []homeCommand{
-			{Name: "server", Description: "run server", Help: "server help"},
-			{Name: "db", Description: "database tools", Help: "db help"},
+			{Name: "server", Label: "启动 / server", Description: "run server", Help: "server help"},
+			{Name: "db", Label: "数据库 / db", Description: "database tools", Help: "db help"},
 		},
 	})
 
-	if view := model.View(); !strings.Contains(view.Content, "server") || !view.AltScreen {
+	if view := model.View(); !strings.Contains(view.Content, "启动 / server") || !view.AltScreen {
 		t.Fatalf("initial view = %#v", view)
 	}
 
@@ -247,13 +247,28 @@ func TestHomeModelNavigationHelpAndQuit(t *testing.T) {
 		t.Fatalf("selected = %d, want 1", model.selected)
 	}
 
-	updated, _ = model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	updated, _ = model.Update(tea.KeyPressMsg(tea.Key{Text: "?", Code: '?'}))
 	model = updated.(homeModel)
 	if !model.showingHelp || !strings.Contains(model.View().Content, "db help") {
 		t.Fatalf("help state = %v, content = %q", model.showingHelp, model.View().Content)
 	}
 
-	updated, cmd := model.Update(tea.KeyPressMsg(tea.Key{Text: "q", Code: 'q'}))
+	updated, _ = model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc}))
+	model = updated.(homeModel)
+	if model.showingHelp {
+		t.Fatal("showingHelp = true after esc, want false")
+	}
+
+	updated, cmd := model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	model = updated.(homeModel)
+	if model.selectedCmd != "db" {
+		t.Fatalf("selected command = %q, want db", model.selectedCmd)
+	}
+	if cmd == nil {
+		t.Fatal("enter command = nil")
+	}
+
+	updated, cmd = model.Update(tea.KeyPressMsg(tea.Key{Text: "q", Code: 'q'}))
 	model = updated.(homeModel)
 	if !model.cancelled {
 		t.Fatal("cancelled = false, want true")
@@ -270,7 +285,7 @@ func TestDefaultHomeRunnerMapsBubbleTeaQuitToCancelled(t *testing.T) {
 	})
 
 	var stdout, stderr bytes.Buffer
-	err := defaultHomeRunner(
+	_, err := defaultHomeRunner(
 		context.Background(),
 		model,
 		streams{
@@ -283,5 +298,114 @@ func TestDefaultHomeRunnerMapsBubbleTeaQuitToCancelled(t *testing.T) {
 	var cancelled *CancelledError
 	if !errors.As(err, &cancelled) {
 		t.Fatalf("defaultHomeRunner() error = %T, want *CancelledError", err)
+	}
+}
+
+func TestHomeModelExitReturnsNormalResult(t *testing.T) {
+	model := newHomeModel(homeConfig{
+		Name:  "tool",
+		Theme: DefaultTheme(),
+		Commands: []homeCommand{
+			{Name: "exit", Label: "退出 / exit", Builtin: homeBuiltinExit},
+		},
+	})
+	updated, cmd := model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	model = updated.(homeModel)
+	if !model.result().exited {
+		t.Fatal("exit result = false, want true")
+	}
+	if cmd == nil {
+		t.Fatal("exit command = nil")
+	}
+}
+
+func TestHomeModelFiltersAndOrdersCommands(t *testing.T) {
+	impl, err := NewApp(Config{Name: "tool"})
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	appImpl := impl.(*app)
+	for _, spec := range []CommandSpec{
+		{Name: "server", Description: "hidden server", HomeHidden: true},
+		{Name: "service", Description: "service center", HomeLabel: "服务 / service", HomeOrder: 20},
+		{Name: "run", Description: "start center", HomeLabel: "启动 / run", HomeOrder: 10},
+	} {
+		if err := appImpl.AddCommand(spec); err != nil {
+			t.Fatalf("AddCommand(%s) error = %v", spec.Name, err)
+		}
+	}
+	model, err := appImpl.homeModel(context.Background(), streams{stdin: strings.NewReader(""), stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}})
+	if err != nil {
+		t.Fatalf("homeModel() error = %v", err)
+	}
+	content := model.View().Content
+	if strings.Contains(content, "server") {
+		t.Fatalf("hidden command rendered in home:\n%s", content)
+	}
+	runIndex := strings.Index(content, "启动 / run")
+	serviceIndex := strings.Index(content, "服务 / service")
+	if runIndex < 0 || serviceIndex < 0 || runIndex > serviceIndex {
+		t.Fatalf("home order/content unexpected:\n%s", content)
+	}
+	if !strings.Contains(content, "帮助 / help") || !strings.Contains(content, "退出 / exit") {
+		t.Fatalf("home builtins missing:\n%s", content)
+	}
+}
+
+func TestHomeSelectionExecutesCommand(t *testing.T) {
+	impl, err := NewApp(Config{Name: "tool"})
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	appImpl := impl.(*app)
+	var ran bool
+	if err := appImpl.AddCommand(CommandSpec{
+		Name: "run",
+		Run: func(*Context) error {
+			ran = true
+			return nil
+		},
+	}); err != nil {
+		t.Fatalf("AddCommand() error = %v", err)
+	}
+	appImpl.runHome = func(context.Context, homeModel, streams, []ProgramOption) (homeResult, error) {
+		return homeResult{command: "run"}, nil
+	}
+	if err := appImpl.RunWithIO(context.Background(), nil, strings.NewReader(""), &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("RunWithIO(nil) error = %v", err)
+	}
+	if !ran {
+		t.Fatal("selected command was not executed")
+	}
+}
+
+func TestPromptUIUsesInjectedIO(t *testing.T) {
+	var out bytes.Buffer
+	ui := newPromptUI(streams{
+		stdin:  strings.NewReader("2\n\ncustom\nsecret\n"),
+		stdout: &out,
+		stderr: &bytes.Buffer{},
+	})
+	selected, err := ui.Select(context.Background(), "choose", []SelectOption{
+		{Value: "one", Label: "One"},
+		{Value: "two", Label: "Two"},
+	})
+	if err != nil || selected != "two" {
+		t.Fatalf("Select() = %q, %v; want two, nil", selected, err)
+	}
+	confirmed, err := ui.Confirm(context.Background(), "confirm", true)
+	if err != nil || !confirmed {
+		t.Fatalf("Confirm() = %v, %v; want true, nil", confirmed, err)
+	}
+	input, err := ui.Input(context.Background(), "input", "default")
+	if err != nil || input != "custom" {
+		t.Fatalf("Input() = %q, %v; want custom, nil", input, err)
+	}
+	password, err := ui.Password(context.Background(), "password")
+	if err != nil || password != "secret" {
+		t.Fatalf("Password() = %q, %v; want secret, nil", password, err)
+	}
+	if err := ui.Info("done"); err != nil {
+		t.Fatalf("Info() error = %v", err)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/rei0721/go-scaffold/internal/app"
+	"github.com/rei0721/go-scaffold/internal/app/cliapp"
 	"github.com/rei0721/go-scaffold/types/constants"
 )
 
@@ -19,11 +20,15 @@ func runApp(configPath string) {
 	})
 	if err != nil {
 		os.Stderr.WriteString("failed to initialize application: " + err.Error() + "\n")
+		cliapp.MarkManagedServiceStopped(cliapp.ServiceServer, err.Error())
 		os.Exit(1)
 	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	controlCtx, stopControlWatcher := context.WithCancel(context.Background())
+	defer stopControlWatcher()
+	control := cliapp.WatchManagedServiceControl(controlCtx, cliapp.ServiceServer)
 
 	errChan := make(chan error, 1)
 	go func() {
@@ -32,11 +37,17 @@ func runApp(configPath string) {
 		}
 	}()
 
+	var finalError string
 	select {
 	case sig := <-quit:
 		application.Core.Logger.Info("received shutdown signal", "signal", sig.String())
+	case req, ok := <-control:
+		if ok {
+			application.Core.Logger.Info("received CLI service control request", "action", req.Action, "pid", req.PID)
+		}
 	case err := <-errChan:
 		application.Core.Logger.Error("server error", "error", err)
+		finalError = err.Error()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), constants.AppShutdownTimeout)
@@ -44,8 +55,10 @@ func runApp(configPath string) {
 
 	if err := application.Shutdown(ctx); err != nil {
 		application.Core.Logger.Error("shutdown error", "error", err)
+		cliapp.MarkManagedServiceStopped(cliapp.ServiceServer, err.Error())
 		os.Exit(1)
 	}
 
+	cliapp.MarkManagedServiceStopped(cliapp.ServiceServer, finalError)
 	application.Core.Logger.Info("application exited gracefully")
 }
