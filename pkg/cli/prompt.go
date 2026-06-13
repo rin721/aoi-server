@@ -14,11 +14,22 @@ type stdioPromptUI struct {
 	stdout io.Writer
 }
 
-func newPromptUI(s streams) PromptUI {
-	return &stdioPromptUI{
-		reader: bufio.NewReader(s.stdin),
-		stdout: s.stdout,
+// NewPromptUI 创建基于标准输入输出流的通用交互 UI。
+func NewPromptUI(stdin io.Reader, stdout io.Writer) PromptUI {
+	if stdin == nil {
+		stdin = strings.NewReader("")
 	}
+	if stdout == nil {
+		stdout = io.Discard
+	}
+	return &stdioPromptUI{
+		reader: bufio.NewReader(stdin),
+		stdout: stdout,
+	}
+}
+
+func newPromptUI(s streams) PromptUI {
+	return NewPromptUI(s.stdin, s.stdout)
 }
 
 func (ui *stdioPromptUI) Select(ctx context.Context, prompt string, options []SelectOption) (string, error) {

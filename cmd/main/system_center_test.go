@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -130,6 +132,66 @@ func TestSystemCenterCommandSpecs(t *testing.T) {
 		if !hasFlag(initSpec.Flags, want) {
 			t.Fatalf("init command missing flag %q", want)
 		}
+	}
+}
+
+// TestInitializationInputFromContextReadsPasswordStdin 鍥哄畾 stdin 绠￠亾杈撳叆鍦ㄥ懡浠ゅ眰杞垚涓氬姟鍏ュ弬銆
+// TestRunCommandUsesStdinBackedBusinessInteraction 固定 run 父命令可通过 pkg/cli stdin UI 驱动业务流程。
+func TestRunCommandUsesStdinBackedBusinessInteraction(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	t.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	if err := runCLI(context.Background(), []string{"run"}, strings.NewReader("2\n1\n"), &stdout, &stderr); err != nil {
+		t.Fatalf("runCLI(run) error = %v\nstderr:\n%s", err, stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{"db", "sqlite", "v1"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("run command stdin interaction output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestInitializationInputFromContextReadsPasswordStdin(t *testing.T) {
+	ctx := &cli.Context{
+		Stdin: strings.NewReader("from-stdin\n"),
+		Flags: map[string]interface{}{
+			"config":               "configs/config.yaml",
+			"org-code":             "acme",
+			"org-name":             "ACME",
+			"admin-username":       "admin",
+			"admin-email":          "admin@example.com",
+			"admin-display-name":   "Administrator",
+			"admin-password":       "from-flag",
+			"admin-password-stdin": true,
+			"create-service-token": true,
+			"service-token-days":   7,
+			"service-token-remark": "bootstrap",
+		},
+	}
+
+	input, err := initializationInputFromContext(ctx)
+	if err != nil {
+		t.Fatalf("initializationInputFromContext() error = %v", err)
+	}
+	if input.AdminPassword != "from-stdin" {
+		t.Fatalf("AdminPassword = %q, want from-stdin", input.AdminPassword)
+	}
+	if input.ConfigPath != "configs/config.yaml" ||
+		input.OrgCode != "acme" ||
+		input.OrgName != "ACME" ||
+		input.AdminUsername != "admin" ||
+		input.AdminEmail != "admin@example.com" ||
+		input.AdminDisplayName != "Administrator" ||
+		!input.CreateServiceToken ||
+		input.ServiceTokenDays != 7 ||
+		input.ServiceTokenRemark != "bootstrap" {
+		t.Fatalf("unexpected initialization input: %#v", input)
 	}
 }
 

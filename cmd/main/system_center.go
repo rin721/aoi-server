@@ -193,28 +193,36 @@ func newInitCommandSpec() cli.CommandSpec {
 			{Name: "service-token-remark", Type: cli.FlagTypeString, Default: "created by cli init", Description: "API Token remark"},
 		},
 		Run: func(ctx *cli.Context) error {
-			password := ctx.GetString("admin-password")
-			if ctx.GetBool("admin-password-stdin") {
-				raw, err := io.ReadAll(ctx.Stdin)
-				if err != nil {
-					return err
-				}
-				password = strings.TrimSpace(string(raw))
+			input, err := initializationInputFromContext(ctx)
+			if err != nil {
+				return err
 			}
-			return cliapp.RunInitializationFlow(ctx, cliapp.InitializationInput{
-				ConfigPath:         ctx.GetString("config"),
-				OrgCode:            ctx.GetString("org-code"),
-				OrgName:            ctx.GetString("org-name"),
-				AdminUsername:      ctx.GetString("admin-username"),
-				AdminEmail:         ctx.GetString("admin-email"),
-				AdminDisplayName:   ctx.GetString("admin-display-name"),
-				AdminPassword:      password,
-				CreateServiceToken: ctx.GetBool("create-service-token"),
-				ServiceTokenDays:   ctx.GetInt("service-token-days"),
-				ServiceTokenRemark: ctx.GetString("service-token-remark"),
-			})
+			return cliapp.RunInitializationFlow(ctx, input)
 		},
 	}
+}
+
+func initializationInputFromContext(ctx *cli.Context) (cliapp.InitializationInput, error) {
+	password := ctx.GetString("admin-password")
+	if ctx.GetBool("admin-password-stdin") {
+		raw, err := io.ReadAll(ctx.Stdin)
+		if err != nil {
+			return cliapp.InitializationInput{}, err
+		}
+		password = strings.TrimSpace(string(raw))
+	}
+	return cliapp.InitializationInput{
+		ConfigPath:         ctx.GetString("config"),
+		OrgCode:            ctx.GetString("org-code"),
+		OrgName:            ctx.GetString("org-name"),
+		AdminUsername:      ctx.GetString("admin-username"),
+		AdminEmail:         ctx.GetString("admin-email"),
+		AdminDisplayName:   ctx.GetString("admin-display-name"),
+		AdminPassword:      password,
+		CreateServiceToken: ctx.GetBool("create-service-token"),
+		ServiceTokenDays:   ctx.GetInt("service-token-days"),
+		ServiceTokenRemark: ctx.GetString("service-token-remark"),
+	}, nil
 }
 
 func validateOptionalServerArg(ctx *cli.Context) error {

@@ -10,6 +10,11 @@ import (
 	"github.com/rei0721/go-scaffold/types/constants"
 )
 
+var (
+	newFlowManager        = NewManager
+	executeInitialization = ExecuteInitialization
+)
+
 // RunStartFlow 执行由 pkg/cli UI 驱动的服务启动流程。
 func RunStartFlow(ctx *cli.Context) error {
 	ui, err := requireUI(ctx)
@@ -53,7 +58,7 @@ func RunStartFlow(ctx *cli.Context) error {
 			_ = ui.Info("隐私配置已持久化。")
 		}
 	}
-	state, err := NewManager().StartServer(ctx.Context, configPath)
+	state, err := newFlowManager().StartServer(ctx.Context, configPath)
 	if err != nil {
 		return err
 	}
@@ -67,7 +72,7 @@ func RunServiceFlow(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	manager := NewManager()
+	manager := newFlowManager()
 	for {
 		action, err := ui.Select(ctx.Context, "服务管理：server", []cli.SelectOption{
 			{Value: "status", Label: "查看运行状态"},
@@ -204,7 +209,7 @@ func RunInitializationFlow(ctx *cli.Context, input InitializationInput) error {
 			}
 		}
 	}
-	return ExecuteInitialization(ctx.Context, ctx.Stdout, input)
+	return executeInitialization(ctx.Context, ctx.Stdout, input)
 }
 
 func selectConfigPath(ctx *cli.Context) (string, error) {

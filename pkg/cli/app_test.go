@@ -381,11 +381,7 @@ func TestHomeSelectionExecutesCommand(t *testing.T) {
 
 func TestPromptUIUsesInjectedIO(t *testing.T) {
 	var out bytes.Buffer
-	ui := newPromptUI(streams{
-		stdin:  strings.NewReader("2\n\ncustom\nsecret\n"),
-		stdout: &out,
-		stderr: &bytes.Buffer{},
-	})
+	ui := NewPromptUI(strings.NewReader("2\n\ncustom\nsecret\n"), &out)
 	selected, err := ui.Select(context.Background(), "choose", []SelectOption{
 		{Value: "one", Label: "One"},
 		{Value: "two", Label: "Two"},
