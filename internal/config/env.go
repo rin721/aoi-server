@@ -43,8 +43,13 @@ func LoadEnv() {
 //	OverrideWithEnv(config)
 //	// 此时 config 中的值可能已被环境变量覆盖
 func OverrideWithEnv(cfg *Config) {
+	OverrideWithEnvExcept(cfg, nil)
+}
+
+// OverrideWithEnvExcept 使用环境变量覆盖配置，但跳过指定的 mapstructure 路径。
+func OverrideWithEnvExcept(cfg *Config, disabledPaths []string) {
 	if cfg == nil {
 		return
 	}
-	overrideConfigFromEnv(cfg)
+	overrideConfigFromEnvExcept(cfg, disabledPaths)
 }

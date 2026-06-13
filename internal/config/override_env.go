@@ -14,15 +14,20 @@ const envNameTag = "envname"
 
 // overrideConfigFromEnv 以反射方式遍历配置结构，把匹配 envname 的环境变量写回配置快照。
 func overrideConfigFromEnv(target any) {
+	overrideConfigFromEnvExcept(target, nil)
+}
+
+// overrideConfigFromEnvExcept 以反射方式遍历配置结构，并跳过显式禁用 env 覆盖的路径。
+func overrideConfigFromEnvExcept(target any, disabledPaths []string) {
 	value := reflect.ValueOf(target)
 	if !value.IsValid() || value.Kind() != reflect.Pointer || value.IsNil() {
 		return
 	}
-	overrideStructFields(value.Elem())
+	overrideStructFields(value.Elem(), "", disabledConfigPathSet(disabledPaths))
 }
 
 // overrideStructFields 递归处理结构体字段，并在叶子字段上应用环境变量覆盖。
-func overrideStructFields(value reflect.Value) {
+func overrideStructFields(value reflect.Value, basePath string, disabledPaths map[string]struct{}) {
 	if value.Kind() == reflect.Pointer {
 		if value.IsNil() {
 			return
@@ -40,17 +45,40 @@ func overrideStructFields(value reflect.Value) {
 		if structField.PkgPath != "" {
 			continue
 		}
+		fieldPath := mapstructureFieldPath(basePath, structField)
 
 		if envName := strings.TrimSpace(structField.Tag.Get(envNameTag)); envName != "" && envName != "-" {
-			if raw, ok := lookupTaggedEnv(envName); ok {
-				setValueFromEnv(field, raw)
+			if _, disabled := disabledPaths[fieldPath]; !disabled {
+				if raw, ok := lookupTaggedEnv(envName); ok {
+					setValueFromEnv(field, raw)
+				}
 			}
 		}
 
 		if shouldRecurseEnvField(field) {
-			overrideStructFields(field)
+			overrideStructFields(field, fieldPath, disabledPaths)
 		}
 	}
+}
+
+func disabledConfigPathSet(paths []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(paths))
+	for _, path := range normalizeConfigPaths(paths) {
+		set[path] = struct{}{}
+	}
+	return set
+}
+
+func mapstructureFieldPath(basePath string, field reflect.StructField) string {
+	segment := strings.Split(field.Tag.Get("mapstructure"), ",")[0]
+	segment = strings.TrimSpace(segment)
+	if segment == "" || segment == "-" {
+		segment = field.Name
+	}
+	if basePath == "" {
+		return segment
+	}
+	return basePath + "." + segment
 }
 
 // shouldRecurseEnvField 判断字段是否应继续递归，跳过时间类型和不适合展开的标量字段。

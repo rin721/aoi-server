@@ -22,10 +22,11 @@ const (
 )
 
 type YAMLScalarUpdate struct {
-	Kind   YAMLScalarKind
-	Path   string
-	Value  string
-	Values []string
+	Kind          YAMLScalarKind
+	Path          string
+	Value         string
+	Values        []string
+	CreateMissing bool
 }
 
 // YAMLUpdateOption 调整 YAML 标量持久化行为。
@@ -70,7 +71,13 @@ func UpdateYAMLScalars(path string, updates []YAMLScalarUpdate, options ...YAMLU
 	for _, update := range updates {
 		node, err := yamlValueNodeForPath(root, update.Path)
 		if err != nil {
-			return fmt.Errorf("%s: %w", update.Path, err)
+			if !update.CreateMissing {
+				return fmt.Errorf("%s: %w", update.Path, err)
+			}
+			node, err = yamlEnsureValueNodeForPath(root, update.Path, update.Kind)
+			if err != nil {
+				return fmt.Errorf("%s: %w", update.Path, err)
+			}
 		}
 		if yamlNodeContainsEnvPlaceholder(node) && !updateOptions.allowEnvPlaceholderOverwrite {
 			return fmt.Errorf("%s is managed by environment placeholder", update.Path)
@@ -91,6 +98,42 @@ func UpdateYAMLScalars(path string, updates []YAMLScalarUpdate, options ...YAMLU
 		return fmt.Errorf("write config file: %w", err)
 	}
 	return nil
+}
+
+func yamlEnsureValueNodeForPath(root *yaml.Node, path string, kind YAMLScalarKind) (*yaml.Node, error) {
+	current := root
+	segments := strings.Split(path, ".")
+	for index, segment := range segments {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			return nil, fmt.Errorf("invalid config key")
+		}
+		if current.Kind != yaml.MappingNode {
+			return nil, fmt.Errorf("config key parent is not a mapping")
+		}
+		if next, ok := yamlMappingValue(current, segment); ok {
+			current = next
+			continue
+		}
+
+		nextKind := yaml.MappingNode
+		nextTag := "!!map"
+		if index == len(segments)-1 {
+			nextKind, nextTag = yamlNodeKindForScalarUpdate(kind)
+		}
+		keyNode := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: segment}
+		valueNode := &yaml.Node{Kind: nextKind, Tag: nextTag}
+		current.Content = append(current.Content, keyNode, valueNode)
+		current = valueNode
+	}
+	return current, nil
+}
+
+func yamlNodeKindForScalarUpdate(kind YAMLScalarKind) (yaml.Kind, string) {
+	if kind == YAMLScalarStringSlice {
+		return yaml.SequenceNode, "!!seq"
+	}
+	return yaml.ScalarNode, "!!str"
 }
 
 func collectYAMLUpdateOptions(options []YAMLUpdateOption) yamlUpdateOptions {
@@ -248,8 +291,10 @@ func setYAMLScalarValue(node *yaml.Node, update YAMLScalarUpdate) error {
 			return fmt.Errorf("%s is not a string sequence", update.Path)
 		}
 		node.Tag = "!!seq"
-		node.Content = make([]*yaml.Node, 0, len(update.Values))
-		for _, value := range update.Values {
+		node.Style = 0
+		values := normalizeYAMLStringValues(update.Values)
+		node.Content = make([]*yaml.Node, 0, len(values))
+		for _, value := range values {
 			node.Content = append(node.Content, &yaml.Node{
 				Kind:  yaml.ScalarNode,
 				Tag:   "!!str",
@@ -261,6 +306,23 @@ func setYAMLScalarValue(node *yaml.Node, update YAMLScalarUpdate) error {
 		return fmt.Errorf("%s has unsupported scalar kind %q", update.Path, update.Kind)
 	}
 	return nil
+}
+
+func normalizeYAMLStringValues(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		normalized = append(normalized, value)
+	}
+	return normalized
 }
 
 func writeFilePreservingIdentity(path string, oldContent, newContent []byte, mode os.FileMode) error {

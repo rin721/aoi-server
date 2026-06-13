@@ -146,3 +146,8 @@ auth:
 migration:
   auto_apply: true
   dir: ./internal/migrations
+
+env_override:
+  # disabled_paths 中的配置路径会优先使用配置文件值，跳过同名环境变量覆盖。
+  # 启动向导选择“写入配置文件并禁用环境变量覆盖”时会自动维护该列表。
+  disabled_paths: []

@@ -33,6 +33,7 @@ func TestCopyConfigCoversAllFieldsAndDeepCopiesSlices(t *testing.T) {
 	got.CORS.AllowHeaders[0] = "X-Changed"
 	got.CORS.ExposeHeaders[0] = "X-Changed-Expose"
 	*got.WebUI.Enabled = false
+	got.EnvOverride.DisabledPaths[0] = "auth.refresh_token_pepper"
 
 	if src.I18n.Supported[0] == got.I18n.Supported[0] {
 		t.Fatal("copyConfig() shares I18n.Supported slice with source")
@@ -60,6 +61,9 @@ func TestCopyConfigCoversAllFieldsAndDeepCopiesSlices(t *testing.T) {
 	}
 	if *src.WebUI.Enabled == *got.WebUI.Enabled {
 		t.Fatal("copyConfig() shares WebUI.Enabled pointer with source")
+	}
+	if src.EnvOverride.DisabledPaths[0] == got.EnvOverride.DisabledPaths[0] {
+		t.Fatal("copyConfig() shares EnvOverride.DisabledPaths slice with source")
 	}
 }
 
@@ -264,9 +268,32 @@ func TestUpdateWithPersistRejectsActiveEnvOverride(t *testing.T) {
 	}
 }
 
+func TestManagerLoadSkipsDisabledEnvOverridePath(t *testing.T) {
+	configPath := copyConfigExampleWithEnvOverrideForTest(t, []string{"auth.notification_driver"})
+	envNames := EnvNamesForPath("auth.notification_driver")
+	unsetEnvForTest(t, envNames...)
+	if len(envNames) == 0 {
+		t.Fatal("auth.notification_driver should expose environment names")
+	}
+	t.Setenv(envNames[0], "smtp")
+
+	m := NewManager()
+	if err := m.Load(configPath); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got := m.Get().Auth.NotificationDriver; got != "debug" {
+		t.Fatalf("notification driver = %q, want config file value debug", got)
+	}
+}
+
 func TestUpdateWithPersistForceFileOverwritesEnvManagedFileNode(t *testing.T) {
 	configPath := copyConfigExampleForTest(t)
-	unsetEnvForTest(t, EnvNamesForPath("auth.signing_key")...)
+	envNames := EnvNamesForPath("auth.signing_key")
+	unsetEnvForTest(t, envNames...)
+	if len(envNames) == 0 {
+		t.Fatal("auth.signing_key should expose environment names")
+	}
+	t.Setenv(envNames[0], "environment-signing-secret-at-least-32-bytes")
 
 	m := NewManager()
 	if err := m.Load(configPath); err != nil {
@@ -289,10 +316,21 @@ func TestUpdateWithPersistForceFileOverwritesEnvManagedFileNode(t *testing.T) {
 	if strings.Contains(text, "${AUTH_SIGNING_KEY") {
 		t.Fatalf("forced update should overwrite signing key placeholder:\n%s", text)
 	}
+	if !strings.Contains(text, `- "auth.signing_key"`) {
+		t.Fatalf("forced update should persist disabled env override path:\n%s", text)
+	}
+
+	reloaded := NewManager()
+	if err := reloaded.Load(configPath); err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	if got := reloaded.Get().Auth.SigningKey; got != "forced-signing-secret-at-least-32-bytes" {
+		t.Fatalf("reloaded signing key = %q, want forced file value", got)
+	}
 }
 
-func TestUpdateWithPersistRuntimeEnvOnlyUsesEnvironmentWithoutWritingFile(t *testing.T) {
-	configPath := copyConfigExampleForTest(t)
+func TestUpdateWithPersistRuntimeEnvOnlyUsesEnvironmentAndRemovesDisabledPath(t *testing.T) {
+	configPath := copyConfigExampleWithEnvOverrideForTest(t, []string{"auth.signing_key"})
 	unsetEnvForTest(t, EnvNamesForPath("auth.signing_key")...)
 	envNames := EnvNamesForPath("auth.signing_key")
 	if len(envNames) == 0 {
@@ -309,6 +347,9 @@ func TestUpdateWithPersistRuntimeEnvOnlyUsesEnvironmentWithoutWritingFile(t *tes
 	if err := m.Load(configPath); err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
+	if got := m.Get().Auth.SigningKey; got != "dev-signing-key-change-me-32-bytes" {
+		t.Fatalf("disabled env override should load file/default signing key, got %q", got)
+	}
 	if err := m.Update(func(cfg *Config) {
 		cfg.Auth.SigningKey = "ignored-generated-signing-secret-at-least-32-bytes"
 	}, WithPersistedPaths("auth.signing_key"), WithEnvManagedPersistMode(EnvManagedPersistRuntimeEnvOnly)); err != nil {
@@ -319,11 +360,26 @@ func TestUpdateWithPersistRuntimeEnvOnlyUsesEnvironmentWithoutWritingFile(t *tes
 	if err != nil {
 		t.Fatalf("read config after update: %v", err)
 	}
-	if string(after) != string(before) {
-		t.Fatalf("runtime env-only update should not write file\nbefore:\n%s\nafter:\n%s", before, after)
+	if string(after) == string(before) {
+		t.Fatalf("runtime env-only update should remove disabled path metadata")
 	}
 	if got := m.Get().Auth.SigningKey; got != envValue {
 		t.Fatalf("runtime signing key = %q, want %q", got, envValue)
+	}
+	text := string(after)
+	if strings.Contains(text, "auth.signing_key") {
+		t.Fatalf("runtime env-only update should remove disabled signing key path:\n%s", text)
+	}
+	if !strings.Contains(text, "${AUTH_SIGNING_KEY:dev-signing-key-change-me-32-bytes}") {
+		t.Fatalf("runtime env-only update should not rewrite signing key value:\n%s", text)
+	}
+
+	reloaded := NewManager()
+	if err := reloaded.Load(configPath); err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	if got := reloaded.Get().Auth.SigningKey; got != envValue {
+		t.Fatalf("reloaded signing key = %q, want environment value %q", got, envValue)
 	}
 }
 
@@ -811,6 +867,9 @@ func testCompleteConfig() *Config {
 			MountPath: "/admin",
 			DistDir:   "./web/admin/.output/public",
 		},
+		EnvOverride: EnvOverrideConfig{
+			DisabledPaths: []string{"auth.signing_key"},
+		},
 	}
 }
 
@@ -894,6 +953,30 @@ func copyConfigExampleForTest(t *testing.T) string {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, raw, 0o600); err != nil {
 		t.Fatalf("write config copy: %v", err)
+	}
+	return path
+}
+
+func copyConfigExampleWithEnvOverrideForTest(t *testing.T, disabledPaths []string) string {
+	t.Helper()
+	path := copyConfigExampleForTest(t)
+	var builder strings.Builder
+	builder.WriteString("disabled_paths:\n")
+	for _, disabledPath := range disabledPaths {
+		builder.WriteString("    - ")
+		builder.WriteString(disabledPath)
+		builder.WriteByte('\n')
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read config copy: %v", err)
+	}
+	next := strings.Replace(string(raw), "disabled_paths: []", builder.String(), 1)
+	if next == string(raw) {
+		t.Fatalf("config copy did not contain env_override disabled_paths placeholder")
+	}
+	if err := os.WriteFile(path, []byte(next), 0o600); err != nil {
+		t.Fatalf("write env override config copy: %v", err)
 	}
 	return path
 }

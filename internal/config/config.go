@@ -11,21 +11,22 @@ type Configurable interface {
 
 // Config 聚合应用所有运行时配置分区，是配置管理器发布给组装层的完整快照。
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	Database  DatabaseConfig  `mapstructure:"database"`
-	Redis     RedisConfig     `mapstructure:"redis"`
-	Logger    LoggerConfig    `mapstructure:"logger"`
-	I18n      I18nConfig      `mapstructure:"i18n"`
-	Executor  ExecutorConfig  `mapstructure:"executor"`
-	Storage   StorageConfig   `mapstructure:"storage"`
-	Demo      DemoConfig      `mapstructure:"demo"`
-	CORS      CORSConfig      `mapstructure:"cors"`
-	RPC       RPCConfig       `mapstructure:"rpc"`
-	Auth      AuthConfig      `mapstructure:"auth"`
-	System    SystemConfig    `mapstructure:"system"`
-	Migration MigrationConfig `mapstructure:"migration"`
-	WebUI     WebUIConfig     `mapstructure:"webui"`
-	Plugins   PluginsConfig   `mapstructure:"plugins"`
+	Server      ServerConfig      `mapstructure:"server"`
+	Database    DatabaseConfig    `mapstructure:"database"`
+	Redis       RedisConfig       `mapstructure:"redis"`
+	Logger      LoggerConfig      `mapstructure:"logger"`
+	I18n        I18nConfig        `mapstructure:"i18n"`
+	Executor    ExecutorConfig    `mapstructure:"executor"`
+	Storage     StorageConfig     `mapstructure:"storage"`
+	Demo        DemoConfig        `mapstructure:"demo"`
+	CORS        CORSConfig        `mapstructure:"cors"`
+	RPC         RPCConfig         `mapstructure:"rpc"`
+	Auth        AuthConfig        `mapstructure:"auth"`
+	System      SystemConfig      `mapstructure:"system"`
+	Migration   MigrationConfig   `mapstructure:"migration"`
+	WebUI       WebUIConfig       `mapstructure:"webui"`
+	Plugins     PluginsConfig     `mapstructure:"plugins"`
+	EnvOverride EnvOverrideConfig `mapstructure:"env_override" json:"env_override" yaml:"env_override" toml:"env_override"`
 }
 
 // Validator 表示可以对自身执行配置校验的分区接口。
@@ -53,6 +54,7 @@ func (c *Config) Validate() error {
 		&c.Migration,
 		&c.WebUI,
 		&c.Plugins,
+		&c.EnvOverride,
 	}
 	for _, validator := range validators {
 		if validator == nil {

@@ -259,8 +259,8 @@ func promptPrivacyUpdates(ctx *cli.Context, configPath string) (privacyPersistPl
 		}
 		if envManaged {
 			action, err := ctx.UI.Select(ctx.Context, path+" 由环境变量管理，选择处理方式", []cli.SelectOption{
-				{Value: privacyActionForceFile, Label: "强制写入配置文件", Description: "替换配置文件中的环境变量占位符"},
-				{Value: privacyActionRuntimeEnvOnly, Label: "只使用当前环境变量启动", Description: "校验真实环境变量，配置文件保持不变"},
+				{Value: privacyActionForceFile, Label: "写入配置文件并禁用环境变量覆盖", Description: "替换配置文件中的环境变量占位符"},
+				{Value: privacyActionRuntimeEnvOnly, Label: "恢复使用环境变量", Description: "校验真实环境变量并移除配置文件优先标记"},
 				{Value: privacyActionSkip, Label: "跳过", Description: "保留当前配置"},
 			})
 			if err != nil {

@@ -197,7 +197,7 @@ func (m *manager) Load(configPath string) error {
 	// 优先级: 环境变量 > config.yaml
 	// 这允许通过环境变量覆盖配置文件中的任何值
 	// 特别适合容器环境和CI/CD流程
-	OverrideWithEnv(cfg)
+	OverrideWithEnvExcept(cfg, cfg.EnvOverride.DisabledPaths)
 
 	// 7. 验证配置
 	// 确保所有必需的字段都有有效值
@@ -236,9 +236,10 @@ func (m *manager) processEnvSubstitution() error {
 	// 获取所有配置项
 	// 返回 map[string]any,包含所有配置的键值对
 	settings := m.v.AllSettings()
+	disabledPaths := disabledEnvOverridePathsFromSettings(settings)
 
 	// 递归处理所有配置值
-	processed := m.processMap(settings, envPattern)
+	processed := m.processMap(settings, envPattern, "", disabledPaths)
 
 	// 将处理后的值设置回 viper
 	for key, value := range processed {
@@ -257,13 +258,54 @@ func (m *manager) processEnvSubstitution() error {
 // 返回:
 //
 //	map[string]any: 处理后的 map
-func (m *manager) processMap(data map[string]any, pattern *regexp.Regexp) map[string]any {
+func (m *manager) processMap(data map[string]any, pattern *regexp.Regexp, basePath string, disabledPaths map[string]struct{}) map[string]any {
 	result := make(map[string]any)
 	for key, value := range data {
 		// 递归处理每个值
-		result[key] = m.processValue(value, pattern)
+		path := configSettingPath(basePath, key)
+		result[key] = m.processValue(value, pattern, path, disabledPaths)
 	}
 	return result
+}
+
+func configSettingPath(basePath string, key string) string {
+	key = strings.TrimSpace(key)
+	if basePath == "" {
+		return key
+	}
+	if key == "" {
+		return basePath
+	}
+	return basePath + "." + key
+}
+
+func disabledEnvOverridePathsFromSettings(settings map[string]any) map[string]struct{} {
+	disabled := map[string]struct{}{}
+	envOverride, ok := settings["env_override"].(map[string]any)
+	if !ok {
+		return disabled
+	}
+	for _, path := range stringSliceFromSetting(envOverride["disabled_paths"]) {
+		disabled[path] = struct{}{}
+	}
+	return disabled
+}
+
+func stringSliceFromSetting(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return normalizeConfigPaths(typed)
+	case []any:
+		paths := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if path, ok := item.(string); ok {
+				paths = append(paths, path)
+			}
+		}
+		return normalizeConfigPaths(paths)
+	default:
+		return nil
+	}
 }
 
 // processValue 处理单个值的环境变量替换
@@ -281,21 +323,22 @@ func (m *manager) processMap(data map[string]any, pattern *regexp.Regexp) map[st
 // 返回:
 //
 //	any: 处理后的值
-func (m *manager) processValue(value any, pattern *regexp.Regexp) any {
+func (m *manager) processValue(value any, pattern *regexp.Regexp, path string, disabledPaths map[string]struct{}) any {
 	switch v := value.(type) {
 	case string:
 		// 字符串类型,执行环境变量替换
-		return m.substituteEnv(v, pattern)
+		_, disabled := disabledPaths[path]
+		return m.substituteEnv(v, pattern, !disabled)
 
 	case map[string]any:
 		// 嵌套 map,递归处理
-		return m.processMap(v, pattern)
+		return m.processMap(v, pattern, path, disabledPaths)
 
 	case []any:
 		// 数组,处理每个元素
 		result := make([]any, len(v))
 		for i, item := range v {
-			result[i] = m.processValue(item, pattern)
+			result[i] = m.processValue(item, pattern, path, disabledPaths)
 		}
 		return result
 
@@ -320,7 +363,7 @@ func (m *manager) processValue(value any, pattern *regexp.Regexp) any {
 // 返回:
 //
 //	string: 替换后的字符串
-func (m *manager) substituteEnv(s string, pattern *regexp.Regexp) string {
+func (m *manager) substituteEnv(s string, pattern *regexp.Regexp, useEnvironment bool) string {
 	return pattern.ReplaceAllStringFunc(s, func(match string) string {
 		// 提取变量名和默认值
 		submatches := pattern.FindStringSubmatch(match)
@@ -339,9 +382,11 @@ func (m *manager) substituteEnv(s string, pattern *regexp.Regexp) string {
 		}
 
 		// 尝试获取环境变量
-		if envValue := os.Getenv(envName); envValue != "" {
-			// 环境变量存在,使用其值
-			return envValue
+		if useEnvironment {
+			if envValue := os.Getenv(envName); envValue != "" {
+				// 环境变量存在,使用其值
+				return envValue
+			}
 		}
 		// 环境变量不存在,使用默认值
 		return defaultValue
@@ -401,12 +446,17 @@ func (m *manager) Update(fn func(*Config), options ...UpdateOption) error {
 	fn(newCfg)
 
 	persistPaths := updateOptions.persistPaths
+	persistMetadata := false
 	if updateOptions.envManagedPersistMode == EnvManagedPersistRuntimeEnvOnly && len(persistPaths) > 0 {
-		runtimeOnlyPaths, err := m.applyRuntimeEnvOnlyPersistPaths(newCfg, persistPaths)
+		runtimeOnlyPaths, metadataChanged, err := m.applyRuntimeEnvOnlyPersistPaths(newCfg, persistPaths)
 		if err != nil {
 			return err
 		}
 		persistPaths = removeConfigPaths(persistPaths, runtimeOnlyPaths)
+		persistMetadata = metadataChanged
+	}
+	if updateOptions.envManagedPersistMode == EnvManagedPersistForceFile && len(persistPaths) > 0 {
+		persistMetadata = addDisabledEnvOverridePaths(newCfg, persistPaths)
 	}
 
 	// 验证新配置
@@ -415,6 +465,9 @@ func (m *manager) Update(fn func(*Config), options ...UpdateOption) error {
 		return fmt.Errorf("config validation failed: %w", err)
 	}
 
+	if persistMetadata {
+		persistPaths = append(persistPaths, envOverrideDisabledPathsConfigPath)
+	}
 	if len(persistPaths) > 0 {
 		if err := m.persistConfigUpdate(newCfg, persistPaths, updateOptions); err != nil {
 			return err
@@ -458,6 +511,7 @@ func (m *manager) copyConfig(src *Config) *Config {
 	dst.System = copySystemConfig(src.System)
 	dst.WebUI = copyWebUIConfig(src.WebUI)
 	dst.Plugins = copyPluginsConfig(src.Plugins)
+	dst.EnvOverride.DisabledPaths = append([]string(nil), src.EnvOverride.DisabledPaths...)
 	return &dst
 }
 
@@ -583,7 +637,7 @@ func (m *manager) handleConfigChange(e configloader.Event) {
 	}
 
 	LoadEnv()
-	OverrideWithEnv(newCfg)
+	OverrideWithEnvExcept(newCfg, newCfg.EnvOverride.DisabledPaths)
 
 	// 验证新配置
 	// 如果验证失败,保持当前配置不变
@@ -622,7 +676,8 @@ func (m *manager) handleConfigChange(e configloader.Event) {
 func (m *manager) processEnvSubstitutionForViper(v *configloader.Loader) {
 	envPattern := regexp.MustCompile(`\$\{([^}:]+)(?::([^}]*))?\}`)
 	settings := v.AllSettings()
-	processed := m.processMap(settings, envPattern)
+	disabledPaths := disabledEnvOverridePathsFromSettings(settings)
+	processed := m.processMap(settings, envPattern, "", disabledPaths)
 	for key, value := range processed {
 		v.Set(key, value)
 	}

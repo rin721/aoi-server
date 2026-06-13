@@ -197,6 +197,14 @@ func isExampleConfig(path string) bool {
 }
 
 func privacyPathIsEnvManaged(configPath string, path string) (bool, error) {
+	cfg, err := loadConfig(configPath)
+	if err == nil {
+		for _, disabledPath := range cfg.EnvOverride.DisabledPaths {
+			if disabledPath == path {
+				return true, nil
+			}
+		}
+	}
 	for _, envName := range appconfig.EnvNamesForPath(path) {
 		if value, ok := os.LookupEnv(envName); ok && value != "" {
 			return true, nil

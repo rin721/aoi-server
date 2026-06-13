@@ -68,6 +68,35 @@ func TestYAMLPathContainsEnvPlaceholder(t *testing.T) {
 	}
 }
 
+func TestUpdateYAMLScalarsCreatesMissingStringSliceAndDeduplicates(t *testing.T) {
+	configPath := writeYAMLScalarTestFile(t)
+
+	if err := UpdateYAMLScalars(configPath, []YAMLScalarUpdate{
+		{
+			Kind:          YAMLScalarStringSlice,
+			Path:          "env_override.disabled_paths",
+			Values:        []string{"auth.signing_key", " auth.signing_key ", "", "auth.notification_driver"},
+			CreateMissing: true,
+		},
+	}); err != nil {
+		t.Fatalf("UpdateYAMLScalars() error = %v", err)
+	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	text := string(content)
+	for _, want := range []string{"env_override:", "disabled_paths:", `- "auth.signing_key"`, `- "auth.notification_driver"`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("updated config missing %q:\n%s", want, text)
+		}
+	}
+	if strings.Count(text, "auth.signing_key") != 1 {
+		t.Fatalf("disabled paths should be deduplicated:\n%s", text)
+	}
+}
+
 func writeYAMLScalarTestFile(t *testing.T) string {
 	t.Helper()
 	configPath := filepath.Join(t.TempDir(), "config.yaml")

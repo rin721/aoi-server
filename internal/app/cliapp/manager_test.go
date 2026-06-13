@@ -259,7 +259,12 @@ func TestRunStartFlowShowsDependencyServicesThroughCLIUI(t *testing.T) {
 }
 
 func TestRunStartFlowForceWritesGeneratedEnvManagedPrivacy(t *testing.T) {
-	unsetEnvForTest(t, appconfig.EnvNamesForPath("auth.signing_key")...)
+	envNames := appconfig.EnvNamesForPath("auth.signing_key")
+	unsetEnvForTest(t, envNames...)
+	if len(envNames) == 0 {
+		t.Fatal("auth.signing_key should expose environment names")
+	}
+	t.Setenv(envNames[0], "environment-signing-secret-at-least-32-bytes")
 	configPath := copyExampleConfig(t)
 	runner := &fakeProcessRunner{
 		startInfos:     []ProcessInfo{{PID: 321, ProcessStartTime: 12345}},
@@ -293,6 +298,16 @@ func TestRunStartFlowForceWritesGeneratedEnvManagedPrivacy(t *testing.T) {
 	if !strings.Contains(text, `signing_key: "`) {
 		t.Fatalf("force generated signing key should be persisted as a quoted scalar:\n%s", text)
 	}
+	if !strings.Contains(text, `- "auth.signing_key"`) {
+		t.Fatalf("force generated signing key should disable env override:\n%s", text)
+	}
+	manager := appconfig.NewManager()
+	if err := manager.Load(configPath); err != nil {
+		t.Fatalf("reload forced config: %v", err)
+	}
+	if got := manager.Get().Auth.SigningKey; got == "environment-signing-secret-at-least-32-bytes" {
+		t.Fatalf("forced config should use file value instead of environment value")
+	}
 	if len(runner.starts) != 1 {
 		t.Fatalf("StartProcess calls = %d, want 1", len(runner.starts))
 	}
@@ -301,14 +316,14 @@ func TestRunStartFlowForceWritesGeneratedEnvManagedPrivacy(t *testing.T) {
 	}
 }
 
-func TestRunStartFlowRuntimeEnvOnlyKeepsConfigFile(t *testing.T) {
+func TestRunStartFlowRuntimeEnvOnlyRestoresEnvOverride(t *testing.T) {
 	envNames := appconfig.EnvNamesForPath("auth.signing_key")
 	unsetEnvForTest(t, envNames...)
 	if len(envNames) == 0 {
 		t.Fatal("auth.signing_key should expose environment names")
 	}
 	t.Setenv(envNames[0], "runtime-env-signing-secret-at-least-32-bytes")
-	configPath := copyExampleConfig(t)
+	configPath := copyExampleConfigWithEnvOverride(t, []string{"auth.signing_key"})
 	before, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("read config before run: %v", err)
@@ -338,8 +353,11 @@ func TestRunStartFlowRuntimeEnvOnlyKeepsConfigFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read config after run: %v", err)
 	}
-	if string(after) != string(before) {
-		t.Fatalf("runtime env-only flow should not write config\nbefore:\n%s\nafter:\n%s", before, after)
+	if string(after) == string(before) {
+		t.Fatalf("runtime env-only flow should remove disabled env override metadata")
+	}
+	if strings.Contains(string(after), "auth.signing_key") {
+		t.Fatalf("runtime env-only flow should restore env override for signing key:\n%s", after)
 	}
 	if len(runner.starts) != 1 {
 		t.Fatalf("StartProcess calls = %d, want 1", len(runner.starts))
@@ -480,6 +498,30 @@ func copyWritablePrivacyConfig(t *testing.T) string {
 	)
 	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
 		t.Fatalf("write writable temp config: %v", err)
+	}
+	return path
+}
+
+func copyExampleConfigWithEnvOverride(t *testing.T, disabledPaths []string) string {
+	t.Helper()
+	path := copyExampleConfig(t)
+	var builder strings.Builder
+	builder.WriteString("disabled_paths:\n")
+	for _, disabledPath := range disabledPaths {
+		builder.WriteString("    - ")
+		builder.WriteString(disabledPath)
+		builder.WriteByte('\n')
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read config copy: %v", err)
+	}
+	next := strings.Replace(string(raw), "disabled_paths: []", builder.String(), 1)
+	if next == string(raw) {
+		t.Fatalf("config copy did not contain env_override disabled_paths placeholder")
+	}
+	if err := os.WriteFile(path, []byte(next), 0o644); err != nil {
+		t.Fatalf("write env override config copy: %v", err)
 	}
 	return path
 }
