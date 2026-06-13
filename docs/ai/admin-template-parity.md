@@ -108,7 +108,7 @@ Last local audit: 2026-06-13. External demo/source evidence below remains from
 | [done] | Dictionary management | `/admin/dictionaries`, system dictionary APIs | External page optional unless changing item editing UX | Persisted dictionaries and items are implemented. |
 | [done] | Operation history | `/admin/operation-records` | Re-check demo before adding advanced filters/export | Persisted protected request records are implemented. |
 | [done] | Parameter management | `/admin/parameters` | External page optional unless adding batch/import/export | Persisted parameter CRUD is implemented. |
-| [done] | System config read | `/admin/system`, `/api/v1/system/config` | Research required before any write/reload capability | Current slice is read-only and masks secrets. |
+| [done] | System config read/write | `/admin/system`, `/api/v1/system/config` | Research required before widening writable fields or reload behavior | Current API returns a masked runtime snapshot and supports controlled persistence for approved fields. |
 | [done] | Server status | `/admin/server-info`, `/api/v1/system/server-info` | Visual check required if charts are added | Uses local runtime and host metrics. |
 | [done] | Login log | `/admin/login-logs` | External page already observed as menu/tab with limited content | Local page uses IAM `auth.login` audit records. |
 | [done] | Error log | `/admin/error-logs` | External page observed as unassigned route for admin account | Local page uses `system_operation_records` status filters. |
@@ -1102,11 +1102,12 @@ middleware remains in `internal/transport/http` and `internal/middleware`.
   single and batch delete, key lookup, IAM permissions, server-driven menus, and
   the `/admin/parameters` management page.
 - 2026-06-12: System configuration slice added after checking 外部后台的
-  `系统配置` page and `/system/getSystemConfig` route: this scaffold now exposes
-  a permission-protected `/api/v1/system/config` read-only runtime snapshot,
-  masks secrets, wires `config:read` into IAM/menu/API catalogs, and adds the
-  `/admin/system` grouped configuration page. 管理后台式 config write and service
-  reload remain a later, higher-risk parity slice.
+  `系统配置` page and `/system/getSystemConfig` route: this scaffold initially
+  exposed a permission-protected `/api/v1/system/config` masked runtime
+  snapshot, wired `config:read` into IAM/menu/API catalogs, and added the
+  `/admin/system` grouped configuration page. The current implementation has
+  since grown controlled persistence for approved fields; widening writable
+  fields or service reload behavior remains a higher-risk parity slice.
 - 2026-06-12: Server status slice added after checking 外部后台的
   `/system/getServerInfo` service shape: this scaffold now exposes
   `/api/v1/system/server-info` with `server:read`, returns gopsutil-backed

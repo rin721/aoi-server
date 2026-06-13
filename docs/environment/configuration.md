@@ -167,6 +167,24 @@ Docker 镜像构建时通过 build args 注入 Nuxt 构建期配置：
 
 `deploy.sh` 提供 `--config-dir`、`--data-dir`、`--logs-dir`、`--webui-mount-path`、`--webui-build-base-url`、`--webui-api-base-url`、`--webui-show-demo-todo`、`--webui-check` 和 `--webui-check-path`。`--webui-mount-path` 与 Go 配置一样必须是非根绝对路径；未显式传 `--webui-build-base-url` 时，脚本会从 `--webui-mount-path` 派生带尾斜杠的 Nuxt baseURL，避免 Go 挂载路径和 Nuxt 静态资源路径不一致。
 
+## System 配置 API
+
+`PATCH /api/v1/system/config` 面向后台系统配置页，读取当前运行时快照并支持受控持久化。响应中的敏感字段会脱敏；带 `${VAR}` 或 `${VAR:default}` 的环境变量占位值不会被接口回写到配置文件。传入 `persist=true` 时，只会持久化后端明确支持的标量字段和字符串列表字段，避免把运行时派生值、密钥或未知结构写回 `configs/config.yaml`。
+
+该接口不会改变 HTTP API 公共前缀，也不会改变 Nuxt 构建期 baseURL。需要改后台挂载路径时，仍要同时更新 Go `webui.*` 配置和 Nuxt 构建产物。
+
+## System Center CLI 运行态
+
+`init`、`run` 和 `service` 命令使用独立运行态目录保存受管服务元数据：
+
+| 变量 | 默认值 | 用途 |
+| --- | --- | --- |
+| `RIN_CLI_RUNTIME_DIR` | `data/cli-runtime` | System Center 保存 PID、创建时间、日志路径和服务状态的目录。 |
+| `RIN_CLI_MANAGED` | 由 `run server` 设置 | 标记当前服务进程由 CLI 托管。 |
+| `RIN_CLI_SERVICE` | 由 `run server` 设置 | 标记受管服务名称，目前为 `server`。 |
+
+这些变量只服务本地 CLI 运行态，不属于 YAML 配置结构，也不会被 System 配置 API 持久化。
+
 ## Server Status Dashboard 配置
 
 服务器状态 Dashboard 的后端静态托管仍由 `webui` 配置控制：

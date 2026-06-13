@@ -9,6 +9,8 @@
 - 当前风险：[CONFIRMED] reload、shutdown、overload 和 panic handler 已有最小包级测试；业务降级策略仍由调用方定义。
 - 非目标：[CONFIRMED] 本包不调度业务任务优先级，也不定义业务降级策略。
 
+> HTTP handler 示例只说明异步任务提交位置。当前应用内部 HTTP 边界使用 `pkg/web`，业务模块不要因为示例直接依赖 Gin 类型。
+
 ## 特性
 
 - ✅ **多维资源隔离**: 支持多个独立协程池,防止资源争抢

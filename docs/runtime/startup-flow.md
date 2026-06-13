@@ -5,7 +5,7 @@
 ```text
 main.go
   -> cli.NewApp(cli.Config)
-  -> 注册 server/db/iam CommandSpec
+  -> 注册 server/db/iam/build/run/service/init CommandSpec
   -> 无参数进入 TUI 首页，或按参数分派 Cobra 命令
   -> server command
   -> runApp
@@ -15,7 +15,7 @@ main.go
 
 ## CLI 入口
 
-`cmd/main/main.go` 只负责装配 `pkg/cli` 应用、注册顶层命令并处理退出码。`pkg/cli` 内部封装 Cobra 和 Bubble Tea/Lip Gloss v2：
+`cmd/main/main.go` 只负责装配 `pkg/cli` 应用、注册顶层命令并处理退出码。当前顶层命令包含 `server`、`db`、`iam`、`build`、`run`、`service` 和 `init`。`pkg/cli` 内部封装 Cobra 和 Bubble Tea/Lip Gloss v2：
 
 - `--help`、`--version`、子命令和 flag 解析由 Cobra 处理；
 - 无参数运行时进入默认 TUI 首页，用于浏览命令和查看帮助；
@@ -24,6 +24,10 @@ main.go
 ## server 命令
 
 `cmd/main/app.go` 定义 `server` 命令，并通过 `Spec()` 转换为 `cli.CommandSpec` 注册到根命令。它支持 `--config` 并读取 `RIN_CONFIG_PATH`。命令层只处理入口参数，实际启动交给 `runApp`。
+
+## System Center 命令
+
+`init`、`run` 和 `service` 是本地 System Center 入口。`init` 会执行迁移、可选 Demo schema、System 默认数据同步、API/权限同步、可选管理员和服务 API Token 创建；`run server` 会以受管服务方式启动后端；`service status/info/logs/terminal/restart/stop server` 读取默认 `data/cli-runtime` 下的运行态记录。可以通过 `RIN_CLI_RUNTIME_DIR` 改变运行态目录；受管服务进程会设置 `RIN_CLI_MANAGED` 和 `RIN_CLI_SERVICE`。
 
 ## 应用构建
 
@@ -40,13 +44,15 @@ main.go
 
 启动期间，只有在 Demo 模块启用且 `demo.apply_schema_on_start` 为 true 时才会应用 Demo 表结构。
 
-IAM 表结构由 goose 迁移管理。本地默认 `migration.auto_apply=true`，`internal/app/initapp` 会在模块装配前运行迁移，便于首次启动后直接进入 `/admin` 浏览器初始化。生产示例保持 `migration.auto_apply=false`，应通过 `db migrate up` 显式应用。
+IAM、System 和插件相关表结构由 goose 迁移管理。本地默认 `migration.auto_apply=true`，`internal/app/initapp` 会在模块装配前运行迁移，便于首次启动后直接进入 `/admin` 浏览器初始化。生产示例保持 `migration.auto_apply=false`，应通过 `db migrate up` 显式应用。
 
 System 模块在装配时会读取 `system.seed_defaults_on_start`。默认开启时，它会幂等补齐 `system.status`、`http.method`、`operation.result` 三组内置字典，以及 `admin.title`、`admin.home_path`、`system.reference` 三个系统参数。这个过程会跳过未迁移或不可用的 system 表，并且不会覆盖已经存在的参数值。
 
 ## HTTP 启动
 
 HTTP 服务由 `pkg/httpserver` 包装。端口绑定错误会同步返回。
+
+WebUI 静态托管也在 HTTP 路由装配阶段注册。Go 服务默认读取 `web/admin/.output/public` 并挂载到 `/admin`；API、健康检查和就绪检查优先注册，SPA fallback 只覆盖 WebUI 挂载路径。
 
 ## RPC 启动
 

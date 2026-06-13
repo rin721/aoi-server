@@ -9,6 +9,8 @@
 - 当前风险：[RISK] 文件输出和轮转路径测试覆盖有限。
 - 非目标：[CONFIRMED] 本包不定义业务审计字段或日志采集后端。
 
+> README 中的 Gin middleware 片段是包级独立集成示例。当前应用内部 HTTP 边界使用 `pkg/web` 和 `internal/middleware`，业务模块不要直接依赖 Gin 类型。
+
 ## 特性
 
 - ✅ **高性能**: 基于 Zap,比标准库快 10 倍以上

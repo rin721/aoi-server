@@ -4,8 +4,8 @@
 
 - 当前项目是 `admin`，Go scaffold 的 Nuxt 4 后台管理台主线，使用 Vue 3、TypeScript、Pinia、`@nuxt/icon`，并通过本地 Aoi wrapper 封装 Material Web。
 - 包管理器只使用 pnpm。仓库声明的版本是 `pnpm@10.22.0`。
-- 应用以 Go 后端 IAM、探针和可选 Demo API 为数据源，不在 Nuxt 内新增生产后端能力。
-- `web/admin` 是旧版后台实现，仅作为迁移回滚和对照参考保留。
+- 应用以 Go 后端 IAM、System、探针、媒体、版本和可选 Demo/Plugins API 为数据源，不在 Nuxt 内新增生产后端能力。
+- 旧 mock、shared、视频播放和弹幕组件资料是 Aoi 组件库/历史原型资产，不代表当前后台业务主线。
 - 较大的产品、架构、UI、API 或交互变更，需要优先参考 `design/rules.md`。
 
 ## 常用命令
@@ -54,7 +54,7 @@ Go 后端默认托管 `web/admin/.output/public` 到 `/admin`。如果要验证 
 
 - 后台 API 访问统一走 `useAdminApi()`，并保持 `/api/v1` 后端契约不变。
 - 具体后端 endpoint 路径集中维护在 `app/config/admin-api.ts`；页面和 composable 不要新增散落的 `/api/v1` 字符串。
-- 不新增当前 Go 后端没有暴露的菜单管理、API 管理、字典、参数、代码生成等后端模型。
+- 只接入当前 Go 后端已经暴露的模型。菜单管理、API 管理、字典、参数、系统配置、版本和媒体库已有 System API；代码生成、插件市场、插件安装/打包等未暴露能力不要在前端先行造模型。
 - Gin-Vue-Admin 只作为布局、交互和信息架构参考；不实现它的编程辅助、代码生成、插件市场或插件安装/打包系统。
 - 浏览器本地 store 必须只在客户端安全 hydrate，能从损坏的 `localStorage` 恢复，并避免 SSR 崩溃。
 - 本地 UI 偏好只保存展示状态，不保存凭据、token 或私有 API 响应。

@@ -1,6 +1,6 @@
 ---
 title: Repository Boundaries
-description: Responsibilities for app, shared, server/api/mock, i18n, design, and generated directories.
+description: Responsibilities for app code, admin API types, Aoi components, legacy mock assets, i18n, design, and generated directories.
 order: 20
 category: project
 navigation:
@@ -9,21 +9,21 @@ navigation:
 
 # Repository Boundaries
 
-The repository is split by frontend app code, shared contracts, mock services, and long-lived design rules. New code should land in the closest matching boundary.
+The repository is split by admin app code, Go API types, the Aoi component library, legacy mock assets, and long-lived design rules. New code should land in the closest matching boundary.
 
 ## App Code
 
-`app/` contains the Nuxt frontend: pages, components, composables, stores, plugins, styles, and local types. Business pages should prefer Nuxt auto imports and local composables instead of new global utilities.
+`app/` contains the Nuxt admin app: pages, layouts, components, composables, stores, plugins, styles, and local types. Business pages should prefer Nuxt auto imports and local composables instead of new global utilities.
 
 `app/components/aoi/` is the boundary between Material Web and the Aoi design system. Business components and pages should not use `md-*` elements directly; add or extend an Aoi wrapper first.
 
-## Shared Contracts
+## Admin API Contract
 
-`shared/` holds DTOs, fixtures, and contract types reused by the app and mock server. When a shared contract exists, do not rebuild response shapes ad hoc inside pages.
+`app/config/admin-api.ts` centralizes Go backend endpoints, and `app/types/admin.ts` centralizes admin DTOs. When a type exists, do not rebuild response shapes ad hoc inside pages.
 
-## Mock API
+## Mock and Component Assets
 
-`server/api/mock/` supports the current frontend prototype. Keep mock responses close to future API contracts, but do not turn this folder into a production backend.
+`shared/`, `server/api/mock/`, video playback, and danmaku docs are legacy Aoi prototype or component-library demo assets. They may remain for documentation and component examples, but new admin business features should use the Go API and should not hide persistence, authorization, or production behavior in mock routes.
 
 ## Localization and Design
 

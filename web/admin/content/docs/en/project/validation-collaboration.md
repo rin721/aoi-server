@@ -18,14 +18,14 @@ pnpm install
 pnpm dev
 pnpm typecheck
 pnpm build
-pnpm preview
+pnpm generate
 ```
 
 The repository does not currently have a committed `lint` script. Do not claim lint verification unless a script is added later or the task explicitly provides one.
 
 ## When to Verify
 
-Run `pnpm typecheck` after changing TypeScript, Vue, routes, composables, or stores. Run `pnpm build` after changing Nuxt config, server routes, runtime config, or build-sensitive modules.
+Run `pnpm typecheck` after changing TypeScript, Vue, routes, composables, or stores. Run `pnpm build` after changing Nuxt config, server routes, runtime config, or build-sensitive modules. When the Go service must serve the static app, run `pnpm generate` and confirm `.output/public/index.html` exists.
 
 Visible UI changes should be checked in a browser on desktop and mobile widths, especially text wrapping, focus states, drawers, overlays, and small-screen layouts.
 

@@ -26,6 +26,10 @@ model -> repository -> service -> handler
 新增受保护 HTTP 接口时，需要同时考虑浏览器用户和 API Token 调用方。做法是为路由分配明确的权限码，例如 `report:read` 或 `report:export`，在 `internal/transport/http/router.go` 中通过权限中间件保护，并把权限纳入系统 API/权限同步。API Token 不拥有单独的超级通道，它只继承签发时绑定角色的权限；因此只要接口权限建模清楚，脚本调用和后台用户会走同一套授权边界。
 
 如果新模块需要自己的长期凭据，不要另起一套明文 token 表。优先复用 IAM API Token 的 Bearer 认证，把业务范围表达成角色权限；只有在确实需要第三方回调签名、Webhook secret 或机器身份隔离时，才在模块内新增专用凭据模型，并补充迁移、轮换和泄漏撤销文档。
+
+## 参考：扩展插件入口
+
+Plugins 模块当前只负责读取 manifest、展示插件、执行健康检查和代理请求。新增插件能力时，不要把插件进程生命周期、安装、打包或市场逻辑塞进 Nuxt；先确定 manifest 字段、上游进程编排方式、权限码、健康检查和代理超时，再同步 Go 配置、System 权限和后台页面。
 ## 参考：扩展版本发布包
 
 System 模块的版本发布包已经覆盖菜单、API 和字典的打包、下载和导入记录。新增模块如果希望参与发布包，优先提供稳定的编码字段，并在 `internal/modules/system/service/version.go` 中把该资源映射为可序列化结构。

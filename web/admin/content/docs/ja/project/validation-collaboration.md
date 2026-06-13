@@ -18,14 +18,14 @@ pnpm install
 pnpm dev
 pnpm typecheck
 pnpm build
-pnpm preview
+pnpm generate
 ```
 
 現在このリポジトリにはコミット済みの `lint` script がありません。後で追加されるか、タスクで明示されない限り、lint 検証済みとは言いません。
 
 ## 検証タイミング
 
-TypeScript、Vue、ルート、composable、store を変更したら `pnpm typecheck` を実行します。Nuxt 設定、server route、runtime config、ビルドに敏感な module を変更したら `pnpm build` を実行します。
+TypeScript、Vue、ルート、composable、store を変更したら `pnpm typecheck` を実行します。Nuxt 設定、server route、runtime config、ビルドに敏感な module を変更したら `pnpm build` を実行します。Go サービスで静的配信する必要がある場合は `pnpm generate` を実行し、`.output/public/index.html` が存在することを確認します。
 
 見える UI 変更はできるだけブラウザでデスクトップ幅とモバイル幅を確認します。特にテキスト折り返し、フォーカス、ドロワー、オーバーレイ、小画面レイアウトを見ます。
 

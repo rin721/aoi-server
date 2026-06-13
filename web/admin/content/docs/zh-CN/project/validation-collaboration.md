@@ -18,14 +18,14 @@ pnpm install
 pnpm dev
 pnpm typecheck
 pnpm build
-pnpm preview
+pnpm generate
 ```
 
 仓库当前没有提交 `lint` 脚本。除非后续新增或任务明确提供 lint 命令，不要声称已经完成 lint 验证。
 
 ## 何时验证
 
-修改 TypeScript、Vue、路由、composable 或 store 后运行 `pnpm typecheck`。修改 Nuxt 配置、server route、runtime config 或构建敏感模块后运行 `pnpm build`。
+修改 TypeScript、Vue、路由、composable 或 store 后运行 `pnpm typecheck`。修改 Nuxt 配置、server route、runtime config 或构建敏感模块后运行 `pnpm build`。需要由 Go 静态托管时运行 `pnpm generate`，并确认 `.output/public/index.html` 存在。
 
 可见 UI 变更应尽量在浏览器中检查桌面和移动端表现，尤其是文本换行、焦点状态、抽屉、浮层和小屏布局。
 

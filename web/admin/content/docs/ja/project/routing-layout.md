@@ -1,6 +1,6 @@
 ---
 title: Nuxt ルーティングとレイアウト
-description: ページルート、ナビゲーション、レイアウトシェル、静的 docs ルートの関係。
+description: 管理台ページルート、認証 middleware、ナビゲーション、レイアウトシェル、静的 docs ルートの関係。
 order: 30
 category: project
 navigation:
@@ -9,17 +9,19 @@ navigation:
 
 # Nuxt ルーティングとレイアウト
 
-アプリは Nuxt のファイルベースルーティングを使います。公開ページは `app/pages/` にあり、設定のような大きな領域は複数ページに分け、共通シェルでナビゲーションと見出しを揃えます。
+アプリは Nuxt のファイルベースルーティングを使います。`login`、`setup`、signup、invitation、password recovery/reset は公開または半公開入口です。それ以外の管理台ページは `auth.global.ts` のセッション確認を通ります。`default` layout は管理台 shell、`auth` layout は認証ページを担当します。
 
 ## メインナビゲーション
 
-`useAoiNavigation()` はデスクトップ rail とモバイル下部ナビゲーションを返します。デスクトップ rail には `/docs` を含む追加入口を置けます。モバイル下部はホーム、カテゴリ、フォロー、検索だけにします。
+`useAdminNavigation()` は Go バックエンドのシステムメニューを優先し、API が使えない場合はローカルの workspace、security、system、任意の Demo グループにフォールバックします。モバイル入口は現在メニューで `mobile` が付いた最初の四項目です。
 
 テキストリンク、カードリンク、タグリンク、ナビゲーションリンクは `AoiLink` を使います。ボタン型ナビゲーションは `AoiButton` または `AoiIconButton` の `to` / `href` を使い、内部で `AoiLink` に委譲します。
 
-## ドキュメントルート
+## ドキュメント内容
 
-`app/pages/docs/[[...slug]].vue` が `/docs` と `/docs/**` を扱います。現在の locale から Nuxt Content collection を選び、ローカライズ済み文書がない場合は中国語 collection にフォールバックします。
+現在のリポジトリには `web/admin/content/docs/**` の三言語 Markdown、docs rendering component、`nuxt.config.ts` の `/docs` と `/docs/**` prerender rule が残っています。現在の静的ビルドは `/docs` を出力します。`/docs/project/...` などの child route を前提にする場合は、page entry と `pnpm generate` の実際の prerender 出力を先に確認します。
+
+`DocsPage` は次の collection mapping を使います。現在の locale から collection を選び、ローカライズ済み文書がない場合は中国語 collection にフォールバックします。
 
 ```ts
 const collectionByLocale = {

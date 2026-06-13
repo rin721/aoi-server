@@ -1,6 +1,6 @@
 ---
 title: API とローカル状態
-description: useAoiApi、telemetry、共有 DTO、Pinia、localStorage hydrate のルール。
+description: useAdminApi、管理台 DTO、session storage、Pinia、localStorage hydrate のルール。
 order: 50
 category: project
 navigation:
@@ -9,20 +9,22 @@ navigation:
 
 # API とローカル状態
 
-現在のアプリは mock API とブラウザローカル状態で動きます。それでも将来バックエンドの契約を保ち、一時的な表示用形状を API モデルのように広げないことが重要です。
+管理台は Go API とブラウザ表示状態で動きます。コードは `/api/v1` 契約を保ち、一時的な表示用形状をバックエンドモデルのように広げないことが重要です。
 
 ## API アクセス
 
-すべての API アクセスは `useAoiApi()` を通し、`useAoiApiTelemetry()` の診断と互換にします。新しい mock route は可能な限り `shared/` の DTO を再利用します。
+管理台の業務ページは `useAdminApi()` を使います。endpoint は `app/config/admin-api.ts` に集約し、request、response、entity 型は `app/types/admin.ts` に集約します。ページは表示用 mapping を持てますが、新しい `/api/v1` 文字列を散らさないようにします。
+
+`useAoiApi()`、`useAoiApiTelemetry()`、`shared/`、`server/api/mock/` は過去の Aoi プロトタイプ、コンポーネント demo、オフライン例のために残しています。新しい管理台業務はこれらの mock 入口を拡張しません。
 
 ## 共有 DTO
 
-将来の Go バックエンドの request、response、entity 形状は共有型に置きます。ページは表示用に mapping できますが、バックエンド風のオブジェクトをその場で作らないようにします。
+Go バックエンドの request、response、entity 形状は `app/types/admin.ts` に置きます。複数ページで同じレスポンス形状を使う場合は、先に型を追加してからページを接続します。
 
 ## ローカル状態
 
-Pinia store はクライアントで安全に hydrate し、壊れた `localStorage` から復旧し、SSR crash を避ける必要があります。投稿 draft はファイルメタデータだけを保存し、ファイルバイトは保存しません。
+認証 token pair は `adminSession.ts` から session storage に保存し、永続 `localStorage` には移しません。UI 設定は `aoi.admin.ui.v1`、訪問タブは `aoi.admin.visited-tabs.v1` を使います。Pinia store はクライアントで安全に hydrate し、壊れたブラウザストレージから復旧し、SSR crash を避ける必要があります。
 
 ## エラーと診断
 
-エラーは console に消すだけでなく、ページや設定の診断に出せるようにします。ユーザー向けエラー文言は三つの locale ファイルに置きます。
+エラーは console に消すだけでなく、ページに出せるようにします。共有のユーザー向け文言は三つの locale ファイルに置きます。小さなページ内文言は、広く触るまでは inline のままでも構いません。

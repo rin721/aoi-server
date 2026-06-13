@@ -19,10 +19,14 @@
 | `internal/app` | 装配根、生命周期、重载编排 | 连接模块和基础设施 |
 | `internal/config` | 配置结构、加载、环境变量覆盖、校验、监听 | `envname` 标签是环境变量名来源 |
 | `internal/transport/http` | Gin 路由和 HTTP handler 注册 | 连接模块 handler |
+| `internal/transport/rpc` | JSON-RPC 方法注册 | 当前注册 `system.ping` 和 `system.methods` |
 | `internal/middleware` | trace、logger、recovery、i18n、CORS 中间件 | 只处理传输层关注点 |
 | `internal/modules/demo` | Demo Todo 业务模块 | 分层模块示例 |
 | `internal/modules/iam` | 企业级 IAM 业务模块 | 本地账号、组织、权限、会话、MFA 和审计 |
+| `internal/modules/plugins` | 插件 manifest、健康检查和代理业务模块 | 插件进程由外部系统编排 |
+| `internal/modules/system` | 系统管理业务模块 | 菜单、API、字典、参数、操作记录、服务状态、版本和媒体 |
 | `internal/migrations` | goose SQL 迁移 | IAM 表结构基线 |
+| `web/admin` | Nuxt 4 后台管理台 | Go 服务默认挂载 `/admin` |
 
 ## 基础设施包
 
@@ -32,6 +36,7 @@
 | `pkg/cache` | Redis 管理器 | 可选基础设施 |
 | `pkg/logger` | Zap 日志包装 | 被应用和包复用 |
 | `pkg/httpserver` | HTTP 服务启动/关闭/重载包装 | 不定义路由 |
+| `pkg/rpcserver` | JSON-RPC 2.0 单请求服务和方法注册表 | 独立端口，默认关闭 |
 | `pkg/cli` | Cobra 命令路由、flag 解析和 Bubble Tea TUI 首页封装 | 对外暴露项目级 spec，不暴露 Cobra 对象 |
 | `pkg/token` | JWT token 管理和 refresh token 哈希 | 不向业务层暴露 JWT 库细节 |
 | `pkg/authorization` | Casbin domain RBAC 封装 | 不向业务层暴露 Casbin enforcer |
@@ -41,6 +46,8 @@
 | `pkg/crypto` | 哈希和加密辅助函数 | 通用加密辅助能力 |
 | `pkg/storage` | 文件存储和 watcher 辅助能力 | 可选存储基础设施 |
 | `pkg/sqlgen` | SQL DDL/代码生成辅助能力 | 被 DB CLI 和表结构应用使用 |
+| `pkg/hostmetrics` | CPU、内存和磁盘采样 | 被系统服务状态使用 |
+| `pkg/processx` | PID 运行状态和创建时间校验 | 被 System Center 受管服务状态使用 |
 | `pkg/i18n` | 消息包和语言辅助能力 | 可选本地化支撑 |
 | `pkg/utils` | 小型工具函数 | 避免隐藏业务逻辑 |
 
@@ -55,6 +62,6 @@
 | `docs/README.md` | 面向人的工程文档入口 |
 | `docs` | 面向人的结构化工程文档 |
 | `docs/onboarding` | 新维护者入门、阅读路径和接手检查表 |
-| `docs/workflows` | DB 和 IAM CLI 工作流 |
+| `docs/workflows` | DB、IAM 和 System Center CLI 工作流 |
 | `docs/ai` | AI 运行时状态、任务树、决策、证据、知识、技能和交接 |
 | `AGENTS.md` | Agent 运行时索引 |

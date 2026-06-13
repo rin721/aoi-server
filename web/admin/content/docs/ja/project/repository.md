@@ -1,6 +1,6 @@
 ---
 title: リポジトリ境界
-description: app、shared、server/api/mock、i18n、design、生成ディレクトリの責務。
+description: app、管理台 API 型、Aoi コンポーネント、mock 遺産、i18n、design、生成ディレクトリの責務。
 order: 20
 category: project
 navigation:
@@ -9,21 +9,21 @@ navigation:
 
 # リポジトリ境界
 
-リポジトリはフロントエンドアプリ、共有契約、mock サービス、長期設計ルールで分かれています。新しいコードはもっとも近い責務の場所に置きます。
+リポジトリは管理台アプリ、Go API 型、Aoi コンポーネントライブラリ、過去の mock 資産、長期設計ルールで分かれています。新しいコードはもっとも近い責務の場所に置きます。
 
 ## アプリコード
 
-`app/` は Nuxt フロントエンド本体です。ページ、コンポーネント、composable、store、plugin、style、ローカル型を含みます。業務ページでは Nuxt auto import とローカル composable を優先します。
+`app/` は Nuxt 管理台本体です。ページ、レイアウト、コンポーネント、composable、store、plugin、style、ローカル型を含みます。業務ページでは Nuxt auto import とローカル composable を優先します。
 
 `app/components/aoi/` は Material Web と Aoi デザインシステムの境界です。業務コンポーネントやページで `md-*` 要素を直接使わず、必要なら Aoi wrapper を追加または拡張します。
 
-## 共有契約
+## 管理台 API 契約
 
-`shared/` は app と mock server が共有する DTO、fixture、契約型を置きます。既存の共有契約がある場合、ページ内でレスポンス形状を作り直さないようにします。
+`app/config/admin-api.ts` は Go バックエンド endpoint を集約し、`app/types/admin.ts` は管理台 DTO を集約します。既存の型がある場合、ページ内でレスポンス形状を作り直さないようにします。
 
-## Mock API
+## Mock とコンポーネント資産
 
-`server/api/mock/` は現在のフロントエンドプロトタイプを支える場所です。mock レスポンスは将来 API に近づけますが、本番バックエンドにはしません。
+`shared/`、`server/api/mock/`、動画再生、弾幕ドキュメントは過去の Aoi プロトタイプまたはコンポーネントライブラリ demo 資産です。ドキュメントやコンポーネント例として残せますが、新しい管理台業務機能は Go API を使い、永続化、認可、本番動作を mock route に隠しません。
 
 ## ローカライズと設計
 

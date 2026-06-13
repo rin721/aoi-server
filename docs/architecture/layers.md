@@ -9,6 +9,7 @@ cmd/main
       -> pkg 基础设施
       -> internal/modules
       -> internal/transport/http
+      -> internal/transport/rpc
 ```
 
 ## 分层职责
@@ -18,9 +19,9 @@ cmd/main
 | CLI | 声明命令规格、解析命令参数、提供无参数 TUI 首页、选择配置路径、处理进程退出 |
 | 应用装配 | 创建核心服务、基础设施、模块、传输层和生命周期 |
 | 配置 | 加载、校验、监听并暴露当前配置 |
-| 基础设施 | 数据库、缓存、日志、执行器、存储、HTTP 服务、SQL 生成 |
+| 基础设施 | 数据库、缓存、日志、执行器、存储、HTTP 服务、RPC 服务、主机/进程探针、SQL 生成 |
 | 模块 | 业务行为和模块内校验 |
-| 传输层 | HTTP 路由、中间件、请求绑定和响应转换 |
+| 传输层 | HTTP/RPC 路由、中间件、请求绑定和响应转换 |
 
 ## 依赖方向
 
@@ -30,7 +31,7 @@ cmd/main
 
 ## 模块形态
 
-当前 Demo 和 IAM 模块使用以下结构：
+当前 Demo、IAM 和 System 模块主要使用以下结构：
 
 ```text
 model -> repository -> service -> handler
@@ -48,8 +49,8 @@ model -> repository -> service -> handler
 1. 核心服务：配置、日志、国际化、ID 生成器；
 2. 基础设施：数据库、缓存、执行器、存储；
 3. 可选迁移：当 `migration.auto_apply=true` 时执行 goose 迁移；
-4. 模块：Demo、IAM；
-5. 传输层：HTTP 路由和 HTTP 服务。
+4. 模块：Demo、IAM、Plugins、System；
+5. 传输层：HTTP 路由、WebUI 静态挂载、RPC 方法注册、HTTP 服务和可选 RPC 服务。
 
 重载和关闭由应用层包统一编排，不分散到各业务模块内部。
 
@@ -61,4 +62,6 @@ IAM 相关底层库通过 `pkg` 包隔离：
 - `pkg/authorization` 封装 Casbin domain RBAC；
 - `pkg/mfa` 封装 TOTP 生成和校验；
 - `pkg/migrator` 封装 goose 迁移执行；
+- `pkg/rpcserver` 封装 JSON-RPC 2.0 单请求入口和方法注册；
+- `pkg/hostmetrics`、`pkg/processx` 封装主机采样和进程状态探针；
 - `pkg/database` 只向迁移层暴露标准 `*sql.DB`，业务模块仍通过 repository 使用数据库执行器。

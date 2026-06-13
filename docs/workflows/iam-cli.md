@@ -53,4 +53,27 @@ IAM CLI 使用和 server 相同的配置加载路径：
 
 ## 后续运维
 
-当前 CLI 只提供初始化管理员和数据库迁移入口。用户邀请、角色、权限、会话撤销和审计查看由 HTTP 管理接口提供；后续如需离线运维命令，应继续保持 `cmd/main` 轻薄，把真实业务逻辑放在 IAM service。
+用户邀请、角色、权限、会话撤销和审计查看由 HTTP 管理接口提供；CLI 不重复实现这些后台管理页面。需要本地一站式初始化时，使用 System Center `init`：
+
+```bash
+go run ./cmd/main init \
+  --config=configs/config.yaml \
+  --admin-username=admin \
+  --admin-email=admin@example.com \
+  --admin-password-stdin \
+  --create-service-token
+```
+
+`init` 会在应用装配后执行迁移、同步 System 默认数据、同步 API/权限，并按 flag 创建管理员和可选服务 API Token。受管服务入口位于同一组命令：
+
+```bash
+go run ./cmd/main run server --config=configs/config.yaml
+go run ./cmd/main service status server
+go run ./cmd/main service info server
+go run ./cmd/main service logs server
+go run ./cmd/main service terminal server
+go run ./cmd/main service restart server
+go run ./cmd/main service stop server
+```
+
+System Center 默认把运行态记录放在 `data/cli-runtime`，可通过 `RIN_CLI_RUNTIME_DIR` 覆盖。受管进程会设置 `RIN_CLI_MANAGED` 和 `RIN_CLI_SERVICE`，用于区分手动启动和 CLI 托管启动。

@@ -11,6 +11,7 @@ cmd/main
       -> pkg infrastructure
       -> internal/modules
       -> internal/transport/http
+      -> internal/transport/rpc
 ```
 
 The dependency direction matters. `pkg` packages are reusable infrastructure and
@@ -24,14 +25,17 @@ use infrastructure interfaces and keep HTTP details in handlers.
   storage, modules, router, and lifecycle.
 - Config: `internal/config` owns YAML, dotenv, env overrides, validation, and
   runtime reload support.
-- HTTP: `internal/transport/http` registers health, readiness, demo, and IAM
-  routes through `pkg/web` and Gin.
-- Modules: `internal/modules/demo` and `internal/modules/iam` follow
-  `model -> repository -> service -> handler`.
+- HTTP: `internal/transport/http` registers health, readiness, demo, IAM,
+  plugins, system, and WebUI static routes through `pkg/web` and Gin.
+- RPC: `internal/transport/rpc` registers JSON-RPC methods served by
+  `pkg/rpcserver` when `rpc.enabled=true`.
+- Modules: `internal/modules/demo`, `internal/modules/iam`, and
+  `internal/modules/system` follow `model -> repository -> service -> handler`;
+  `internal/modules/plugins` manages manifests, health checks, and proxying.
 - System parity module: `internal/modules/system` follows the same
   `model -> repository -> service -> handler` flow for 外部后台-inspired
   menus, API catalog sync, dictionaries, operation records, parameters,
-  read-only config snapshots, server status, and idempotent default data
+  runtime config snapshots, controlled config persistence, server status, and idempotent default data
   seeding during startup.
 - API catalog entries expose route access mode (`public`, `authenticated`, or
   `permission`) inferred from HTTP route registration and permission metadata;
@@ -49,8 +53,9 @@ use infrastructure interfaces and keep HTTP details in handlers.
   table while the operation record schema contains status, response, trace ID,
   and error message fields.
 - Infrastructure: `pkg/database`, `pkg/cache`, `pkg/logger`, `pkg/httpserver`,
-  `pkg/storage`, `pkg/sqlgen`, `pkg/token`, `pkg/authorization`, `pkg/mfa`,
-  `pkg/migrator`, and related helpers.
+  `pkg/rpcserver`, `pkg/storage`, `pkg/sqlgen`, `pkg/token`,
+  `pkg/authorization`, `pkg/mfa`, `pkg/migrator`, `pkg/hostmetrics`,
+  `pkg/processx`, and related helpers.
 - Shared types: `types/constants`, `types/errors`, and `types/result`.
 
 ## Extension Flow

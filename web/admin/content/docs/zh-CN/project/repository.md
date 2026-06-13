@@ -1,6 +1,6 @@
 ---
 title: 仓库边界
-description: 说明 app、shared、server/api/mock、i18n 和 design 等目录的职责。
+description: 说明 app、admin API 类型、Aoi 组件、mock 遗留资产、i18n 和 design 等目录的职责。
 order: 20
 category: project
 navigation:
@@ -9,21 +9,21 @@ navigation:
 
 # 仓库边界
 
-仓库按前端应用、共享契约、mock 服务和长期设计文档分层。新增代码应先落到最贴近职责的目录。
+仓库按后台应用、Go API 类型、Aoi 组件库、历史 mock 资产和长期设计文档分层。新增代码应先落到最贴近职责的目录。
 
 ## 应用代码
 
-`app/` 是 Nuxt 前端应用主体，包含页面、组件、composable、store、插件、样式和本地类型。业务页面优先使用 Nuxt 自动导入和本地 composable，避免引入不必要的全局工具。
+`app/` 是 Nuxt 后台应用主体，包含页面、布局、组件、composable、store、插件、样式和本地类型。业务页面优先使用 Nuxt 自动导入和本地 composable，避免引入不必要的全局工具。
 
 `app/components/aoi/` 是 Material Web 与 Aoi 设计系统的边界。业务组件和页面不要直接使用 `md-*` 元素；需要新的 Material 行为时，先扩展 Aoi wrapper。
 
-## 共享契约
+## 后台 API 契约
 
-`shared/` 放置 app 和 mock server 需要共同使用的 DTO、fixture 与契约类型。已有共享契约时，不要在页面里临时拼接响应结构。
+`app/config/admin-api.ts` 集中维护 Go 后端 endpoint，`app/types/admin.ts` 集中维护后台 DTO。已有类型时，不要在页面里临时拼接响应结构。
 
-## Mock API
+## Mock 和组件资产
 
-`server/api/mock/` 只服务当前前端原型，接口形状尽量贴近未来真实 API。不要把它扩展成生产后端，也不要把持久化或权限逻辑藏进 mock 层。
+`shared/`、`server/api/mock/`、视频播放和弹幕组件资料属于历史 Aoi 原型或组件库 demo。它们可以保留用于文档和组件展示，但新增后台业务功能优先接 Go API，不把持久化、权限或生产逻辑藏进 mock 层。
 
 ## 本地化与设计
 

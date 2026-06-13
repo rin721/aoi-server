@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rin721/go-scaffold)
 
-`go-scaffold` 是一个可运行的 Go 后端服务脚手架。当前保留 HTTP 服务、配置加载、结构化日志、数据库访问、Demo Todo CRUD、客户资源权限示例、企业级 IAM、系统管理发布包、数据库迁移、存储辅助能力、SQL 生成、Docker 构建、CI 检查、部署示例和 AI 运行时文档。
+`go-scaffold` 是一个可运行的 Go 后端服务脚手架。当前保留 HTTP 服务、可选 JSON-RPC、配置加载、结构化日志、数据库访问、Demo Todo CRUD、客户资源权限示例、企业级 IAM、System 管理能力、插件代理、Admin WebUI、System Center CLI、数据库迁移、存储辅助能力、SQL 生成、Docker 构建、CI 检查、部署示例和 AI 运行时文档。
 
 <p align="center">
   <img src="../configs/logo.png" alt="go-scaffold logo" width="180">
@@ -17,8 +17,10 @@
 - Demo 模块采用 `handler -> service -> repository -> model` 分层，包含公开 Todo 和受保护客户资源示例，适合作为新增业务模块参考。
 - IAM 模块提供本地账号、组织租户、JWT、API Token、Casbin 权限、邀请、找回密码、TOTP MFA、会话撤销和审计日志。
 - System 模块提供菜单/API/字典/参数/操作记录/服务器状态、版本发布包和媒体库管理。版本发布包用于快照菜单、API 和字典配置；当前导入会幂等补齐字典，菜单和 API 仍以代码和路由目录为准。媒体库复用 Storage，支持分类、普通上传、断点上传、外链导入、重命名、下载和删除。
+- Plugins 模块读取 JSON/YAML manifest，提供插件列表、健康检查、manifest 详情和受权限保护的代理入口；插件进程仍由 Compose、systemd 或 Kubernetes 等外部系统编排。
+- Admin WebUI 位于 `web/admin`，Go 服务默认在 `/admin` 托管 Nuxt 静态产物；System Center CLI 提供 `init`、`run server` 和 `service status/info/logs/terminal/restart/stop` 等本地运维入口。
 - 迁移通过 `pkg/migrator` 封装 goose，并由 `db migrate` 显式执行。
-- 本地默认配置使用 SQLite `./data/app.db`，Redis 默认关闭，Demo 模块默认开启，HTTP 监听 `127.0.0.1:9999`。
+- 本地默认配置使用 SQLite `./data/app.db`，Redis 和插件默认关闭，Demo、IAM、System 与 WebUI 默认开启，HTTP 监听 `127.0.0.1:9999`。
 - 提供 Docker、Compose、环境变量、部署脚本和 CI 示例。
 
 ## 技术栈
@@ -27,6 +29,7 @@
 | --- | --- |
 | 运行时 | Go 1.25.7 |
 | HTTP | `pkg/web` 防腐封装,底层使用 Gin 和 gin-contrib/cors |
+| JSON-RPC | `pkg/rpcserver` 独立端口入口，默认关闭 |
 | CLI | `pkg/cli` 封装 Cobra 命令路由和 Charm Bubble Tea/Lip Gloss v2 交互首页 |
 | 配置 | `pkg/configloader` 防腐封装,支持 YAML、dotenv 和环境变量覆盖 |
 | 日志 | Zap, lumberjack |
@@ -39,6 +42,7 @@
 | 国际化 | go-i18n，包含 `zh-CN` 和 `en-US` 示例 |
 | 存储 | afero, mimetype, imaging |
 | SQL/代码生成 | 本地 `pkg/sqlgen`, Jennifer |
+| 主机/进程探针 | `pkg/hostmetrics`, `pkg/processx` |
 | 后台任务 | ants 协程池管理 |
 | 测试 | Go test, miniredis |
 | CI 和交付 | GitHub Actions, Docker, Docker Compose 示例 |
@@ -51,13 +55,16 @@ flowchart TB
   App["internal/app<br/>应用装配、生命周期、配置重载"]
   Config["internal/config<br/>YAML、.env、环境变量、校验、监听"]
   HTTP["internal/transport/http<br/>Gin 路由注册"]
+  RPC["internal/transport/rpc<br/>JSON-RPC 方法注册"]
   Middleware["internal/middleware<br/>trace、auth、i18n、CORS、recovery、logging"]
   Types["types<br/>共享常量、错误、响应"]
+  WebUI["web/admin<br/>Nuxt Admin WebUI"]
 
   subgraph Modules["internal/modules"]
     direction TB
     Demo["demo<br/>Todo CRUD<br/>Customer Resource"]
     IAM["iam<br/>账号、组织、角色、权限、API Token、会话、MFA、审计"]
+    Plugins["plugins<br/>manifest、健康检查、代理"]
     System["system<br/>菜单、API、字典、参数、版本发布包、媒体库"]
     ModuleShape["模块内分层<br/>handler -> service -> repository -> model"]
   end
@@ -69,6 +76,7 @@ flowchart TB
     Cache["cache"]
     Auth["token / authorization / mfa"]
     Infra["logger / configloader / i18n / executor / storage / crypto"]
+    Probe["hostmetrics / processx / rpcserver"]
   end
 
   subgraph Runtime["运行时与外部依赖"]
@@ -90,11 +98,18 @@ flowchart TB
   App --> Demo
   App --> IAM
   App --> HTTP
+  App --> RPC
+  App --> Plugins
+  App --> System
   HTTP --> Middleware
   HTTP --> Demo
   HTTP --> IAM
+  HTTP --> Plugins
+  HTTP --> System
+  HTTP --> WebUI
   Demo --> ModuleShape
   IAM --> ModuleShape
+  System --> ModuleShape
   ModuleShape --> DB
   IAM --> Auth
   IAM --> Cache
@@ -105,6 +120,7 @@ flowchart TB
   DB --> Store
   Cache --> Redis
   Infra --> Files
+  Probe --> RPC
   Deploy --> CLI
 ```
 
@@ -123,6 +139,14 @@ go run ./cmd/main server
 ```bash
 curl http://127.0.0.1:9999/health
 curl http://127.0.0.1:9999/ready
+```
+
+System Center CLI 提供本地初始化和受管服务入口：
+
+```bash
+go run ./cmd/main init --admin-username=admin --admin-email=admin@example.com --admin-password-stdin
+go run ./cmd/main run server
+go run ./cmd/main service status server
 ```
 
 ## Admin WebUI
@@ -163,9 +187,13 @@ docker build -t go-scaffold:local .
 | 应用装配 | `internal/app` |
 | 配置 | `internal/config`, `configs` |
 | HTTP 传输层 | `internal/transport/http` |
+| RPC 传输层 | `internal/transport/rpc` |
 | Demo 模块 | `internal/modules/demo` |
 | IAM 模块 | `internal/modules/iam` |
-| 基础设施包 | `pkg/database`, `pkg/web`, `pkg/configloader`, `pkg/cache`, `pkg/logger`, `pkg/httpserver`, `pkg/storage`, `pkg/sqlgen`, `pkg/token`, `pkg/authorization`, `pkg/mfa`, `pkg/migrator` |
+| Plugins 模块 | `internal/modules/plugins` |
+| System 模块 | `internal/modules/system` |
+| Admin WebUI | `web/admin` |
+| 基础设施包 | `pkg/database`, `pkg/web`, `pkg/configloader`, `pkg/cache`, `pkg/logger`, `pkg/httpserver`, `pkg/rpcserver`, `pkg/storage`, `pkg/sqlgen`, `pkg/token`, `pkg/authorization`, `pkg/mfa`, `pkg/migrator`, `pkg/hostmetrics`, `pkg/processx` |
 | 共享响应和错误类型 | `types` |
 | Docker 和部署 | `Dockerfile`, `deploy`, `deploy.sh`, `script/install.sh`, `.github/workflows/deploy-remote.yml` |
 | 工程文档 | `docs/README.md`, `docs` |
@@ -188,13 +216,15 @@ docker build -t go-scaffold:local .
 10. [错误流程](runtime/error-flow.md)
 11. [Demo 模块](modules/demo.md)
 12. [IAM 模块](modules/iam.md)
-13. [DB CLI 工作流](workflows/db-cli.md)
-14. [IAM CLI 工作流](workflows/iam-cli.md)
-15. [测试矩阵](testing/test-matrix.md)
-16. [Docker 和 CI](build/docker-and-ci.md)
-17. [部署说明](release/deployment.md)
-18. [维护指南](maintenance/maintenance-guide.md)
-19. [已知缺口](backlog/known-gaps.md)
+13. [System 模块](modules/system.md)
+14. [Plugins 模块](modules/plugins.md)
+15. [DB CLI 工作流](workflows/db-cli.md)
+16. [IAM CLI 工作流](workflows/iam-cli.md)
+17. [测试矩阵](testing/test-matrix.md)
+18. [Docker 和 CI](build/docker-and-ci.md)
+19. [部署说明](release/deployment.md)
+20. [维护指南](maintenance/maintenance-guide.md)
+21. [已知缺口](backlog/known-gaps.md)
 
 ### 文档地图
 
@@ -207,7 +237,7 @@ docker build -t go-scaffold:local .
 | [architecture](architecture/layers.md) | 应用分层和装配方式 |
 | [runtime](runtime/startup-flow.md) | 启动、HTTP、配置重载、状态和错误流程 |
 | [api](api/README.md) | 人可读 HTTP API 文档和 OpenAPI 契约 |
-| [modules/demo](modules/demo.md), [modules/iam](modules/iam.md), [modules/system](modules/system.md) | Demo、IAM 和 System 模块说明 |
+| [modules/demo](modules/demo.md), [modules/iam](modules/iam.md), [modules/system](modules/system.md), [modules/plugins](modules/plugins.md) | Demo、IAM、System 和 Plugins 模块说明 |
 | [workflows/db-cli](workflows/db-cli.md), [workflows/iam-cli](workflows/iam-cli.md) | DB/IAM CLI 和运维型命令 |
 | [testing](testing/test-matrix.md) | 测试归属和验证命令 |
 | [build](build/docker-and-ci.md) | CI、本地构建、Docker 构建和质量门禁 |
@@ -241,6 +271,8 @@ docker build -t go-scaffold:local .
 | `GET /api/v1/me` | 当前用户资料 |
 | `GET /api/v1/me/orgs` | 当前用户组织 |
 | `/api/v1/orgs`, `/api/v1/orgs/{orgId}/users/*`, `/api/v1/orgs/{orgId}/roles/*`, `/api/v1/orgs/{orgId}/permissions`, `/api/v1/orgs/{orgId}/api-tokens`, `/api/v1/orgs/{orgId}/sessions`, `/api/v1/orgs/{orgId}/audit-logs` | IAM 管理接口 |
+| `/api/v1/plugins/*` | 插件列表、健康检查、manifest 和代理 |
+| `/api/v1/system/*` | 菜单、API、字典、参数、操作记录、版本、媒体、系统配置和服务状态 |
 | `/api/v1/system/media/*` | 媒体库分类、上传、外链导入、下载和删除 |
 
 ## 配置
@@ -274,6 +306,10 @@ go run ./cmd/main iam bootstrap-admin --org-code=acme --username=admin --email=a
 ```
 
 该命令用于首次创建组织、管理员、内置权限和 owner/admin/member 角色。本地也可以直接打开 `/admin` 使用浏览器初始化；生产环境应先显式执行 `db migrate up`，并通过标准输入或 secrets 管道传入密码。
+
+## System Center CLI
+
+`init` 会应用迁移、同步系统默认数据、可选创建管理员和服务 API Token；`run server` 会以受管服务方式启动后端；`service` 子命令读取运行态记录并提供状态、信息、日志、终端、重启和停止入口。默认运行态目录是 `data/cli-runtime`，可通过 `RIN_CLI_RUNTIME_DIR` 覆盖；受管进程会设置 `RIN_CLI_MANAGED` 和 `RIN_CLI_SERVICE`。
 
 ## 工程工作流
 

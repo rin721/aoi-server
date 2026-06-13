@@ -1,6 +1,6 @@
 ---
 title: Aoi Docs
-description: Public static documentation for the project system, collaboration rules, and Aoi wrapper component library.
+description: Static documentation content for the Go-backed admin console, collaboration rules, and Aoi wrapper component library.
 order: 1
 category: docs
 navigation:
@@ -9,11 +9,11 @@ navigation:
 
 # Aoi Docs
 
-This is the long-lived documentation entry for `admin`. The project system pages explain the Nuxt app, repository boundaries, state, API, i18n, and validation workflow. The component library pages cover every Aoi wrapper under `app/components/aoi/`.
+This is the long-lived documentation content entry for `admin`. The project system pages explain the Go-backed Nuxt admin console, repository boundaries, state, API, i18n, and validation workflow. The component library pages cover every Aoi wrapper under `app/components/aoi/`.
 
 ## Fast Paths
 
-- [Project overview](/docs/project/overview) explains the app goals, stack, and mock-first boundary.
+- [Project overview](/docs/project/overview) explains the app goals, stack, and current Go API boundary.
 - [Repository boundaries](/docs/project/repository) explains where long-lived code belongs and which folders are generated.
 - [Component overview](/docs/components/overview) explains the wrapper rules and categories.
 - [Actions components](/docs/components/actions) covers buttons, links, and command navigation.
@@ -24,7 +24,7 @@ This is the long-lived documentation entry for `admin`. The project system pages
 All locales keep the same slugs. The default locale is `zh-CN`, and the app uses the i18n `no_prefix` strategy, so switching language keeps the route stable while the page queries a different Markdown collection.
 
 ::docs-callout{title="Static first" intent="info" icon="sparkles"}
-`/docs` is rendered from Markdown by Nuxt Content and prerendered through route rules. It does not add mock APIs or change the future production backend boundary.
+This Markdown content is consumed by Nuxt Content, and the current static build emits `/docs`. It does not add production APIs or change the Go backend `/api/v1` contract; before adding or relying on `/docs/**` child routes, verify the actual prerender output with `pnpm generate`.
 ::
 
 ## Authoring Model

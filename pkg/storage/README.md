@@ -321,7 +321,7 @@ export STORAGE_WATCH_BUFFER_SIZE=200
 ### 1. 使用 defer 关闭资源
 
 ```go
-fs, err := fileservice.New(cfg)
+fs, err := storage.New(cfg)
 if err != nil {
     return err
 }

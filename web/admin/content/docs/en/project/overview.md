@@ -1,6 +1,6 @@
 ---
 title: Project Overview
-description: admin is a frontend-first Nuxt 4 video community app built around local mock APIs and browser state.
+description: admin is a Go-backed Nuxt 4 admin console served by the Go service under /admin by default.
 order: 10
 category: project
 navigation:
@@ -9,7 +9,7 @@ navigation:
 
 # Project Overview
 
-`admin` is a frontend-first Nuxt 4 application for a video community: creator pages, uploads, playback, danmaku, search, and settings. The current stage uses local mock APIs and browser state while preserving DTO contracts for a future Go backend.
+`admin` is the current Nuxt 4 admin console for the Go backend. It calls `/api/v1` through `useAdminApi()` and covers setup/login, organizations, users, roles and permissions, API tokens, sessions, security audit, System management, media, versions, and server status. The Go service serves the generated static app under `/admin` by default.
 
 ## Stack
 
@@ -22,10 +22,10 @@ navigation:
 
 ## Product Boundary
 
-The app does not implement a production backend today. `server/api/mock/` exists to make frontend flows behave close to future API contracts, not to grow server-side product behavior.
+The app does not implement production backend behavior inside Nuxt. New admin capabilities should be exposed by the Go HTTP API first, then wired into pages and DTOs. `server/api/mock/`, `useAoiApi()`, video playback, and danmaku components are legacy prototype or Aoi component-library assets, not the current admin product line.
 
 Long-term product, architecture, UI, API, and interaction constraints belong in `design/rules.md`. Temporary research, prototypes, or phase plans should not accumulate in `design/`.
 
 ## Main Flows
 
-Home, search, categories, following, collections, history, playback, upload, and settings make up the current app surface. The docs site is public, but it is only added to the desktop rail; mobile bottom navigation stays focused on core browsing actions.
+The main surface is setup/login, dashboard, organizations, users, roles and permissions, API tokens, sessions, security settings, login logs, audit logs, menus, APIs, dictionaries, parameters, system config, versions, media, and server status. Navigation prefers server menus and falls back to local groups when the API is unavailable.
