@@ -62,6 +62,33 @@ if err := app.Run(context.Background(), os.Args[1:]); err != nil {
 - 首页按 `q`、`esc` 或 `ctrl+c` 退出，并返回 `CancelledError`。
 - 如需空参数时显示普通 Cobra help，可设置 `Config.DisableInteractiveHome`。
 
+## 链式 prompt 参数
+
+`pkg/cli` 支持在 Cobra 解析前剥离 `--chain.<key>` 参数，用同一套业务 prompt 流程完成自动回答：
+
+```powershell
+.\tmp\go-scaffold-server.exe run --chain.service=server --chain.config=configs/config.yaml --chain.privacy=false
+.\tmp\go-scaffold-server.exe service --chain.action=logs --chain.logs.follow=true
+```
+
+支持两种写法：
+
+```text
+--chain.<key>=<value>
+--chain.<key> <value>
+```
+
+`--chain.*` 不会进入 `Context.Flags` 或 `Context.ChangedFlags`，普通未知 flag 仍由 Cobra 按原规则报错。业务流程应优先使用 `SelectKey`、`ConfirmKey`、`InputKey` 和 `PasswordKey` 声明语义 key；当 key 没有链式答案时，这些 helper 会自动回落到原来的 `PromptUI` 菜单、确认、输入或密码 prompt。
+
+已约定的核心 key：
+
+| 流程 | key |
+| --- | --- |
+| `run` | `service`, `config`, `privacy`, `privacy.<path>.action`, `privacy.<path>.value` |
+| `service` | `action`, `logs.follow` |
+| `init` | `config`, `org-code`, `org-name`, `admin-username`, `admin-email`, `admin-display-name`, `admin-password`, `create-service-token`, `service-token-days`, `service-token-remark` |
+| `build` | `build.target`, `build.custom-targets`, `build.output`, `build.generate-web`, `build.cgo`, `build.proceed` |
+
 ## Flag 类型
 
 当前支持的 flag 类型：

@@ -317,7 +317,7 @@ func TestRunStartFlowShowsDependencyServicesThroughCLIUI(t *testing.T) {
 	}
 }
 
-func TestRunStartFlowWithInputStartsServerNonInteractively(t *testing.T) {
+func TestRunStartFlowWithChainAnswersStartsServerNonInteractively(t *testing.T) {
 	configPath := copyExampleConfig(t)
 	runner := &fakeProcessRunner{
 		startInfos:     []ProcessInfo{{PID: 321, ProcessStartTime: 12345}},
@@ -332,15 +332,15 @@ func TestRunStartFlowWithInputStartsServerNonInteractively(t *testing.T) {
 	ctx := &cli.Context{
 		Context: context.Background(),
 		Stdout:  &stdout,
-		UI:      ui,
+		UI: cli.WithPromptAnswers(ui, map[string]string{
+			"service": ServiceServer,
+			"config":  configPath,
+			"privacy": "false",
+		}),
 	}
 
-	if err := RunStartFlowWithInput(ctx, StartFlowInput{
-		Service:           ServiceServer,
-		ConfigPath:        configPath,
-		SkipPrivacyPrompt: true,
-	}); err != nil {
-		t.Fatalf("RunStartFlowWithInput() error = %v", err)
+	if err := RunStartFlow(ctx); err != nil {
+		t.Fatalf("RunStartFlow() error = %v", err)
 	}
 
 	if len(runner.starts) != 1 {

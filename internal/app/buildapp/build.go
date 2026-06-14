@@ -123,7 +123,7 @@ func PromptOptions(ctx context.Context, ui cli.PromptUI, opts Options) (Options,
 	}
 	opts = applyDefaults(opts)
 	currentTarget := Target{GOOS: runtime.GOOS, GOARCH: runtime.GOARCH}
-	targetChoice, err := ui.Select(ctx, "选择构建目标", []cli.SelectOption{
+	targetChoice, err := cli.SelectKey(ctx, ui, "build.target", "选择构建目标", []cli.SelectOption{
 		{Value: "default", Label: "默认三平台 amd64", Description: strings.Join(DefaultTargetStrings(), ", ")},
 		{Value: "current", Label: "当前平台", Description: currentTarget.String()},
 		{Value: "custom", Label: "自定义目标", Description: "例如 linux/amd64,windows/amd64"},
@@ -137,7 +137,7 @@ func PromptOptions(ctx context.Context, ui cli.PromptUI, opts Options) (Options,
 	case "current":
 		opts.Targets = []string{currentTarget.String()}
 	case "custom":
-		custom, err := ui.Input(ctx, "目标平台，逗号分隔", strings.Join(DefaultTargetStrings(), ","))
+		custom, err := cli.InputKey(ctx, ui, "build.custom-targets", "目标平台，逗号分隔", strings.Join(DefaultTargetStrings(), ","))
 		if err != nil {
 			return Options{}, false, err
 		}
@@ -147,7 +147,7 @@ func PromptOptions(ctx context.Context, ui cli.PromptUI, opts Options) (Options,
 		opts.Targets = []string{custom}
 	}
 
-	output, err := ui.Input(ctx, "输出目录", opts.OutputDir)
+	output, err := cli.InputKey(ctx, ui, "build.output", "输出目录", opts.OutputDir)
 	if err != nil {
 		return Options{}, false, err
 	}
@@ -155,13 +155,13 @@ func PromptOptions(ctx context.Context, ui cli.PromptUI, opts Options) (Options,
 		opts.OutputDir = strings.TrimSpace(output)
 	}
 
-	generateWeb, err := ui.Confirm(ctx, "是否执行 pnpm generate 生成并打包 Admin WebUI？选择否时若无既有产物将构建后端-only 包。", true)
+	generateWeb, err := cli.ConfirmKey(ctx, ui, "build.generate-web", "是否执行 pnpm generate 生成并打包 Admin WebUI？选择否时若无既有产物将构建后端-only 包。", true)
 	if err != nil {
 		return Options{}, false, err
 	}
 	opts.SkipWebGenerate = !generateWeb
 
-	cgoEnabled, err := ui.Confirm(ctx, "是否启用 CGO？", false)
+	cgoEnabled, err := cli.ConfirmKey(ctx, ui, "build.cgo", "是否启用 CGO？", false)
 	if err != nil {
 		return Options{}, false, err
 	}
@@ -172,7 +172,7 @@ func PromptOptions(ctx context.Context, ui cli.PromptUI, opts Options) (Options,
 		}
 	}
 
-	proceed, err := ui.Confirm(ctx, "开始构建发布包？", false)
+	proceed, err := cli.ConfirmKey(ctx, ui, "build.proceed", "开始构建发布包？", false)
 	if err != nil {
 		return Options{}, false, err
 	}

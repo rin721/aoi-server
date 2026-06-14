@@ -480,9 +480,10 @@ func (m shellModel) runCommand(ctx context.Context, command string) tea.Cmd {
 		errWriter := &shellOutputWriter{events: events}
 		ui := &shellPromptUI{events: events}
 		commandStreams := streams{
-			stdin:  baseStreams.stdin,
-			stdout: writer,
-			stderr: errWriter,
+			stdin:        baseStreams.stdin,
+			stdout:       writer,
+			stderr:       errWriter,
+			chainAnswers: baseStreams.chainAnswers,
 		}
 		err := appImpl.runCommandWithUI(ctx, []string{command}, commandStreams, ui)
 		return shellFlowDoneMsg{err: err}

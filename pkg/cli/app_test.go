@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -416,5 +417,101 @@ func TestPromptUIUsesInjectedIO(t *testing.T) {
 	}
 	if err := ui.Info("done"); err != nil {
 		t.Fatalf("Info() error = %v", err)
+	}
+}
+
+func TestChainArgsAutofillKeyedPrompts(t *testing.T) {
+	app, err := NewApp(Config{Name: "tool"})
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+
+	var gotName string
+	var gotMode string
+	var gotConfirm bool
+	var gotInput string
+	var gotPassword string
+	var changed map[string]bool
+	if err := app.AddCommand(CommandSpec{
+		Name:  "ask",
+		Flags: []FlagSpec{{Name: "name", Type: FlagTypeString}},
+		Run: func(ctx *Context) error {
+			gotName = ctx.GetString("name")
+			changed = ctx.ChangedFlags
+			var err error
+			gotMode, err = SelectKey(ctx.Context, ctx.UI, "mode", "mode", []SelectOption{
+				{Value: "one", Label: "One"},
+				{Value: "two", Label: "Two"},
+			})
+			if err != nil {
+				return err
+			}
+			gotConfirm, err = ConfirmKey(ctx.Context, ctx.UI, "confirm", "confirm", false)
+			if err != nil {
+				return err
+			}
+			gotInput, err = InputKey(ctx.Context, ctx.UI, "value", "value", "default")
+			if err != nil {
+				return err
+			}
+			gotPassword, err = PasswordKey(ctx.Context, ctx.UI, "secret", "secret")
+			return err
+		},
+	}); err != nil {
+		t.Fatalf("AddCommand() error = %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err = app.RunWithIO(context.Background(), []string{
+		"ask",
+		"--name", "alice",
+		"--chain.mode=two",
+		"--chain.confirm", "true",
+		"--chain.value=custom",
+		"--chain.secret", "s3cr3t",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("RunWithIO() error = %v\nstderr:\n%s", err, stderr.String())
+	}
+	if gotName != "alice" || gotMode != "two" || !gotConfirm || gotInput != "custom" || gotPassword != "s3cr3t" {
+		t.Fatalf("chain answers = name %q mode %q confirm %v input %q password %q", gotName, gotMode, gotConfirm, gotInput, gotPassword)
+	}
+	if !changed["name"] {
+		t.Fatalf("name flag should be changed: %#v", changed)
+	}
+	for _, key := range []string{"mode", "confirm", "value", "secret"} {
+		if changed[key] {
+			t.Fatalf("chain key %q polluted ChangedFlags: %#v", key, changed)
+		}
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("keyed prompts should not write fallback UI output:\n%s", stdout.String())
+	}
+}
+
+func TestChainArgsDoNotSwallowUnknownFlags(t *testing.T) {
+	app, err := NewApp(Config{Name: "tool"})
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	if err := app.AddCommand(CommandSpec{Name: "run", Run: func(*Context) error { return nil }}); err != nil {
+		t.Fatalf("AddCommand() error = %v", err)
+	}
+
+	err = app.RunWithIO(context.Background(), []string{"run", "--unknown=value"}, nil, &bytes.Buffer{}, &bytes.Buffer{})
+	var usageErr *UsageError
+	if !errors.As(err, &usageErr) {
+		t.Fatalf("RunWithIO(unknown flag) error = %T %v, want *UsageError", err, err)
+	}
+}
+
+func TestChainSelectRejectsInvalidAnswer(t *testing.T) {
+	ui := WithPromptAnswers(NewPromptUI(strings.NewReader(""), io.Discard), map[string]string{"mode": "missing"})
+	_, err := SelectKey(context.Background(), ui, "mode", "mode", []SelectOption{
+		{Value: "one", Label: "One"},
+		{Value: "two", Label: "Two"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "chain.mode") {
+		t.Fatalf("SelectKey() error = %v, want chain.mode usage detail", err)
 	}
 }

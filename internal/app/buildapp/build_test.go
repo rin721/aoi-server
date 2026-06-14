@@ -273,6 +273,35 @@ func TestPromptOptionsCurrentTarget(t *testing.T) {
 	}
 }
 
+func TestPromptOptionsChainAnswers(t *testing.T) {
+	baseUI := &fakePromptUI{}
+	ui := cli.WithPromptAnswers(baseUI, map[string]string{
+		"build.target":       "current",
+		"build.output":       "dist",
+		"build.generate-web": "false",
+		"build.cgo":          "true",
+		"build.proceed":      "true",
+	})
+
+	opts, proceed, err := PromptOptions(context.Background(), ui, Options{})
+	if err != nil {
+		t.Fatalf("PromptOptions() error = %v", err)
+	}
+	if !proceed {
+		t.Fatal("proceed = false, want true")
+	}
+	wantTargets := []string{runtime.GOOS + "/" + runtime.GOARCH}
+	if !reflect.DeepEqual(opts.Targets, wantTargets) {
+		t.Fatalf("Targets = %#v, want %#v", opts.Targets, wantTargets)
+	}
+	if opts.OutputDir != "dist" || !opts.SkipWebGenerate || !opts.CGOEnabled {
+		t.Fatalf("unexpected options: %#v", opts)
+	}
+	if len(baseUI.selects) != 0 || len(baseUI.inputs) != 0 || len(baseUI.confirms) != 0 {
+		t.Fatalf("chain answers should not consume fallback UI: %#v", baseUI)
+	}
+}
+
 func TestPromptOptionsCustomTargetsCancel(t *testing.T) {
 	ui := &fakePromptUI{
 		selects:  []string{"custom"},

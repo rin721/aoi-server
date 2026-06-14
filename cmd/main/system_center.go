@@ -48,11 +48,11 @@ func newRunCommandSpec() cli.CommandSpec {
 		Flags:       []cli.FlagSpec{configFlag, serviceFlag, yesFlag},
 		Run: func(ctx *cli.Context) error {
 			if runDirectRequested(ctx) {
-				input, err := startFlowInputFromContext(ctx)
+				answers, err := runShortcutAnswersFromContext(ctx)
 				if err != nil {
 					return err
 				}
-				return cliapp.RunStartFlowWithInput(ctx, input)
+				ctx.UI = cli.WithPromptAnswers(ctx.UI, answers)
 			}
 			return cliapp.RunStartFlow(ctx)
 		},
@@ -79,7 +79,8 @@ func runDirectRequested(ctx *cli.Context) bool {
 	return ctx.GetBool("yes") || ctx.IsFlagChanged("service")
 }
 
-func startFlowInputFromContext(ctx *cli.Context) (cliapp.StartFlowInput, error) {
+func runShortcutAnswersFromContext(ctx *cli.Context) (map[string]string, error) {
+	answers := map[string]string{}
 	service := strings.ToLower(strings.TrimSpace(ctx.GetString("service")))
 	if service == "" {
 		service = cliapp.ServiceServer
@@ -87,22 +88,31 @@ func startFlowInputFromContext(ctx *cli.Context) (cliapp.StartFlowInput, error) 
 	switch service {
 	case cliapp.ServiceServer, "db", "iam", "cache", "storage":
 	default:
-		return cliapp.StartFlowInput{}, &cli.UsageError{
+		return nil, &cli.UsageError{
 			Command: ctx.CommandPath,
 			Message: fmt.Sprintf("unsupported --service %q; expected one of: server, db, iam, cache, storage", ctx.GetString("service")),
 		}
 	}
+	answers["service"] = service
 
-	configPath := ""
+	configPath := ctx.GetString("config")
 	if ctx.IsFlagChanged("config") || strings.TrimSpace(ctx.GetString("config")) != constants.AppDefaultConfigPath {
-		configPath = ctx.GetString("config")
+		answers["config"] = configPath
+	} else {
+		answers["config"] = defaultRunConfigPath()
 	}
-	return cliapp.StartFlowInput{
-		Service:           service,
-		ConfigPath:        configPath,
-		UseDefaultConfig:  true,
-		SkipPrivacyPrompt: ctx.GetBool("yes"),
-	}, nil
+	if ctx.GetBool("yes") {
+		answers["privacy"] = "false"
+	}
+	return answers, nil
+}
+
+func defaultRunConfigPath() string {
+	files := cliapp.DiscoverConfigFiles()
+	if len(files) > 0 {
+		return files[0]
+	}
+	return constants.AppDefaultConfigPath
 }
 
 func newServiceCommandSpec() cli.CommandSpec {

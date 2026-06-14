@@ -16,57 +16,29 @@ var (
 	executeInitialization = ExecuteInitialization
 )
 
-// StartFlowInput 描述启动流程已经收集到的非交互输入。
-type StartFlowInput struct {
-	Service           string
-	ConfigPath        string
-	UseDefaultConfig  bool
-	SkipPrivacyPrompt bool
-}
-
 // RunStartFlow 执行由 pkg/cli UI 驱动的服务启动流程。
 func RunStartFlow(ctx *cli.Context) error {
-	return RunStartFlowWithInput(ctx, StartFlowInput{})
-}
-
-// RunStartFlowWithInput 执行启动流程；缺失的输入仍会通过 pkg/cli UI 补齐。
-func RunStartFlowWithInput(ctx *cli.Context, input StartFlowInput) error {
 	if ctx == nil {
 		return fmt.Errorf("cli context is required")
 	}
 	if ctx.Context == nil {
 		ctx.Context = context.Background()
 	}
-	var ui cli.PromptUI
-	requirePromptUI := func() (cli.PromptUI, error) {
-		if ui != nil {
-			return ui, nil
-		}
-		resolved, err := requireUI(ctx)
-		if err != nil {
-			return nil, err
-		}
-		ui = resolved
-		return ui, nil
+	ui, err := requireUI(ctx)
+	if err != nil {
+		return err
 	}
 
-	service := normalizeStartService(input.Service)
-	if service == "" {
-		ui, err := requirePromptUI()
-		if err != nil {
-			return err
-		}
-		service, err = ui.Select(ctx.Context, "选择服务", startServiceOptions())
-		if err != nil {
-			return err
-		}
-		service = normalizeStartService(service)
+	service, err := cli.SelectKey(ctx.Context, ui, "service", "选择服务", startServiceOptions())
+	if err != nil {
+		return err
 	}
+	service = normalizeStartService(service)
 	if !isSupportedStartService(service) {
 		return fmt.Errorf("unsupported service %q; expected one of: server, db, iam, cache, storage", service)
 	}
 
-	configPath, err := startConfigPath(ctx, input)
+	configPath, err := selectConfigPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -76,37 +48,31 @@ func RunStartFlowWithInput(ctx *cli.Context, input StartFlowInput) error {
 	if service != ServiceServer {
 		return printDependencyServiceInfo(ctx.Stdout, service, configPath)
 	}
-	if !input.SkipPrivacyPrompt {
-		ui, err := requirePromptUI()
-		if err != nil {
+	ok, err := cli.ConfirmKey(ctx.Context, ui, "privacy", "是否填写或生成隐私配置？", false)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return startServer(ctx, configPath)
+	}
+	if isExampleConfig(configPath) {
+		return fmt.Errorf("示例配置只读，不能写入隐私配置")
+	}
+	updates, err := promptPrivacyUpdates(ctx, configPath)
+	if err != nil {
+		return err
+	}
+	if updates.hasChanges() {
+		if err := ApplyPrivacyRuntimeEnvOnly(configPath, updates.runtimeEnvOnlyPaths); err != nil {
 			return err
 		}
-		ok, err := ui.Confirm(ctx.Context, "是否填写或生成隐私配置？", false)
-		if err != nil {
+		if err := ApplyPrivacyUpdates(configPath, updates.fileUpdates); err != nil {
 			return err
 		}
-		if !ok {
-			return startServer(ctx, configPath)
-		}
-		if isExampleConfig(configPath) {
-			return fmt.Errorf("示例配置只读，不能写入隐私配置")
-		}
-		updates, err := promptPrivacyUpdates(ctx, configPath)
-		if err != nil {
+		if err := ApplyPrivacyUpdates(configPath, updates.forceFileUpdates, appconfig.WithEnvManagedPersistMode(appconfig.EnvManagedPersistForceFile)); err != nil {
 			return err
 		}
-		if updates.hasChanges() {
-			if err := ApplyPrivacyRuntimeEnvOnly(configPath, updates.runtimeEnvOnlyPaths); err != nil {
-				return err
-			}
-			if err := ApplyPrivacyUpdates(configPath, updates.fileUpdates); err != nil {
-				return err
-			}
-			if err := ApplyPrivacyUpdates(configPath, updates.forceFileUpdates, appconfig.WithEnvManagedPersistMode(appconfig.EnvManagedPersistForceFile)); err != nil {
-				return err
-			}
-			_ = ui.Info("隐私配置已处理。")
-		}
+		_ = ui.Info("隐私配置已处理。")
 	}
 	return startServer(ctx, configPath)
 }
@@ -119,23 +85,6 @@ func startServiceOptions() []cli.SelectOption {
 		{Value: "cache", Label: "cache", Description: "Redis 缓存依赖状态"},
 		{Value: "storage", Label: "storage", Description: "存储配置和依赖状态"},
 	}
-}
-
-func startConfigPath(ctx *cli.Context, input StartFlowInput) (string, error) {
-	if strings.TrimSpace(input.ConfigPath) != "" {
-		return input.ConfigPath, nil
-	}
-	if input.UseDefaultConfig {
-		files := DiscoverConfigFiles()
-		if len(files) > 0 {
-			return files[0], nil
-		}
-		return constants.AppDefaultConfigPath, nil
-	}
-	if _, err := requireUI(ctx); err != nil {
-		return "", err
-	}
-	return selectConfigPath(ctx)
 }
 
 func normalizeStartService(service string) string {
@@ -167,8 +116,9 @@ func RunServiceFlow(ctx *cli.Context) error {
 		return err
 	}
 	manager := newFlowManager()
+	_, singleAction := cli.PromptAnswer(ui, "action")
 	for {
-		action, err := ui.Select(ctx.Context, "服务管理：server", []cli.SelectOption{
+		action, err := cli.SelectKey(ctx.Context, ui, "action", "服务管理：server", []cli.SelectOption{
 			{Value: "status", Label: "查看运行状态"},
 			{Value: "info", Label: "查看服务信息"},
 			{Value: "logs", Label: "查看服务日志"},
@@ -198,7 +148,7 @@ func RunServiceFlow(ctx *cli.Context) error {
 			if err != nil {
 				return err
 			}
-			follow, err := ui.Confirm(ctx.Context, "是否实时跟随日志？", false)
+			follow, err := cli.ConfirmKey(ctx.Context, ui, "logs.follow", "是否实时跟随日志？", false)
 			if err != nil {
 				return err
 			}
@@ -228,6 +178,9 @@ func RunServiceFlow(ctx *cli.Context) error {
 		case "back":
 			return nil
 		}
+		if singleAction {
+			return nil
+		}
 	}
 }
 
@@ -248,41 +201,41 @@ func RunInitializationFlow(ctx *cli.Context, input InitializationInput) error {
 	}
 	if cfg.Auth.Enabled && input.AdminPassword == "" {
 		if !ctx.IsFlagChanged("org-code") {
-			input.OrgCode, err = ui.Input(ctx.Context, "组织 code", defaultString(input.OrgCode, "acme"))
+			input.OrgCode, err = cli.InputKey(ctx.Context, ui, "org-code", "组织 code", defaultString(input.OrgCode, "acme"))
 			if err != nil {
 				return err
 			}
 		}
 		if !ctx.IsFlagChanged("org-name") {
-			input.OrgName, err = ui.Input(ctx.Context, "组织名称", defaultString(input.OrgName, input.OrgCode))
+			input.OrgName, err = cli.InputKey(ctx.Context, ui, "org-name", "组织名称", defaultString(input.OrgName, input.OrgCode))
 			if err != nil {
 				return err
 			}
 		}
 		if !ctx.IsFlagChanged("admin-username") {
-			input.AdminUsername, err = ui.Input(ctx.Context, "管理员用户名", defaultString(input.AdminUsername, "admin"))
+			input.AdminUsername, err = cli.InputKey(ctx.Context, ui, "admin-username", "管理员用户名", defaultString(input.AdminUsername, "admin"))
 			if err != nil {
 				return err
 			}
 		}
 		if !ctx.IsFlagChanged("admin-email") {
-			input.AdminEmail, err = ui.Input(ctx.Context, "管理员邮箱", defaultString(input.AdminEmail, "admin@example.com"))
+			input.AdminEmail, err = cli.InputKey(ctx.Context, ui, "admin-email", "管理员邮箱", defaultString(input.AdminEmail, "admin@example.com"))
 			if err != nil {
 				return err
 			}
 		}
 		if !ctx.IsFlagChanged("admin-display-name") {
-			input.AdminDisplayName, err = ui.Input(ctx.Context, "管理员显示名", defaultString(input.AdminDisplayName, input.AdminUsername))
+			input.AdminDisplayName, err = cli.InputKey(ctx.Context, ui, "admin-display-name", "管理员显示名", defaultString(input.AdminDisplayName, input.AdminUsername))
 			if err != nil {
 				return err
 			}
 		}
-		input.AdminPassword, err = ui.Password(ctx.Context, "管理员密码，留空跳过管理员创建")
+		input.AdminPassword, err = cli.PasswordKey(ctx.Context, ui, "admin-password", "管理员密码，留空跳过管理员创建")
 		if err != nil {
 			return err
 		}
 		if input.AdminPassword != "" && !ctx.IsFlagChanged("create-service-token") {
-			input.CreateServiceToken, err = ui.Confirm(ctx.Context, "是否创建服务账户 API Token？", false)
+			input.CreateServiceToken, err = cli.ConfirmKey(ctx.Context, ui, "create-service-token", "是否创建服务账户 API Token？", false)
 			if err != nil {
 				return err
 			}
@@ -290,14 +243,14 @@ func RunInitializationFlow(ctx *cli.Context, input InitializationInput) error {
 	}
 	if input.CreateServiceToken {
 		if !ctx.IsFlagChanged("service-token-days") {
-			days, err := ui.Input(ctx.Context, "Token 有效天数，-1 表示永不过期", fmt.Sprint(defaultInt(input.ServiceTokenDays, 30)))
+			days, err := cli.InputKey(ctx.Context, ui, "service-token-days", "Token 有效天数，-1 表示永不过期", fmt.Sprint(defaultInt(input.ServiceTokenDays, 30)))
 			if err != nil {
 				return err
 			}
 			fmt.Sscanf(days, "%d", &input.ServiceTokenDays)
 		}
 		if !ctx.IsFlagChanged("service-token-remark") {
-			input.ServiceTokenRemark, err = ui.Input(ctx.Context, "Token 备注", defaultString(input.ServiceTokenRemark, "created by cli init"))
+			input.ServiceTokenRemark, err = cli.InputKey(ctx.Context, ui, "service-token-remark", "Token 备注", defaultString(input.ServiceTokenRemark, "created by cli init"))
 			if err != nil {
 				return err
 			}
@@ -310,9 +263,19 @@ func selectConfigPath(ctx *cli.Context) (string, error) {
 	if ctx.IsFlagChanged("config") && strings.TrimSpace(ctx.GetString("config")) != "" {
 		return ctx.GetString("config"), nil
 	}
+	if value, ok := cli.PromptAnswer(ctx.UI, "config"); ok {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return constants.AppDefaultConfigPath, nil
+		}
+		return value, nil
+	}
 	files := DiscoverConfigFiles()
 	if len(files) == 0 {
 		return constants.AppDefaultConfigPath, nil
+	}
+	if _, err := requireUI(ctx); err != nil {
+		return "", err
 	}
 	options := make([]cli.SelectOption, 0, len(files)+1)
 	for _, file := range files {
@@ -323,12 +286,12 @@ func selectConfigPath(ctx *cli.Context) (string, error) {
 		options = append(options, cli.SelectOption{Value: file, Label: file, Description: description})
 	}
 	options = append(options, cli.SelectOption{Value: "__custom__", Label: "手动输入路径"})
-	selected, err := ctx.UI.Select(ctx.Context, "选择配置文件", options)
+	selected, err := cli.SelectKey(ctx.Context, ctx.UI, "config", "选择配置文件", options)
 	if err != nil {
 		return "", err
 	}
 	if selected == "__custom__" {
-		return ctx.UI.Input(ctx.Context, "配置文件路径", constants.AppDefaultConfigPath)
+		return cli.InputKey(ctx.Context, ctx.UI, "config.custom", "配置文件路径", constants.AppDefaultConfigPath)
 	}
 	return selected, nil
 }
@@ -345,7 +308,7 @@ func promptPrivacyUpdates(ctx *cli.Context, configPath string) (privacyPersistPl
 			return privacyPersistPlan{}, err
 		}
 		if envManaged {
-			action, err := ctx.UI.Select(ctx.Context, path+" 由环境变量管理，选择处理方式", []cli.SelectOption{
+			action, err := cli.SelectKey(ctx.Context, ctx.UI, "privacy."+path+".action", path+" 由环境变量管理，选择处理方式", []cli.SelectOption{
 				{Value: privacyActionForceFile, Label: "写入配置文件并禁用环境变量覆盖", Description: "替换配置文件中的环境变量占位符"},
 				{Value: privacyActionRuntimeEnvOnly, Label: "恢复使用环境变量", Description: "校验真实环境变量并移除配置文件优先标记"},
 				{Value: privacyActionSkip, Label: "跳过", Description: "保留当前配置"},
@@ -390,7 +353,7 @@ func promptPrivacyValue(ctx *cli.Context, path string) (string, error) {
 	if isGeneratedSecretPath(path) {
 		hint = "输入 generate 自动生成，留空跳过"
 	}
-	value, err := ctx.UI.Input(ctx.Context, path+"（"+hint+"）", "")
+	value, err := cli.InputKey(ctx.Context, ctx.UI, "privacy."+path+".value", path+"（"+hint+"）", "")
 	if err != nil {
 		return "", err
 	}

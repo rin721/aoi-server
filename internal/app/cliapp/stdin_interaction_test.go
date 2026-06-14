@@ -115,3 +115,50 @@ func TestRunInitializationFlowUsesStdinBackedCLIUI(t *testing.T) {
 		t.Fatalf("captured initialization input = %#v", captured)
 	}
 }
+
+func TestRunInitializationFlowUsesChainAnswers(t *testing.T) {
+	configPath := copyExampleConfig(t)
+	oldExecuteInitialization := executeInitialization
+	var captured InitializationInput
+	executeInitialization = func(_ context.Context, _ io.Writer, input InitializationInput) error {
+		captured = input
+		return nil
+	}
+	t.Cleanup(func() {
+		executeInitialization = oldExecuteInitialization
+	})
+
+	var stdout bytes.Buffer
+	ctx := &cli.Context{
+		Context: context.Background(),
+		Stdout:  &stdout,
+		UI: cli.WithPromptAnswers(cli.NewPromptUI(strings.NewReader(""), &stdout), map[string]string{
+			"config":               configPath,
+			"org-code":             "chain-org",
+			"org-name":             "Chain Org",
+			"admin-username":       "chain-admin",
+			"admin-email":          "chain@example.com",
+			"admin-display-name":   "Chain Admin",
+			"admin-password":       "chain-password",
+			"create-service-token": "true",
+			"service-token-days":   "21",
+			"service-token-remark": "chain token",
+		}),
+	}
+
+	if err := RunInitializationFlow(ctx, InitializationInput{}); err != nil {
+		t.Fatalf("RunInitializationFlow() error = %v", err)
+	}
+	if captured.ConfigPath != configPath ||
+		captured.OrgCode != "chain-org" ||
+		captured.OrgName != "Chain Org" ||
+		captured.AdminUsername != "chain-admin" ||
+		captured.AdminEmail != "chain@example.com" ||
+		captured.AdminDisplayName != "Chain Admin" ||
+		captured.AdminPassword != "chain-password" ||
+		!captured.CreateServiceToken ||
+		captured.ServiceTokenDays != 21 ||
+		captured.ServiceTokenRemark != "chain token" {
+		t.Fatalf("captured initialization input = %#v", captured)
+	}
+}

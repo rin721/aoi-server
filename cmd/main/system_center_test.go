@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rei0721/go-scaffold/internal/app/cliapp"
 	appconfig "github.com/rei0721/go-scaffold/internal/config"
 	"github.com/rei0721/go-scaffold/pkg/cli"
 	"github.com/rei0721/go-scaffold/types/constants"
@@ -205,6 +206,27 @@ func TestRunCommandDirectServiceShowsDependencyInfo(t *testing.T) {
 	}
 }
 
+func TestRunCommandChainServiceShowsDependencyInfo(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	t.Chdir(root)
+
+	var stdout, stderr bytes.Buffer
+	args := []string{"run", "--chain.service=db", "--chain.config=configs/config.example.yaml"}
+	if err := runCLI(context.Background(), args, strings.NewReader(""), &stdout, &stderr); err != nil {
+		t.Fatalf("runCLI(%v) error = %v\nstderr:\n%s", args, err, stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{"db", "sqlite", "v1"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("chain run command output missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestRunCommandRejectsInvalidService(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	err := runCLI(context.Background(), []string{"run", "--service=queue", "--yes"}, strings.NewReader(""), &stdout, &stderr)
@@ -214,6 +236,22 @@ func TestRunCommandRejectsInvalidService(t *testing.T) {
 	}
 	if !strings.Contains(usageErr.Error(), "unsupported --service") {
 		t.Fatalf("usage error should mention unsupported service, got %v", usageErr)
+	}
+}
+
+func TestServiceCommandChainActionStatus(t *testing.T) {
+	t.Setenv(cliapp.RuntimeDirEnvName, t.TempDir())
+
+	var stdout, stderr bytes.Buffer
+	args := []string{"service", "--chain.action=status"}
+	if err := runCLI(context.Background(), args, strings.NewReader(""), &stdout, &stderr); err != nil {
+		t.Fatalf("runCLI(%v) error = %v\nstderr:\n%s", args, err, stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{cliapp.ServiceServer, cliapp.StatusStopped} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("chain service command output missing %q:\n%s", want, out)
+		}
 	}
 }
 

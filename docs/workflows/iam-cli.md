@@ -77,5 +77,16 @@ go build -mod=readonly -o ./tmp/go-scaffold-server.exe ./cmd/main
 ./tmp/go-scaffold-server.exe service stop server
 ```
 
+同一套菜单 prompt 也可通过 `--chain.*` 自动回答，适合脚本里跳过后续动态选择：
+
+```powershell
+.\tmp\go-scaffold-server.exe run --chain.service=server --chain.config=configs/config.yaml --chain.privacy=false
+.\tmp\go-scaffold-server.exe service --chain.action=status
+.\tmp\go-scaffold-server.exe service --chain.action=logs --chain.logs.follow=true
+.\tmp\go-scaffold-server.exe build --chain.build.target=current --chain.build.output=build/releases --chain.build.generate-web=false --chain.build.cgo=false --chain.build.proceed=true
+```
+
+`init` 的链式 key 与现有 flag 语义一致，例如 `--chain.org-code`、`--chain.admin-password`、`--chain.create-service-token`、`--chain.service-token-days`。普通未知 flag 仍会报错，只有 `--chain.<key>` 会作为 prompt 答案进入后续流程。
+
 System Center 默认把运行态记录放在 `data/cli-runtime`，可通过 `RIN_CLI_RUNTIME_DIR` 覆盖。受管进程会设置 `RIN_CLI_MANAGED` 和 `RIN_CLI_SERVICE`，用于区分手动启动和 CLI 托管启动。
 前台调试可继续使用 `go run ./cmd/main server --config=configs/config.yaml`。后台托管优先使用固定二进制；Windows 下 `go run ./cmd/main run server` 会先落到 Go 临时目录，服务常驻时可能锁住 `go-build...\main.exe` 并导致父进程清理时报 `Access is denied`。

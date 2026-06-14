@@ -18,10 +18,11 @@ import (
 )
 
 type streams struct {
-	stdin  io.Reader
-	stdout io.Writer
-	stderr io.Writer
-	ui     PromptUI
+	stdin        io.Reader
+	stdout       io.Writer
+	stderr       io.Writer
+	ui           PromptUI
+	chainAnswers map[string]string
 }
 
 type app struct {
@@ -106,6 +107,12 @@ func (a *app) run(ctx context.Context, args []string, s streams) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	cleanedArgs, chainAnswers, err := extractChainArgs(args)
+	if err != nil {
+		return err
+	}
+	args = cleanedArgs
+	s.chainAnswers = mergePromptAnswers(s.chainAnswers, chainAnswers)
 
 	if len(args) == 0 && !a.cfg.DisableInteractiveHome {
 		model, err := a.homeModel(ctx, s)
@@ -373,6 +380,7 @@ func (a *app) commandContext(ctx context.Context, cmd *cobra.Command, args []str
 	if ui == nil {
 		ui = newPromptUI(s)
 	}
+	ui = WithPromptAnswers(ui, s.chainAnswers)
 	return &Context{
 		Context:      ctx,
 		CommandName:  cmd.Name(),
