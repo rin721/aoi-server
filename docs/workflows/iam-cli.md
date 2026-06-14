@@ -86,6 +86,8 @@ go build -mod=readonly -o ./tmp/go-scaffold-server.exe ./cmd/main
 .\tmp\go-scaffold-server.exe build --chain.build.target=current --chain.build.output=build/releases --chain.build.generate-web=false --chain.build.cgo=false --chain.build.proceed=true
 ```
 
+隐私配置后续输入也在同一套 key 下，例如截图里的 `auth.signing_key` 输入可以用 `--chain.privacy.auth.signing_key.value=generate` 自动回答；路径较多时可用 `--chain.privacy.auth.*.value=generate` 这类通配 key。
+
 `init` 的链式 key 与现有 flag 语义一致，例如 `--chain.org-code`、`--chain.admin-password`、`--chain.create-service-token`、`--chain.service-token-days`。普通未知 flag 仍会报错，只有 `--chain.<key>` 会作为 prompt 答案进入后续流程。
 
 System Center 默认把运行态记录放在 `data/cli-runtime`，可通过 `RIN_CLI_RUNTIME_DIR` 覆盖。受管进程会设置 `RIN_CLI_MANAGED` 和 `RIN_CLI_SERVICE`，用于区分手动启动和 CLI 托管启动。

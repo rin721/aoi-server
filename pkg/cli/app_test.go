@@ -505,6 +505,39 @@ func TestChainArgsDoNotSwallowUnknownFlags(t *testing.T) {
 	}
 }
 
+func TestChainWildcardAnswersDynamicPromptKeys(t *testing.T) {
+	ui := WithPromptAnswers(NewPromptUI(strings.NewReader(""), io.Discard), map[string]string{
+		"privacy.*.value":                "fallback",
+		"privacy.auth.*.value":           "generate",
+		"privacy.auth.signing_key.*":     "from-suffix",
+		"privacy.auth.signing_key.value": "exact",
+	})
+
+	got, err := InputKey(context.Background(), ui, "privacy.auth.signing_key.value", "secret", "")
+	if err != nil {
+		t.Fatalf("InputKey(exact) error = %v", err)
+	}
+	if got != "exact" {
+		t.Fatalf("InputKey(exact) = %q, want exact", got)
+	}
+
+	got, err = InputKey(context.Background(), ui, "privacy.auth.refresh_token_pepper.value", "secret", "")
+	if err != nil {
+		t.Fatalf("InputKey(specific wildcard) error = %v", err)
+	}
+	if got != "generate" {
+		t.Fatalf("InputKey(specific wildcard) = %q, want generate", got)
+	}
+
+	got, err = InputKey(context.Background(), ui, "privacy.database.password.value", "secret", "")
+	if err != nil {
+		t.Fatalf("InputKey(fallback wildcard) error = %v", err)
+	}
+	if got != "fallback" {
+		t.Fatalf("InputKey(fallback wildcard) = %q, want fallback", got)
+	}
+}
+
 func TestChainSelectRejectsInvalidAnswer(t *testing.T) {
 	ui := WithPromptAnswers(NewPromptUI(strings.NewReader(""), io.Discard), map[string]string{"mode": "missing"})
 	_, err := SelectKey(context.Background(), ui, "mode", "mode", []SelectOption{

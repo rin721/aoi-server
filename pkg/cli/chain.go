@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"path"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -129,6 +131,9 @@ func (ui *chainPromptUI) promptAnswer(key string) (string, bool) {
 	if value, ok := ui.answers[key]; ok {
 		return value, true
 	}
+	if value, ok := wildcardPromptAnswer(ui.answers, key); ok {
+		return value, true
+	}
 	return PromptAnswer(ui.base, key)
 }
 
@@ -208,6 +213,58 @@ func mergePromptAnswers(base map[string]string, next map[string]string) map[stri
 
 func normalizePromptKey(key string) string {
 	return strings.ToLower(strings.TrimSpace(key))
+}
+
+func wildcardPromptAnswer(answers map[string]string, key string) (string, bool) {
+	if len(answers) == 0 {
+		return "", false
+	}
+	patterns := make([]string, 0, len(answers))
+	for pattern := range answers {
+		if !strings.ContainsAny(pattern, "*?[") {
+			continue
+		}
+		if _, err := path.Match(pattern, key); err != nil {
+			continue
+		}
+		patterns = append(patterns, pattern)
+	}
+	sort.SliceStable(patterns, func(i, j int) bool {
+		left := wildcardPatternRank(patterns[i])
+		right := wildcardPatternRank(patterns[j])
+		if left.literalChars == right.literalChars {
+			if left.wildcards == right.wildcards {
+				return patterns[i] < patterns[j]
+			}
+			return left.wildcards < right.wildcards
+		}
+		return left.literalChars > right.literalChars
+	})
+	for _, pattern := range patterns {
+		matched, _ := path.Match(pattern, key)
+		if matched {
+			return answers[pattern], true
+		}
+	}
+	return "", false
+}
+
+type wildcardRank struct {
+	literalChars int
+	wildcards    int
+}
+
+func wildcardPatternRank(pattern string) wildcardRank {
+	var rank wildcardRank
+	for _, r := range pattern {
+		switch r {
+		case '*', '?', '[', ']':
+			rank.wildcards++
+		default:
+			rank.literalChars++
+		}
+	}
+	return rank
 }
 
 func resolveSelectAnswer(key string, answer string, options []SelectOption) (string, error) {

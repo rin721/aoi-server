@@ -38,7 +38,7 @@ main.go
 .\tmp\go-scaffold-server.exe build --chain.build.target=current --chain.build.output=build/releases --chain.build.generate-web=false --chain.build.cgo=false --chain.build.proceed=true
 ```
 
-`run` 的动态隐私配置项使用 `privacy.<path>.action` 和 `privacy.<path>.value`，例如 `--chain.privacy.auth.signing_key.action=force-file --chain.privacy.auth.signing_key.value=generate`。旧的 `run --service=server --yes` 仍保留为兼容入口，内部会映射到 `service`、`config` 和 `privacy=false` 这些 prompt 答案。
+`run` 的动态隐私配置项使用 `privacy.<path>.action` 和 `privacy.<path>.value`，例如 `--chain.privacy.auth.signing_key.action=force-file --chain.privacy.auth.signing_key.value=generate`。链式 key 支持 `*` 通配，动态路径较多时可使用 `--chain.privacy.*.action=skip` 或 `--chain.privacy.auth.*.value=generate`。旧的 `run --service=server --yes` 仍保留为兼容入口，内部会映射到 `service`、`config` 和 `privacy=false` 这些 prompt 答案。
 
 受管服务启动时会记录实际派生的可执行文件路径。普通构建产物会直接复用当前可执行文件；如果入口来自 `go run` 的 `go-build.../exe/main(.exe)` 临时路径，CLI 会复制到 `data/cli-runtime/bin/go-scaffold-managed(.exe)` 再启动后台服务，避免 Windows 清理 Go 临时 exe 时出现 `unlinkat ... Access is denied`。长期后台运行仍建议先 `go build` 出固定二进制，再执行 `run server`。
 

@@ -100,13 +100,13 @@ auth:
     issuer: go-scaffold
     audience:
         - go-scaffold-api
-    signing_key: "9RLB6KqHQ_36MlJqLUwcMYBLZ8zIpRcX2j_IrXNxyDk"
+    signing_key: "GZ4R4iM7hH3eQzq2zoMXiDhZ-LYyqbzj82_-hUZONyg"
     access_token_ttl_seconds: 900
     refresh_token_ttl_seconds: 604800
     # Also hashes IAM API Token values. Rotating this invalidates existing refresh tokens and API tokens.
-    refresh_token_pepper: "QrwvEmnbLlzxsslPzX39ar2TUCkHQBrFGuOk1ldkst0"
+    refresh_token_pepper: "LpSyMGMwKxqfDjRwsB7cPuXWUykWhb_G6z_uLbGerRY"
     mfa_issuer: go-scaffold
-    mfa_secret_key: "Cnd8ocFYVrfLN6LsPYl_raAZzkUdPsS0iX12jNTtqVM"
+    mfa_secret_key: "VbdWu3Ntff3x5MHYeM6312WSW-QfGv3uy0lZ1kZOuwg"
     login_max_failures: 5
     login_lock_minutes: 15
     login_captcha_enabled: false

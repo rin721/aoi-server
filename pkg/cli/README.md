@@ -78,7 +78,14 @@ if err := app.Run(context.Background(), os.Args[1:]); err != nil {
 --chain.<key> <value>
 ```
 
-`--chain.*` 不会进入 `Context.Flags` 或 `Context.ChangedFlags`，普通未知 flag 仍由 Cobra 按原规则报错。业务流程应优先使用 `SelectKey`、`ConfirmKey`、`InputKey` 和 `PasswordKey` 声明语义 key；当 key 没有链式答案时，这些 helper 会自动回落到原来的 `PromptUI` 菜单、确认、输入或密码 prompt。
+`--chain.*` 不会进入 `Context.Flags` 或 `Context.ChangedFlags`，普通未知 flag 仍由 Cobra 按原规则报错。业务流程应优先使用 `SelectKey`、`ConfirmKey`、`InputKey` 和 `PasswordKey` 声明语义 key；当 key 没有链式答案时，这些 helper 会自动回落到原来的 `PromptUI` 菜单、确认、输入或密码 prompt。key 支持 `*` 通配，精确 key 优先，其次选择更具体的通配模式。
+
+动态 prompt 示例：
+
+```powershell
+.\tmp\go-scaffold-server.exe run --chain.privacy=true --chain.privacy.auth.signing_key.value=generate
+.\tmp\go-scaffold-server.exe run --chain.privacy=true --chain.privacy.*.action=skip --chain.privacy.auth.*.value=generate
+```
 
 已约定的核心 key：
 
