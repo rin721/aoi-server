@@ -30,6 +30,7 @@ func NewTransport(core Core, infra Infrastructure, modules Modules) (Transport, 
 	if err != nil {
 		return Transport{}, err
 	}
+	attachWebInitialSetupService(core, infra, modules)
 
 	router, server, err := NewHTTPServer(
 		core.Config,

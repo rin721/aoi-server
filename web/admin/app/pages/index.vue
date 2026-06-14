@@ -10,6 +10,8 @@ const health = ref<HealthStatus | null>(null)
 const ready = ref<ReadyStatus | null>(null)
 const sessions = ref<Session[]>([])
 const auditLogs = ref<AuditLog[]>([])
+const sessionsError = ref("")
+const auditError = ref("")
 const dashboardStats = computed<AoiStatItem[]>(() => [
   { icon: "user", label: "登录账号", value: auth.user?.username || "-", description: auth.user?.email || "-" },
   { icon: "building-2", label: "当前组织", value: auth.currentOrg?.code || "-", description: auth.currentOrg?.name || "-" },
@@ -28,6 +30,8 @@ async function refresh(options: { silent?: boolean } = {}) {
     loading.value = true
   }
   error.value = ""
+  sessionsError.value = ""
+  auditError.value = ""
   try {
     const [healthResult, readyResult] = await Promise.all([
       api.getHealth(),
@@ -37,12 +41,22 @@ async function refresh(options: { silent?: boolean } = {}) {
     ready.value = readyResult
 
     if (auth.currentOrgId) {
-      const [sessionResult, auditResult] = await Promise.all([
+      const [sessionResult, auditResult] = await Promise.allSettled([
         api.listSessions(auth.currentOrgId, { pageSize: 6 }),
         api.listAuditLogs(auth.currentOrgId, 6)
       ])
-      sessions.value = sessionResult.items
-      auditLogs.value = auditResult
+      if (sessionResult.status === "fulfilled") {
+        sessions.value = sessionResult.value.items
+      } else {
+        sessions.value = []
+        sessionsError.value = errorMessage(sessionResult.reason)
+      }
+      if (auditResult.status === "fulfilled") {
+        auditLogs.value = auditResult.value
+      } else {
+        auditLogs.value = []
+        auditError.value = errorMessage(auditResult.reason)
+      }
     }
   } catch (err) {
     error.value = errorMessage(err)
@@ -88,6 +102,7 @@ useHead({
         <template #actions>
           <AoiButton appearance="plain" icon="arrow-right" to="/audit-logs">全部</AoiButton>
         </template>
+        <AoiStatusMessage tone="danger" :message="auditError" />
         <div class="data-table-wrap">
           <table class="data-table">
             <thead>
@@ -117,6 +132,7 @@ useHead({
         <template #actions>
           <AoiButton appearance="plain" icon="arrow-right" to="/sessions">管理</AoiButton>
         </template>
+        <AoiStatusMessage tone="danger" :message="sessionsError" />
         <div class="dashboard-session-list">
           <div v-for="session in sessions.slice(0, 5)" :key="session.id" class="dashboard-session-list__item">
             <strong>#{{ session.id }}</strong>
@@ -147,5 +163,4 @@ useHead({
   overflow-wrap: anywhere;
 }
 </style>
-
 

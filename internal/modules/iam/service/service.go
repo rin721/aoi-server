@@ -459,23 +459,123 @@ func New(db database.Database, repo repository.Repository, crypto passwordcrypto
 }
 
 func (s *service) BootstrapAdmin(ctx context.Context, input BootstrapAdminInput) (*Principal, error) {
+	result, err := s.bootstrapOwner(ctx, ownerBootstrapInput{
+		OrgCode:       input.OrgCode,
+		OrgName:       input.OrgName,
+		Username:      input.Username,
+		Email:         input.Email,
+		DisplayName:   input.DisplayName,
+		Password:      input.Password,
+		AuditAction:   "iam.bootstrap_admin",
+		AllowExisting: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	_ = s.LoadPolicies(ctx)
+	return result.Principal, nil
+}
+
+func (s *service) SetupStatus(ctx context.Context) (SetupStatus, error) {
+	if s.db != nil {
+		hasUsersTable, err := s.db.HasTable(ctx, &model.User{})
+		if err != nil {
+			return SetupStatus{}, err
+		}
+		if !hasUsersTable {
+			return SetupStatus{Required: true}, nil
+		}
+	}
+	count, err := s.repo.CountUsers(ctx)
+	if err != nil {
+		if isMissingTableError(err) {
+			return SetupStatus{Required: true}, nil
+		}
+		return SetupStatus{}, err
+	}
+	return SetupStatus{Required: count == 0}, nil
+}
+
+func (s *service) InitialAdminSetup(ctx context.Context, input InitialAdminSetupInput) (TokenPair, error) {
+	result, err := s.bootstrapOwner(ctx, ownerBootstrapInput{
+		OrgCode:          input.OrgCode,
+		OrgName:          input.OrgName,
+		Username:         input.Username,
+		Email:            input.Email,
+		DisplayName:      input.DisplayName,
+		Password:         input.Password,
+		UserAgent:        input.UserAgent,
+		IPAddress:        input.IPAddress,
+		AuditAction:      "iam.initial_setup",
+		RequireEmpty:     true,
+		ValidatePassword: true,
+		IssueTokens:      true,
+	})
+	if err != nil {
+		return TokenPair{}, err
+	}
+	_ = s.LoadPolicies(ctx)
+	return result.Tokens, nil
+}
+
+type ownerBootstrapInput struct {
+	OrgCode          string
+	OrgName          string
+	Username         string
+	Email            string
+	DisplayName      string
+	Password         string
+	UserAgent        string
+	IPAddress        string
+	AuditAction      string
+	AllowExisting    bool
+	RequireEmpty     bool
+	ValidatePassword bool
+	IssueTokens      bool
+}
+
+type ownerBootstrapResult struct {
+	Principal *Principal
+	Tokens    TokenPair
+}
+
+func (s *service) bootstrapOwner(ctx context.Context, input ownerBootstrapInput) (ownerBootstrapResult, error) {
 	input.OrgCode = normalizeCode(input.OrgCode)
+	input.OrgName = strings.TrimSpace(input.OrgName)
 	input.Username = normalizeCode(input.Username)
 	input.Email = normalizeEmail(input.Email)
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
-	if input.OrgCode == "" || input.Username == "" || input.Email == "" || input.Password == "" {
-		return nil, ErrInvalidInput
-	}
-	if input.OrgName == "" {
+	if input.OrgName == "" && input.AllowExisting {
 		input.OrgName = input.OrgCode
 	}
 	if input.DisplayName == "" {
 		input.DisplayName = input.Username
 	}
+	if input.OrgCode == "" || input.OrgName == "" || input.Username == "" || input.Email == "" || input.Password == "" {
+		return ownerBootstrapResult{}, ErrInvalidInput
+	}
+	if input.ValidatePassword {
+		if err := s.validatePassword(input.Password); err != nil {
+			return ownerBootstrapResult{}, err
+		}
+	}
+	if input.AuditAction == "" {
+		input.AuditAction = "iam.bootstrap_owner"
+	}
 
-	var principal *Principal
+	var result ownerBootstrapResult
 	err := s.db.WithTx(ctx, func(txCtx context.Context, tx database.Executor) error {
 		repo := s.repo.WithExecutor(tx)
+		if input.RequireEmpty {
+			count, err := repo.CountUsers(txCtx)
+			if err != nil {
+				return err
+			}
+			if count > 0 {
+				return ErrSetupCompleted
+			}
+		}
+
 		org, err := repo.FindOrganizationByCode(txCtx, input.OrgCode)
 		if err != nil {
 			if !errors.Is(err, database.ErrNotFound) {
@@ -486,6 +586,8 @@ func (s *service) BootstrapAdmin(ctx context.Context, input BootstrapAdminInput)
 			if err := repo.CreateOrganization(txCtx, org); err != nil {
 				return err
 			}
+		} else if !input.AllowExisting {
+			return ErrDuplicate
 		}
 
 		user, err := repo.FindUserByIdentifier(txCtx, input.Email)
@@ -502,7 +604,10 @@ func (s *service) BootstrapAdmin(ctx context.Context, input BootstrapAdminInput)
 			if err := repo.CreateUser(txCtx, user); err != nil {
 				return err
 			}
+		} else if !input.AllowExisting {
+			return ErrDuplicate
 		}
+
 		if err := s.ensureMembership(txCtx, repo, org.ID, user.ID); err != nil {
 			return err
 		}
@@ -512,93 +617,34 @@ func (s *service) BootstrapAdmin(ctx context.Context, input BootstrapAdminInput)
 		if err := s.addUserRole(txCtx, repo, user.ID, org.ID, model.RoleOwner); err != nil {
 			return err
 		}
-		if err := s.audit(txCtx, repo, &org.ID, &user.ID, "iam.bootstrap_admin", "organization", strconv.FormatInt(org.ID, 10), "", "", nil); err != nil {
+		if input.IssueTokens {
+			issued, err := s.createSessionAndTokensWithRepo(txCtx, repo, user, org.ID, input.UserAgent, input.IPAddress)
+			if err != nil {
+				return err
+			}
+			result.Tokens = issued
+		}
+		if err := s.audit(txCtx, repo, &org.ID, &user.ID, input.AuditAction, "organization", strconv.FormatInt(org.ID, 10), input.IPAddress, input.UserAgent, map[string]any{"orgCode": org.Code, "email": user.Email}); err != nil {
 			return err
 		}
-		principal = &Principal{UserID: user.ID, OrgID: org.ID, Username: user.Username, Email: user.Email}
+		result.Principal = &Principal{UserID: user.ID, OrgID: org.ID, Username: user.Username, Email: user.Email}
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return ownerBootstrapResult{}, err
 	}
-	_ = s.LoadPolicies(ctx)
-	return principal, nil
+	return result, nil
 }
 
-func (s *service) SetupStatus(ctx context.Context) (SetupStatus, error) {
-	count, err := s.repo.CountUsers(ctx)
-	if err != nil {
-		return SetupStatus{}, err
+func isMissingTableError(err error) bool {
+	if err == nil {
+		return false
 	}
-	return SetupStatus{Required: count == 0}, nil
-}
-
-func (s *service) InitialAdminSetup(ctx context.Context, input InitialAdminSetupInput) (TokenPair, error) {
-	input.OrgCode = normalizeCode(input.OrgCode)
-	input.OrgName = strings.TrimSpace(input.OrgName)
-	input.Username = normalizeCode(input.Username)
-	input.Email = normalizeEmail(input.Email)
-	input.DisplayName = strings.TrimSpace(input.DisplayName)
-	if input.OrgCode == "" || input.OrgName == "" || input.Username == "" || input.Email == "" || input.Password == "" {
-		return TokenPair{}, ErrInvalidInput
-	}
-	if input.DisplayName == "" {
-		input.DisplayName = input.Username
-	}
-	if err := s.validatePassword(input.Password); err != nil {
-		return TokenPair{}, err
-	}
-
-	var pair TokenPair
-	err := s.db.WithTx(ctx, func(txCtx context.Context, tx database.Executor) error {
-		repo := s.repo.WithExecutor(tx)
-		count, err := repo.CountUsers(txCtx)
-		if err != nil {
-			return err
-		}
-		if count > 0 {
-			return ErrSetupCompleted
-		}
-		if _, err := repo.FindOrganizationByCode(txCtx, input.OrgCode); err == nil {
-			return ErrDuplicate
-		} else if !errors.Is(err, database.ErrNotFound) {
-			return err
-		}
-
-		hash, err := s.crypto.HashPassword(input.Password)
-		if err != nil {
-			return err
-		}
-		now := s.now()
-		org := &model.Organization{ID: s.ids.NextID(), Code: input.OrgCode, Name: input.OrgName, Status: model.StatusActive, CreatedAt: now, UpdatedAt: now}
-		if err := repo.CreateOrganization(txCtx, org); err != nil {
-			return err
-		}
-		user := &model.User{ID: s.ids.NextID(), Username: input.Username, Email: input.Email, PasswordHash: hash, DisplayName: input.DisplayName, Status: model.StatusActive, CreatedAt: now, UpdatedAt: now}
-		if err := repo.CreateUser(txCtx, user); err != nil {
-			return err
-		}
-		if err := s.ensureMembership(txCtx, repo, org.ID, user.ID); err != nil {
-			return err
-		}
-		if err := s.ensureBuiltins(txCtx, repo, org.ID); err != nil {
-			return err
-		}
-		if err := s.addUserRole(txCtx, repo, user.ID, org.ID, model.RoleOwner); err != nil {
-			return err
-		}
-		issued, err := s.createSessionAndTokensWithRepo(txCtx, repo, user, org.ID, input.UserAgent, input.IPAddress)
-		if err != nil {
-			return err
-		}
-		pair = issued
-		return s.audit(txCtx, repo, &org.ID, &user.ID, "iam.initial_setup", "organization", strconv.FormatInt(org.ID, 10), input.IPAddress, input.UserAgent, map[string]any{"orgCode": org.Code, "email": user.Email})
-	})
-	if err != nil {
-		return TokenPair{}, err
-	}
-	_ = s.LoadPolicies(ctx)
-	return pair, nil
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "no such table") ||
+		strings.Contains(text, "doesn't exist") ||
+		strings.Contains(text, "undefined_table") ||
+		strings.Contains(text, "unknown table")
 }
 
 func (s *service) Signup(ctx context.Context, input SignupInput) (TokenPair, error) {

@@ -162,3 +162,85 @@ func TestRunInitializationFlowUsesChainAnswers(t *testing.T) {
 		t.Fatalf("captured initialization input = %#v", captured)
 	}
 }
+
+func TestRunInitializationFlowCanRestartManagedServerAfterInit(t *testing.T) {
+	configPath := copyExampleConfig(t)
+	oldExecuteInitialization := executeInitialization
+	executeInitialization = func(context.Context, io.Writer, InitializationInput) error {
+		return nil
+	}
+	t.Cleanup(func() {
+		executeInitialization = oldExecuteInitialization
+	})
+
+	runner := &fakeProcessRunner{
+		startInfos:     []ProcessInfo{{PID: 456, ProcessStartTime: 6789}},
+		runningResults: []bool{true, true, true, false, true},
+	}
+	manager := testManager(t, runner)
+	if err := manager.writeState(ServiceState{Service: ServiceServer, Status: StatusRunning, PID: 123, ProcessStartTime: 4567, ConfigPath: configPath}); err != nil {
+		t.Fatalf("write running state: %v", err)
+	}
+	restoreFlowManager(t, manager)
+
+	var stdout bytes.Buffer
+	ctx := &cli.Context{
+		Context: context.Background(),
+		Stdout:  &stdout,
+		UI: cli.WithPromptAnswers(cli.NewPromptUI(strings.NewReader(""), &stdout), map[string]string{
+			"config":               configPath,
+			"org-code":             "chain-org",
+			"org-name":             "Chain Org",
+			"admin-username":       "chain-admin",
+			"admin-email":          "chain@example.com",
+			"admin-display-name":   "Chain Admin",
+			"admin-password":       "chain-password",
+			"create-service-token": "false",
+			"init.restart-server":  "true",
+		}),
+	}
+
+	if err := RunInitializationFlow(ctx, InitializationInput{}); err != nil {
+		t.Fatalf("RunInitializationFlow() error = %v", err)
+	}
+	if len(runner.starts) != 1 {
+		t.Fatalf("managed server starts = %d, want 1", len(runner.starts))
+	}
+}
+
+func TestRunInitializationFlowWarnsInsteadOfPromptingForNonInteractiveInit(t *testing.T) {
+	configPath := copyExampleConfig(t)
+	oldExecuteInitialization := executeInitialization
+	executeInitialization = func(context.Context, io.Writer, InitializationInput) error {
+		return nil
+	}
+	t.Cleanup(func() {
+		executeInitialization = oldExecuteInitialization
+	})
+
+	runner := &fakeProcessRunner{runningResults: []bool{true}}
+	manager := testManager(t, runner)
+	if err := manager.writeState(ServiceState{Service: ServiceServer, Status: StatusRunning, PID: 123, ProcessStartTime: 4567, ConfigPath: configPath}); err != nil {
+		t.Fatalf("write running state: %v", err)
+	}
+	restoreFlowManager(t, manager)
+
+	var stdout bytes.Buffer
+	ctx := &cli.Context{
+		Context:      context.Background(),
+		Flags:        map[string]interface{}{"config": configPath, "admin-password-stdin": false},
+		ChangedFlags: map[string]bool{"config": true, "admin-password": true},
+		Stdout:       &stdout,
+		UI:           cli.NewPromptUI(strings.NewReader(""), &stdout),
+	}
+
+	if err := RunInitializationFlow(ctx, InitializationInput{AdminPassword: "chain-password"}); err != nil {
+		t.Fatalf("RunInitializationFlow() error = %v", err)
+	}
+	if len(runner.starts) != 0 {
+		t.Fatalf("managed server starts = %d, want 0", len(runner.starts))
+	}
+	if !strings.Contains(stdout.String(), "restart") {
+		t.Fatalf("expected restart warning, got:\n%s", stdout.String())
+	}
+}

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -14,12 +15,37 @@ import (
 )
 
 type Handler struct {
-	service service.Service
-	logger  logger.Logger
+	service      service.Service
+	setupService setupService
+	logger       logger.Logger
+}
+
+type setupService interface {
+	SetupStatus(context.Context) (service.SetupStatus, error)
+	InitialAdminSetup(context.Context, service.InitialAdminSetupInput) (service.TokenPair, error)
 }
 
 func New(service service.Service, logger logger.Logger) *Handler {
-	return &Handler{service: service, logger: logger}
+	return &Handler{service: service, setupService: iamSetupService{service: service}, logger: logger}
+}
+
+// UseSetupService 替换首次初始化专用后端，普通 IAM API 仍保持原服务实例。
+func (h *Handler) UseSetupService(setup setupService) {
+	if setup != nil {
+		h.setupService = setup
+	}
+}
+
+type iamSetupService struct {
+	service service.Service
+}
+
+func (s iamSetupService) SetupStatus(ctx context.Context) (service.SetupStatus, error) {
+	return s.service.SetupStatus(ctx)
+}
+
+func (s iamSetupService) InitialAdminSetup(ctx context.Context, input service.InitialAdminSetupInput) (service.TokenPair, error) {
+	return s.service.InitialAdminSetup(ctx, input)
 }
 
 type loginRequest struct {
@@ -142,7 +168,7 @@ func (h *Handler) Signup(c web.Context) {
 }
 
 func (h *Handler) SetupStatus(c web.Context) {
-	status, err := h.service.SetupStatus(c.RequestContext())
+	status, err := h.setupService.SetupStatus(c.RequestContext())
 	h.write(c, status, err)
 }
 
@@ -151,7 +177,7 @@ func (h *Handler) InitialAdminSetup(c web.Context) {
 	if !bind(c, &req) {
 		return
 	}
-	pair, err := h.service.InitialAdminSetup(c.RequestContext(), service.InitialAdminSetupInput{
+	pair, err := h.setupService.InitialAdminSetup(c.RequestContext(), service.InitialAdminSetupInput{
 		OrgCode:     req.OrgCode,
 		OrgName:     req.OrgName,
 		Username:    req.Username,
@@ -161,7 +187,11 @@ func (h *Handler) InitialAdminSetup(c web.Context) {
 		UserAgent:   c.GetHeader("User-Agent"),
 		IPAddress:   c.ClientIP(),
 	})
-	h.write(c, pair, err)
+	if err != nil {
+		h.writeSetupError(c, err)
+		return
+	}
+	result.OK(c, pair)
 }
 
 func (h *Handler) Login(c web.Context) {
@@ -810,6 +840,22 @@ func (h *Handler) writeCreated(c web.Context, data any, err error) {
 		return
 	}
 	c.JSON(http.StatusCreated, result.Success(data))
+}
+
+func (h *Handler) writeSetupError(c web.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrInvalidInput):
+		result.BadRequest(c, err.Error())
+	case errors.Is(err, service.ErrSetupCompleted):
+		result.Forbidden(c, err.Error())
+	case errors.Is(err, service.ErrDuplicate):
+		result.BadRequest(c, err.Error())
+	default:
+		if h.logger != nil {
+			h.logger.Error("iam setup failed", "error", err)
+		}
+		result.InternalError(c, "initial setup failed: "+err.Error())
+	}
 }
 
 func (h *Handler) writeError(c web.Context, err error) {

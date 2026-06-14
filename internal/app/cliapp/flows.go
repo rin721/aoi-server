@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	appconfig "github.com/rei0721/go-scaffold/internal/config"
@@ -380,7 +381,69 @@ func RunInitializationFlow(ctx *cli.Context, input InitializationInput) error {
 			}
 		}
 	}
-	return executeInitialization(ctx.Context, ctx.Stdout, input)
+	if err := executeInitialization(ctx.Context, ctx.Stdout, input); err != nil {
+		return err
+	}
+	return offerManagedServerRestartAfterInit(ctx, input.ConfigPath)
+}
+
+func offerManagedServerRestartAfterInit(ctx *cli.Context, configPath string) error {
+	if ctx == nil {
+		return nil
+	}
+	manager := newFlowManager()
+	state, err := manager.Status(ctx.Context, ServiceServer)
+	if err != nil {
+		fmt.Fprintf(ctx.Stdout, "Initialization completed, but managed server status could not be checked: %v\n", err)
+		return nil
+	}
+	if !activeStatus(state.Status) || !sameConfigPath(state.ConfigPath, configPath) {
+		return nil
+	}
+	if shouldAvoidPostInitPrompt(ctx) {
+		fmt.Fprintf(ctx.Stdout, "Managed server is still running; restart it to refresh in-memory IAM policies: go-scaffold service restart %s\n", ServiceServer)
+		return nil
+	}
+	restart, err := cli.ConfirmKey(ctx.Context, ctx.UI, "init.restart-server", "Managed server is running; restart it now to refresh IAM policies?", true)
+	if err != nil {
+		fmt.Fprintf(ctx.Stdout, "Managed server is still running; restart it to refresh in-memory IAM policies: go-scaffold service restart %s\n", ServiceServer)
+		return nil
+	}
+	if !restart {
+		fmt.Fprintf(ctx.Stdout, "Managed server was not restarted; restart it before using WebUI permissions: go-scaffold service restart %s\n", ServiceServer)
+		return nil
+	}
+	restarted, err := manager.RestartServer(ctx.Context)
+	if err != nil {
+		return fmt.Errorf("restart managed server after init: %w", err)
+	}
+	PrintServiceState(ctx.Stdout, restarted)
+	return nil
+}
+
+func shouldAvoidPostInitPrompt(ctx *cli.Context) bool {
+	if ctx == nil || ctx.GetBool("yes") || ctx.UI == nil {
+		return true
+	}
+	if _, ok := cli.PromptAnswer(ctx.UI, "init.restart-server"); ok {
+		return false
+	}
+	return ctx.IsFlagChanged("admin-password") || ctx.GetBool("admin-password-stdin")
+}
+
+func sameConfigPath(left string, right string) bool {
+	if strings.TrimSpace(left) == "" || strings.TrimSpace(right) == "" {
+		return false
+	}
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	leftAbs, leftErr := filepath.Abs(left)
+	rightAbs, rightErr := filepath.Abs(right)
+	if leftErr == nil && rightErr == nil {
+		left = leftAbs
+		right = rightAbs
+	}
+	return strings.EqualFold(left, right)
 }
 
 func selectConfigPath(ctx *cli.Context) (string, error) {

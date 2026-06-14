@@ -27,7 +27,6 @@ import (
 	"github.com/rei0721/go-scaffold/pkg/crypto"
 	"github.com/rei0721/go-scaffold/pkg/database"
 	"github.com/rei0721/go-scaffold/pkg/logger"
-	"github.com/rei0721/go-scaffold/pkg/migrator"
 	"github.com/rei0721/go-scaffold/pkg/token"
 )
 
@@ -184,20 +183,7 @@ func ApplyConfiguredMigrations(core Core, infra Infrastructure) error {
 	if !core.Config.Migration.AutoApply {
 		return nil
 	}
-	runner, err := migrator.New(infra.Database, migrator.Config{
-		Driver: string(core.Config.Database.Driver),
-		Dir:    core.Config.Migration.Dir,
-	})
-	if err != nil {
-		return fmt.Errorf("initialize migrator: %w", err)
-	}
-	if err := runner.Up(context.Background()); err != nil {
-		return fmt.Errorf("apply migrations: %w", err)
-	}
-	if core.Logger != nil {
-		core.Logger.Info("database migrations applied", "dir", core.Config.Migration.Dir)
-	}
-	return nil
+	return applyMigrations(context.Background(), core, infra, "server-start")
 }
 
 func NewIAMModule(core Core, infra Infrastructure) (IAMModule, error) {

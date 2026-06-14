@@ -3,8 +3,12 @@ package app
 // 本测试文件固定应用组装根的最小可启动契约，防止注释补全和后续重构改变外部可观察行为。
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -16,6 +20,7 @@ import (
 
 	"github.com/rei0721/go-scaffold/internal/config"
 	"github.com/rei0721/go-scaffold/internal/modules/demo/model"
+	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
 	systemmodel "github.com/rei0721/go-scaffold/internal/modules/system/model"
 	systemservice "github.com/rei0721/go-scaffold/internal/modules/system/service"
 )
@@ -236,6 +241,74 @@ func TestNewServerModeBuildsMinimalApplication(t *testing.T) {
 	}
 }
 
+func TestWebInitialSetupRunsSharedInitialization(t *testing.T) {
+	clearAppIntegrationEnv(t)
+	clearInitialSetupEnv(t)
+
+	configPath := writeInitialSetupIntegrationConfig(t, filepath.Join(t.TempDir(), "web-setup.db"))
+	application, err := New(Options{ConfigPath: configPath, Mode: ModeServer})
+	if err != nil {
+		t.Fatalf("new server app: %v", err)
+	}
+	defer shutdownApp(t, application)
+
+	statusRecorder := performAppJSONRequest(application, http.MethodGet, "/api/v1/auth/setup/status", "", "")
+	if statusRecorder.Code != http.StatusOK {
+		t.Fatalf("setup status HTTP status = %d, body=%s", statusRecorder.Code, statusRecorder.Body.String())
+	}
+	var statusBody appAPIResponse[struct {
+		Required bool `json:"required"`
+	}]
+	if err := json.Unmarshal(statusRecorder.Body.Bytes(), &statusBody); err != nil {
+		t.Fatalf("decode setup status: %v", err)
+	}
+	if !statusBody.Data.Required {
+		t.Fatalf("setup status required = false, want true: %#v", statusBody)
+	}
+
+	setupBody := `{"orgCode":"acme","orgName":"Acme Corp","username":"admin","displayName":"Admin","email":"admin@example.com","password":"password123"}`
+	setupRecorder := performAppJSONRequest(application, http.MethodPost, "/api/v1/auth/setup/initial-admin", setupBody, "")
+	if setupRecorder.Code != http.StatusOK {
+		t.Fatalf("initial setup HTTP status = %d, body=%s", setupRecorder.Code, setupRecorder.Body.String())
+	}
+	var tokenBody appAPIResponse[iamservice.TokenPair]
+	if err := json.Unmarshal(setupRecorder.Body.Bytes(), &tokenBody); err != nil {
+		t.Fatalf("decode setup token response: %v", err)
+	}
+	if tokenBody.Data.AccessToken == "" || tokenBody.Data.RefreshToken == "" {
+		t.Fatalf("setup did not issue tokens: %#v", tokenBody.Data)
+	}
+
+	principal, err := application.Modules.IAM.Service.AuthenticateToken(context.Background(), tokenBody.Data.AccessToken)
+	if err != nil {
+		t.Fatalf("authenticate setup token: %v", err)
+	}
+	for _, permission := range []struct {
+		obj string
+		act string
+	}{
+		{obj: "audit", act: "read"},
+		{obj: "session", act: "read"},
+		{obj: "server", act: "read"},
+	} {
+		allowed, err := application.Modules.IAM.Service.Authorize(context.Background(), principal, permission.obj, permission.act)
+		if err != nil || !allowed {
+			t.Fatalf("owner permission %s:%s allowed=%v err=%v", permission.obj, permission.act, allowed, err)
+		}
+	}
+
+	for _, endpoint := range []string{
+		fmt.Sprintf("/api/v1/orgs/%d/sessions?pageSize=6", principal.OrgID),
+		fmt.Sprintf("/api/v1/orgs/%d/audit-logs?limit=6", principal.OrgID),
+		"/api/v1/system/menus",
+	} {
+		recorder := performAppJSONRequest(application, http.MethodGet, endpoint, "", tokenBody.Data.AccessToken)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s HTTP status = %d, body=%s", endpoint, recorder.Code, recorder.Body.String())
+		}
+	}
+}
+
 func systemConfigValue(snapshot systemmodel.ConfigSnapshot, key string) (any, bool) {
 	item, ok := systemConfigItem(snapshot, key)
 	if !ok {
@@ -357,6 +430,132 @@ rpc:
 	return configPath
 }
 
+func writeInitialSetupIntegrationConfig(t *testing.T, dbPath string) string {
+	t.Helper()
+
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("locate test file")
+	}
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	messagesDir := filepath.Join(repoRoot, "configs", "locales")
+	migrationsDir := filepath.Join(repoRoot, "internal", "migrations")
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	content := fmt.Sprintf(`server:
+  host: "127.0.0.1"
+  port: 18081
+  mode: "test"
+  read_timeout: 1
+  write_timeout: 1
+  idle_timeout: 1
+webui:
+  enabled: false
+database:
+  driver: "sqlite"
+  dbname: %s
+  max_open_conns: 1
+  max_idle_conns: 1
+redis:
+  enabled: false
+logger:
+  level: "error"
+  format: "console"
+  output: "stdout"
+  file_path: ""
+  max_size: 1
+  max_backups: 1
+  max_age: 1
+i18n:
+  default: "zh-CN"
+  supported:
+    - "zh-CN"
+    - "en-US"
+  messages_dir: %s
+executor:
+  enabled: false
+storage:
+  enabled: false
+  fs_type: "memory"
+cors:
+  enabled: true
+  allow_origins:
+    - "*"
+  allow_methods:
+    - "GET"
+    - "POST"
+    - "PATCH"
+    - "OPTIONS"
+  allow_headers:
+    - "Origin"
+    - "Content-Type"
+    - "Authorization"
+    - "X-Request-ID"
+  expose_headers:
+    - "X-Request-ID"
+  allow_credentials: false
+  max_age: 60
+rpc:
+  enabled: false
+  host: "127.0.0.1"
+  port: 10099
+  read_timeout: 1
+  write_timeout: 1
+  idle_timeout: 1
+plugins:
+  enabled: false
+demo:
+  enabled: false
+system:
+  seed_defaults_on_start: false
+auth:
+  enabled: true
+  self_signup_enabled: false
+  issuer: "go-scaffold"
+  audience:
+    - "go-scaffold-api"
+  signing_key: "12345678901234567890123456789012"
+  refresh_token_pepper: "pepper"
+  mfa_secret_key: "12345678901234567890123456789012"
+  notification_driver: "debug"
+  password_policy:
+    min_length: 8
+migration:
+  auto_apply: false
+  dir: %s
+`, yamlString(dbPath), yamlString(messagesDir), yamlString(migrationsDir))
+
+	if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
+		t.Fatalf("write setup test config: %v", err)
+	}
+	return configPath
+}
+
+type appAPIResponse[T any] struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    T      `json:"data"`
+}
+
+func performAppJSONRequest(application *App, method string, path string, body string, accessToken string) *httptest.ResponseRecorder {
+	var reader *bytes.Reader
+	if body == "" {
+		reader = bytes.NewReader(nil)
+	} else {
+		reader = bytes.NewReader([]byte(body))
+	}
+	request := httptest.NewRequest(method, path, reader)
+	if body != "" {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if accessToken != "" {
+		request.Header.Set("Authorization", "Bearer "+accessToken)
+	}
+	recorder := httptest.NewRecorder()
+	application.Transport.Router.ServeHTTP(recorder, request)
+	return recorder
+}
+
 // shutdownApp 是当前测试文件的辅助函数，用于复用夹具、断言或输入构造逻辑。
 func shutdownApp(t *testing.T, application *App) {
 	t.Helper()
@@ -437,4 +636,44 @@ func clearAppIntegrationEnv(t *testing.T) {
 		t.Setenv(key, "")
 		t.Setenv(config.EnvPrefixJoin(key), "")
 	}
+}
+
+func clearInitialSetupEnv(t *testing.T) {
+	t.Helper()
+
+	for _, path := range []string{
+		"auth.enabled",
+		"auth.signing_key",
+		"auth.refresh_token_pepper",
+		"auth.mfa_secret_key",
+		"auth.notification_driver",
+		"database.driver",
+		"database.dbname",
+		"migration.auto_apply",
+		"migration.dir",
+	} {
+		for _, key := range config.EnvNamesForPath(path) {
+			unsetAppIntegrationEnvForTest(t, key)
+		}
+	}
+}
+
+func unsetAppIntegrationEnvForTest(t *testing.T, key string) {
+	t.Helper()
+
+	oldValue, existed := os.LookupEnv(key)
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("unset %s: %v", key, err)
+	}
+	t.Cleanup(func() {
+		if existed {
+			if err := os.Setenv(key, oldValue); err != nil {
+				t.Errorf("restore %s: %v", key, err)
+			}
+			return
+		}
+		if err := os.Unsetenv(key); err != nil {
+			t.Errorf("restore unset %s: %v", key, err)
+		}
+	})
 }

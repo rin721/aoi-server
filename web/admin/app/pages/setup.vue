@@ -6,6 +6,7 @@ definePageMeta({
 
 const api = useAdminApi()
 const auth = useAuthStore()
+const navigation = useAdminNavigation()
 const orgCode = ref("acme")
 const orgName = ref("Acme Corp")
 const username = ref("admin")
@@ -14,6 +15,7 @@ const email = ref("admin@example.com")
 const password = ref("")
 const checking = ref(true)
 const completed = ref(false)
+const submitting = ref(false)
 const error = ref("")
 const passwordMinLength = 8
 const passwordError = computed(() =>
@@ -48,7 +50,7 @@ async function checkSetupStatus() {
 }
 
 async function submit() {
-  if (!canSubmit.value || completed.value) {
+  if (!canSubmit.value || completed.value || submitting.value) {
     if (passwordError.value) {
       error.value = passwordError.value
     }
@@ -56,6 +58,7 @@ async function submit() {
   }
 
   error.value = ""
+  submitting.value = true
   try {
     await auth.initialAdminSetup({
       displayName: displayName.value.trim() || undefined,
@@ -65,9 +68,12 @@ async function submit() {
       password: password.value,
       username: username.value.trim()
     })
+    await navigation.loadNavigation()
     await navigateTo("/")
   } catch (err) {
     error.value = errorMessage(err)
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -88,24 +94,24 @@ useHead({
     <AoiStatusMessage tone="danger" :message="error" />
     <AoiStatusMessage v-if="completed" tone="success" message="系统已经完成初始化。" />
 
-    <AoiTextField v-model="orgCode" label="组织 Code" icon="badge" placeholder="acme" :disabled="checking || completed" @enter="submit" />
-    <AoiTextField v-model="orgName" label="组织名称" icon="building-2" placeholder="Acme Corp" :disabled="checking || completed" @enter="submit" />
-    <AoiTextField v-model="username" label="用户名" icon="user" autocomplete="username" :disabled="checking || completed" @enter="submit" />
-    <AoiTextField v-model="displayName" label="显示名称" icon="id-card" :disabled="checking || completed" @enter="submit" />
-    <AoiTextField v-model="email" label="邮箱" type="email" icon="mail" autocomplete="email" placeholder="admin@example.com" :disabled="checking || completed" @enter="submit" />
+    <AoiTextField v-model="orgCode" label="组织 Code" icon="badge" placeholder="acme" :disabled="checking || completed || submitting" @enter="submit" />
+    <AoiTextField v-model="orgName" label="组织名称" icon="building-2" placeholder="Acme Corp" :disabled="checking || completed || submitting" @enter="submit" />
+    <AoiTextField v-model="username" label="用户名" icon="user" autocomplete="username" :disabled="checking || completed || submitting" @enter="submit" />
+    <AoiTextField v-model="displayName" label="显示名称" icon="id-card" :disabled="checking || completed || submitting" @enter="submit" />
+    <AoiTextField v-model="email" label="邮箱" type="email" icon="mail" autocomplete="email" placeholder="admin@example.com" :disabled="checking || completed || submitting" @enter="submit" />
     <AoiTextField
       v-model="password"
       label="密码"
       icon="key-round"
       type="password"
       autocomplete="new-password"
-      :disabled="checking || completed"
+      :disabled="checking || completed || submitting"
       :supporting-text="`至少 ${passwordMinLength} 位`"
       :error-text="passwordError"
       @enter="submit"
     />
 
-    <AoiButton type="submit" icon="rocket" :disabled="!canSubmit || checking || completed" :loading="auth.loading || checking">
+    <AoiButton type="submit" icon="rocket" :disabled="!canSubmit || checking || completed || submitting" :loading="auth.loading || checking || submitting">
       初始化并进入
     </AoiButton>
 
@@ -126,7 +132,6 @@ h2 {
   font-weight: 760;
 }
 </style>
-
 
 
 
