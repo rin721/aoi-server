@@ -65,7 +65,7 @@ func (m *Manager) StartServer(ctx context.Context, configPath string) (ServiceSt
 
 	cfg, err := loadConfig(configPath)
 	if err != nil {
-		err = coreSecretConfigError(configPath, err)
+		err = actionableConfigLoadError(configPath, err)
 		state := m.baseState(ServiceServer, configPath, nil)
 		state.Status = StatusFailed
 		state.LastError = err.Error()

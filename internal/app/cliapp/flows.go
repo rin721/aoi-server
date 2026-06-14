@@ -47,14 +47,17 @@ func RunStartFlow(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	recoveredCoreSecrets, err := printConfigSummaryForStart(ctx, service, configPath)
+	_, repairedConfig, err := preflightConfigForStart(ctx, configPath)
 	if err != nil {
+		return err
+	}
+	if err := PrintConfigSummary(ctx.Stdout, configPath); err != nil {
 		return err
 	}
 	if service != ServiceServer {
 		return printDependencyServiceInfo(ctx.Stdout, service, configPath)
 	}
-	if recoveredCoreSecrets {
+	if repairedConfig {
 		return startServer(ctx, configPath)
 	}
 	ok, err := cli.ConfirmKey(ctx.Context, ui, "privacy", "是否填写或生成隐私配置？", false)

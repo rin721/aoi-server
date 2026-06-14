@@ -620,6 +620,120 @@ func TestRunStartFlowRuntimeEnvOnlyRejectsMissingEnv(t *testing.T) {
 	}
 }
 
+func TestRunStartFlowPreflightRepairsProductionConfigBeforeStart(t *testing.T) {
+	unsetPreflightEnvForTest(t)
+	configPath := copyProductionConfig(t)
+	runner := &fakeProcessRunner{
+		startInfos:     []ProcessInfo{{PID: 321, ProcessStartTime: 12345}},
+		runningResults: []bool{true},
+	}
+	restoreFlowManager(t, testManager(t, runner))
+	ctx := &cli.Context{
+		Context:      context.Background(),
+		Flags:        map[string]interface{}{"config": configPath},
+		ChangedFlags: map[string]bool{"config": true},
+		Stdout:       &bytes.Buffer{},
+		UI: &fakePromptUI{
+			selects: []string{
+				ServiceServer,
+				preflightDatabaseActionSQLite,
+				privacyCoreActionGenerateFile,
+				preflightSMTPActionDebug,
+			},
+		},
+	}
+
+	if err := RunStartFlow(ctx); err != nil {
+		t.Fatalf("RunStartFlow() error = %v", err)
+	}
+
+	manager := appconfig.NewManager()
+	if err := manager.Load(configPath); err != nil {
+		t.Fatalf("reload repaired config: %v", err)
+	}
+	cfg := manager.Get()
+	if cfg.Database.Driver != "sqlite" {
+		t.Fatalf("database driver = %q, want sqlite", cfg.Database.Driver)
+	}
+	if cfg.Auth.NotificationDriver != "debug" {
+		t.Fatalf("notification driver = %q, want debug", cfg.Auth.NotificationDriver)
+	}
+	if len(cfg.Auth.SigningKey) < 32 || cfg.Auth.RefreshTokenPepper == "" || len(cfg.Auth.MFASecretKey) < 32 {
+		t.Fatalf("generated core secrets are invalid: %#v", cfg.Auth)
+	}
+	for _, path := range []string{"database.driver", "auth.notification_driver"} {
+		if !stringSliceContains(cfg.EnvOverride.DisabledPaths, path) {
+			t.Fatalf("disabled_paths missing %q: %#v", path, cfg.EnvOverride.DisabledPaths)
+		}
+	}
+	for _, path := range coreSecretPaths {
+		if !stringSliceContains(cfg.EnvOverride.DisabledPaths, path) {
+			t.Fatalf("disabled_paths missing core secret %q: %#v", path, cfg.EnvOverride.DisabledPaths)
+		}
+	}
+	if len(runner.starts) != 1 {
+		t.Fatalf("StartProcess calls = %d, want 1", len(runner.starts))
+	}
+}
+
+func TestRunStartFlowPreflightRuntimeEnvOnlyMissingDatabaseEnvDoesNotWriteConfig(t *testing.T) {
+	unsetPreflightEnvForTest(t)
+	configPath := copyProductionConfig(t)
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config before run: %v", err)
+	}
+	runner := &fakeProcessRunner{}
+	restoreFlowManager(t, testManager(t, runner))
+	ctx := &cli.Context{
+		Context:      context.Background(),
+		Flags:        map[string]interface{}{"config": configPath},
+		ChangedFlags: map[string]bool{"config": true},
+		Stdout:       &bytes.Buffer{},
+		UI: &fakePromptUI{
+			selects: []string{ServiceServer, preflightActionRuntimeEnvOnly},
+		},
+	}
+
+	err = RunStartFlow(ctx)
+	if err == nil || !strings.Contains(err.Error(), "RIN_APP_DB_HOST") {
+		t.Fatalf("expected missing database environment error, got %v", err)
+	}
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config after run: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("failed runtime env-only preflight should not write config\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	if len(runner.starts) != 0 {
+		t.Fatalf("StartProcess calls = %d, want 0", len(runner.starts))
+	}
+}
+
+func TestManagerStartServerPreflightReturnsAllBlockingDiagnostics(t *testing.T) {
+	unsetPreflightEnvForTest(t)
+	configPath := copyProductionConfig(t)
+	runner := &fakeProcessRunner{}
+	manager := testManager(t, runner)
+
+	state, err := manager.StartServer(context.Background(), configPath)
+	if err == nil {
+		t.Fatal("StartServer() error = nil, want preflight diagnostics")
+	}
+	for _, want := range []string{"database.host", "auth.signing_key", "auth.smtp.host", "interactive `run`"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("StartServer() error missing %q:\n%v", want, err)
+		}
+	}
+	if state.Status != StatusFailed || state.LastError == "" {
+		t.Fatalf("state = %#v, want failed state with last error", state)
+	}
+	if len(runner.starts) != 0 {
+		t.Fatalf("StartProcess calls = %d, want 0", len(runner.starts))
+	}
+}
+
 // TestControlRequestMatchingRequiresServicePIDAndCreateTime 固定控制文件只作用于匹配的托管进程。
 func TestControlRequestMatchingRequiresServicePIDAndCreateTime(t *testing.T) {
 	self := ProcessInfo{PID: 10, ProcessStartTime: 20}
@@ -699,6 +813,24 @@ func copyExampleConfig(t *testing.T) string {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, raw, 0o644); err != nil {
 		t.Fatalf("write temp config: %v", err)
+	}
+	return path
+}
+
+func copyProductionConfig(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
+	raw, err := os.ReadFile(filepath.Join(root, "deploy", "config.production.example.yaml"))
+	if err != nil {
+		t.Fatalf("read production config example: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatalf("write temp production config: %v", err)
 	}
 	return path
 }
@@ -808,6 +940,26 @@ func unsetEnvForTest(t *testing.T, keys ...string) {
 func unsetCoreSecretEnvForTest(t *testing.T) {
 	t.Helper()
 	for _, path := range coreSecretPaths {
+		unsetEnvForTest(t, appconfig.EnvNamesForPath(path)...)
+	}
+}
+
+func unsetPreflightEnvForTest(t *testing.T) {
+	t.Helper()
+	for _, path := range []string{
+		"database.driver",
+		"database.host",
+		"database.port",
+		"database.user",
+		"database.dbname",
+		"auth.signing_key",
+		"auth.refresh_token_pepper",
+		"auth.mfa_secret_key",
+		"auth.notification_driver",
+		"auth.smtp.host",
+		"auth.smtp.port",
+		"auth.smtp.from",
+	} {
 		unsetEnvForTest(t, appconfig.EnvNamesForPath(path)...)
 	}
 }
