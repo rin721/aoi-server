@@ -171,6 +171,45 @@ func YAMLPathContainsEnvPlaceholder(path string, valuePath string) (bool, error)
 	return yamlNodeContainsEnvPlaceholder(node), nil
 }
 
+// YAMLStringSlice reads a YAML sequence of scalar strings at valuePath.
+func YAMLStringSlice(path string, valuePath string) ([]string, error) {
+	if !isYAMLFile(path) {
+		return nil, fmt.Errorf("persistent config update only supports YAML files")
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read config file: %w", err)
+	}
+
+	var document yaml.Node
+	if err := yaml.Unmarshal(content, &document); err != nil {
+		return nil, fmt.Errorf("parse config file: %w", err)
+	}
+	root, err := yamlDocumentRoot(&document)
+	if err != nil {
+		return nil, err
+	}
+	node, err := yamlValueNodeForPath(root, valuePath)
+	if err != nil {
+		if strings.Contains(err.Error(), "config key does not exist in file") {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("%s: %w", valuePath, err)
+	}
+	if node.Kind != yaml.SequenceNode {
+		return nil, fmt.Errorf("%s is not a string sequence", valuePath)
+	}
+
+	values := make([]string, 0, len(node.Content))
+	for _, child := range node.Content {
+		if child == nil || child.Kind != yaml.ScalarNode {
+			return nil, fmt.Errorf("%s contains a non-scalar sequence item", valuePath)
+		}
+		values = append(values, child.Value)
+	}
+	return normalizeYAMLStringValues(values), nil
+}
+
 func isYAMLFile(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".yaml", ".yml":

@@ -364,6 +364,120 @@ func TestRunStartFlowWithChainAnswersStartsServerNonInteractively(t *testing.T) 
 	}
 }
 
+func TestRunStartFlowRepairsMissingCoreSecretsBeforeSummary(t *testing.T) {
+	unsetCoreSecretEnvForTest(t)
+	configPath := copyEnvManagedCoreSecretsConfig(t)
+	runner := &fakeProcessRunner{
+		startInfos:     []ProcessInfo{{PID: 321, ProcessStartTime: 12345}},
+		runningResults: []bool{true},
+	}
+	restoreFlowManager(t, testManager(t, runner))
+	ui := &fakePromptUI{
+		selects: []string{ServiceServer, privacyCoreActionGenerateFile},
+	}
+	var stdout bytes.Buffer
+	ctx := &cli.Context{
+		Context:      context.Background(),
+		Flags:        map[string]interface{}{"config": configPath},
+		ChangedFlags: map[string]bool{"config": true},
+		Stdout:       &stdout,
+		UI:           ui,
+	}
+
+	if err := RunStartFlow(ctx); err != nil {
+		t.Fatalf("RunStartFlow() error = %v", err)
+	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read updated config: %v", err)
+	}
+	text := string(content)
+	for _, placeholder := range []string{"${RIN_APP_AUTH_SIGNING_KEY}", "${RIN_APP_AUTH_REFRESH_TOKEN_PEPPER}", "${RIN_APP_AUTH_MFA_SECRET_KEY}"} {
+		if strings.Contains(text, placeholder) {
+			t.Fatalf("core secret placeholder %s should be overwritten:\n%s", placeholder, text)
+		}
+	}
+
+	manager := appconfig.NewManager()
+	if err := manager.Load(configPath); err != nil {
+		t.Fatalf("reload repaired config: %v", err)
+	}
+	cfg := manager.Get()
+	if len(cfg.Auth.SigningKey) < 32 || cfg.Auth.RefreshTokenPepper == "" || len(cfg.Auth.MFASecretKey) < 32 {
+		t.Fatalf("generated core secrets are invalid: %#v", cfg.Auth)
+	}
+	for _, path := range coreSecretPaths {
+		if !stringSliceContains(cfg.EnvOverride.DisabledPaths, path) {
+			t.Fatalf("disabled_paths missing %q: %#v", path, cfg.EnvOverride.DisabledPaths)
+		}
+	}
+	if len(runner.starts) != 1 {
+		t.Fatalf("StartProcess calls = %d, want 1", len(runner.starts))
+	}
+	if !strings.Contains(stdout.String(), StatusRunning) {
+		t.Fatalf("stdout missing running status:\n%s", stdout.String())
+	}
+}
+
+func TestRunStartFlowRuntimeEnvOnlyMissingCoreSecretDoesNotWriteConfig(t *testing.T) {
+	unsetCoreSecretEnvForTest(t)
+	configPath := copyEnvManagedCoreSecretsConfig(t)
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config before run: %v", err)
+	}
+	runner := &fakeProcessRunner{}
+	restoreFlowManager(t, testManager(t, runner))
+	ctx := &cli.Context{
+		Context:      context.Background(),
+		Flags:        map[string]interface{}{"config": configPath},
+		ChangedFlags: map[string]bool{"config": true},
+		Stdout:       &bytes.Buffer{},
+		UI: &fakePromptUI{
+			selects: []string{ServiceServer, privacyActionRuntimeEnvOnly},
+		},
+	}
+
+	err = RunStartFlow(ctx)
+	if err == nil || !strings.Contains(err.Error(), "RIN_APP_AUTH_") {
+		t.Fatalf("expected missing environment error, got %v", err)
+	}
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config after run: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("failed runtime env-only repair should not write config\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	if len(runner.starts) != 0 {
+		t.Fatalf("StartProcess calls = %d, want 0", len(runner.starts))
+	}
+}
+
+func TestManagerStartServerMissingCoreSecretsReturnsActionableError(t *testing.T) {
+	unsetCoreSecretEnvForTest(t)
+	configPath := copyEnvManagedCoreSecretsConfig(t)
+	runner := &fakeProcessRunner{}
+	manager := testManager(t, runner)
+
+	state, err := manager.StartServer(context.Background(), configPath)
+	if err == nil {
+		t.Fatal("StartServer() error = nil, want missing secret error")
+	}
+	for _, want := range []string{"RIN_APP_AUTH_SIGNING_KEY", "interactive `run`"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("StartServer() error missing %q:\n%v", want, err)
+		}
+	}
+	if state.Status != StatusFailed || state.LastError == "" {
+		t.Fatalf("state = %#v, want failed state with last error", state)
+	}
+	if len(runner.starts) != 0 {
+		t.Fatalf("StartProcess calls = %d, want 0", len(runner.starts))
+	}
+}
+
 func TestRunStartFlowForceWritesGeneratedEnvManagedPrivacy(t *testing.T) {
 	envNames := appconfig.EnvNamesForPath("auth.signing_key")
 	unsetEnvForTest(t, envNames...)
@@ -589,6 +703,32 @@ func copyExampleConfig(t *testing.T) string {
 	return path
 }
 
+func copyEnvManagedCoreSecretsConfig(t *testing.T) string {
+	t.Helper()
+	path := copyExampleConfig(t)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read temp config: %v", err)
+	}
+	replacements := map[string]string{
+		"signing_key: ${AUTH_SIGNING_KEY:dev-signing-key-change-me-32-bytes}":                "signing_key: ${RIN_APP_AUTH_SIGNING_KEY}",
+		"refresh_token_pepper: ${AUTH_REFRESH_TOKEN_PEPPER:dev-refresh-pepper-change-me-32}": "refresh_token_pepper: ${RIN_APP_AUTH_REFRESH_TOKEN_PEPPER}",
+		"mfa_secret_key: ${AUTH_MFA_SECRET_KEY:dev-mfa-secret-key-change-me-32-bytes}":       "mfa_secret_key: ${RIN_APP_AUTH_MFA_SECRET_KEY}",
+	}
+	text := string(raw)
+	for oldValue, newValue := range replacements {
+		next := strings.Replace(text, oldValue, newValue, 1)
+		if next == text {
+			t.Fatalf("config copy did not contain %q", oldValue)
+		}
+		text = next
+	}
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatalf("write env managed core secrets config: %v", err)
+	}
+	return path
+}
+
 func copyWritablePrivacyConfig(t *testing.T) string {
 	t.Helper()
 	path := copyExampleConfig(t)
@@ -663,6 +803,22 @@ func unsetEnvForTest(t *testing.T, keys ...string) {
 			}
 		})
 	}
+}
+
+func unsetCoreSecretEnvForTest(t *testing.T) {
+	t.Helper()
+	for _, path := range coreSecretPaths {
+		unsetEnvForTest(t, appconfig.EnvNamesForPath(path)...)
+	}
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func envContainsPrefix(values []string, prefix string) bool {

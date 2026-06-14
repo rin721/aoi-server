@@ -90,16 +90,7 @@ func PrintConfigSummary(stdout io.Writer, configPath string) error {
 
 // ApplyPrivacyUpdates 使用配置管理器持久化隐私配置。
 func ApplyPrivacyUpdates(configPath string, updates map[string]string, options ...appconfig.UpdateOption) error {
-	paths := make([]string, 0, len(updates))
-	normalized := make(map[string]string, len(updates))
-	for path, value := range updates {
-		value = strings.TrimSpace(value)
-		if value == "" || !supportedPrivacyPath(path) {
-			continue
-		}
-		normalized[path] = value
-		paths = append(paths, path)
-	}
+	paths, normalized := normalizePrivacyUpdates(updates)
 	if len(paths) == 0 {
 		return nil
 	}
@@ -120,8 +111,105 @@ func ApplyPrivacyUpdates(configPath string, updates map[string]string, options .
 	return nil
 }
 
+func applyPrivacyForceFileUpdates(configPath string, updates map[string]string) error {
+	paths, normalized := normalizePrivacyUpdates(updates)
+	if len(paths) == 0 {
+		return nil
+	}
+
+	yamlUpdates := make([]configloader.YAMLScalarUpdate, 0, len(paths)+1)
+	for _, path := range paths {
+		yamlUpdates = append(yamlUpdates, configloader.YAMLScalarUpdate{
+			Kind:  configloader.YAMLScalarString,
+			Path:  path,
+			Value: normalized[path],
+		})
+	}
+	disabledPaths, err := configloader.YAMLStringSlice(configPath, "env_override.disabled_paths")
+	if err != nil {
+		return err
+	}
+	disabledPaths = append(disabledPaths, paths...)
+	yamlUpdates = append(yamlUpdates, configloader.YAMLScalarUpdate{
+		Kind:          configloader.YAMLScalarStringSlice,
+		Path:          "env_override.disabled_paths",
+		Values:        disabledPaths,
+		CreateMissing: true,
+	})
+	return configloader.UpdateYAMLScalars(configPath, yamlUpdates, configloader.WithEnvPlaceholderOverwrite())
+}
+
 // ApplyPrivacyRuntimeEnvOnly 校验并应用真实环境变量中的隐私配置，不改写配置文件。
 func ApplyPrivacyRuntimeEnvOnly(configPath string, paths []string) error {
+	normalized := normalizePrivacyPaths(paths)
+	if len(normalized) == 0 {
+		return nil
+	}
+
+	manager := appconfig.NewManager()
+	if err := manager.Load(configPath); err != nil {
+		return err
+	}
+	return manager.Update(func(*appconfig.Config) {}, appconfig.WithPersistedPaths(normalized...), appconfig.WithEnvManagedPersistMode(appconfig.EnvManagedPersistRuntimeEnvOnly))
+}
+
+func applyPrivacyRuntimeEnvOnlyDirect(configPath string, paths []string) error {
+	normalized := normalizePrivacyPaths(paths)
+	if len(normalized) == 0 {
+		return nil
+	}
+	for _, path := range normalized {
+		if _, _, err := requirePrivacyRuntimeEnv(path); err != nil {
+			return err
+		}
+	}
+	disabledPaths, err := configloader.YAMLStringSlice(configPath, "env_override.disabled_paths")
+	if err != nil {
+		return err
+	}
+	remove := make(map[string]struct{}, len(normalized))
+	for _, path := range normalized {
+		remove[path] = struct{}{}
+	}
+	kept := make([]string, 0, len(disabledPaths))
+	changed := false
+	for _, path := range disabledPaths {
+		if _, ok := remove[path]; ok {
+			changed = true
+			continue
+		}
+		kept = append(kept, path)
+	}
+	if !changed {
+		return nil
+	}
+	return configloader.UpdateYAMLScalars(configPath, []configloader.YAMLScalarUpdate{
+		{
+			Kind:          configloader.YAMLScalarStringSlice,
+			Path:          "env_override.disabled_paths",
+			Values:        kept,
+			CreateMissing: true,
+		},
+	})
+}
+
+func normalizePrivacyUpdates(updates map[string]string) ([]string, map[string]string) {
+	paths := make([]string, 0, len(updates))
+	normalized := make(map[string]string, len(updates))
+	for path, value := range updates {
+		path = strings.TrimSpace(path)
+		value = strings.TrimSpace(value)
+		if value == "" || !supportedPrivacyPath(path) {
+			continue
+		}
+		normalized[path] = value
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths, normalized
+}
+
+func normalizePrivacyPaths(paths []string) []string {
 	normalized := make([]string, 0, len(paths))
 	seen := map[string]struct{}{}
 	for _, path := range paths {
@@ -135,15 +223,8 @@ func ApplyPrivacyRuntimeEnvOnly(configPath string, paths []string) error {
 		seen[path] = struct{}{}
 		normalized = append(normalized, path)
 	}
-	if len(normalized) == 0 {
-		return nil
-	}
-
-	manager := appconfig.NewManager()
-	if err := manager.Load(configPath); err != nil {
-		return err
-	}
-	return manager.Update(func(*appconfig.Config) {}, appconfig.WithPersistedPaths(normalized...), appconfig.WithEnvManagedPersistMode(appconfig.EnvManagedPersistRuntimeEnvOnly))
+	sort.Strings(normalized)
+	return normalized
 }
 
 func applyPrivacyValue(cfg *appconfig.Config, path string, value string) bool {
@@ -211,4 +292,79 @@ func privacyPathIsEnvManaged(configPath string, path string) (bool, error) {
 		}
 	}
 	return configloader.YAMLPathContainsEnvPlaceholder(configPath, path)
+}
+
+func requirePrivacyRuntimeEnv(path string) (string, string, error) {
+	for _, envName := range appconfig.EnvNamesForPath(path) {
+		if value, ok := os.LookupEnv(envName); ok && strings.TrimSpace(value) != "" {
+			value = strings.TrimSpace(value)
+			if err := validatePrivacyRuntimeEnvValue(path, value); err != nil {
+				return envName, value, err
+			}
+			return envName, value, nil
+		}
+	}
+	names := appconfig.EnvNamesForPath(path)
+	if len(names) == 0 {
+		return "", "", fmt.Errorf("%s is managed by environment placeholder but has no environment variable mapping", path)
+	}
+	return "", "", fmt.Errorf("%s is managed by environment placeholder; set one of %s or choose to write generated values to the config file", path, strings.Join(names, ", "))
+}
+
+func validatePrivacyRuntimeEnvValue(path string, value string) error {
+	switch path {
+	case "auth.signing_key":
+		if len(value) < 32 {
+			return fmt.Errorf("environment value for %s must be at least 32 bytes", path)
+		}
+	case "auth.refresh_token_pepper":
+		if value == "" {
+			return fmt.Errorf("environment value for %s is required", path)
+		}
+	case "auth.mfa_secret_key":
+		if len(value) < 32 {
+			return fmt.Errorf("environment value for %s must be at least 32 bytes", path)
+		}
+	}
+	return nil
+}
+
+func isCoreSecretConfigError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	if !strings.Contains(message, "auth config:") {
+		return false
+	}
+	for _, needle := range []string{
+		"signing_key must be at least 32 bytes",
+		"refresh_token_pepper is required",
+		"mfa_secret_key must be at least 32 bytes",
+	} {
+		if strings.Contains(message, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func coreSecretConfigError(configPath string, err error) error {
+	if !isCoreSecretConfigError(err) {
+		return err
+	}
+	return fmt.Errorf("%w; IAM core secrets are missing or too short in %s. Set %s, or run the interactive `run` flow and choose generated privacy config", err, configPath, coreSecretEnvHelp())
+}
+
+func coreSecretEnvHelp() string {
+	parts := make([]string, 0, len(coreSecretPaths))
+	for _, path := range coreSecretPaths {
+		names := appconfig.EnvNamesForPath(path)
+		if len(names) == 0 {
+			parts = append(parts, path)
+			continue
+		}
+		parts = append(parts, path+" ("+strings.Join(names, " or ")+")")
+	}
+	return strings.Join(parts, ", ")
 }

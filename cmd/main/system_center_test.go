@@ -174,7 +174,8 @@ func TestRunCommandUsesStdinBackedBusinessInteraction(t *testing.T) {
 	t.Chdir(root)
 
 	var stdout, stderr bytes.Buffer
-	if err := runCLI(context.Background(), []string{"run"}, strings.NewReader("2\n1\n"), &stdout, &stderr); err != nil {
+	args := []string{"run", "--config=configs/config.example.yaml"}
+	if err := runCLI(context.Background(), args, strings.NewReader("2\n"), &stdout, &stderr); err != nil {
 		t.Fatalf("runCLI(run) error = %v\nstderr:\n%s", err, stderr.String())
 	}
 	out := stdout.String()

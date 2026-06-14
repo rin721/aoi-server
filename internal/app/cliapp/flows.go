@@ -16,6 +16,11 @@ var (
 	executeInitialization = ExecuteInitialization
 )
 
+const (
+	privacyCoreActionGenerateFile = "generate_file"
+	privacyCoreActionManual       = "manual"
+)
+
 // RunStartFlow 执行由 pkg/cli UI 驱动的服务启动流程。
 func RunStartFlow(ctx *cli.Context) error {
 	if ctx == nil {
@@ -42,11 +47,15 @@ func RunStartFlow(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := PrintConfigSummary(ctx.Stdout, configPath); err != nil {
+	recoveredCoreSecrets, err := printConfigSummaryForStart(ctx, service, configPath)
+	if err != nil {
 		return err
 	}
 	if service != ServiceServer {
 		return printDependencyServiceInfo(ctx.Stdout, service, configPath)
+	}
+	if recoveredCoreSecrets {
+		return startServer(ctx, configPath)
 	}
 	ok, err := cli.ConfirmKey(ctx.Context, ui, "privacy", "是否填写或生成隐私配置？", false)
 	if err != nil {
@@ -75,6 +84,118 @@ func RunStartFlow(ctx *cli.Context) error {
 		_ = ui.Info("隐私配置已处理。")
 	}
 	return startServer(ctx, configPath)
+}
+
+func printConfigSummaryForStart(ctx *cli.Context, service string, configPath string) (bool, error) {
+	err := PrintConfigSummary(ctx.Stdout, configPath)
+	if err == nil {
+		return false, nil
+	}
+	if service != ServiceServer || !isCoreSecretConfigError(err) {
+		return false, err
+	}
+	if !canPromptCoreSecretRecovery(ctx) {
+		return false, coreSecretConfigError(configPath, err)
+	}
+	recovered, recoverErr := promptCoreSecretRecovery(ctx, configPath)
+	if recoverErr != nil {
+		return false, recoverErr
+	}
+	if !recovered {
+		return false, coreSecretConfigError(configPath, err)
+	}
+	if err := PrintConfigSummary(ctx.Stdout, configPath); err != nil {
+		if isCoreSecretConfigError(err) {
+			return false, coreSecretConfigError(configPath, err)
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func canPromptCoreSecretRecovery(ctx *cli.Context) bool {
+	if ctx == nil || ctx.UI == nil || ctx.GetBool("yes") {
+		return false
+	}
+	if value, ok := cli.PromptAnswer(ctx.UI, "privacy"); ok {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value == "false" || value == "f" || value == "no" || value == "n" || value == "0" {
+			return false
+		}
+	}
+	return true
+}
+
+func promptCoreSecretRecovery(ctx *cli.Context, configPath string) (bool, error) {
+	if isExampleConfig(configPath) {
+		return false, fmt.Errorf("example config is read-only for secret generation; copy it to a real config file or set %s", coreSecretEnvHelp())
+	}
+	if coreSecretValueAnswersProvided(ctx.UI) {
+		return promptAndWriteCoreSecrets(ctx, configPath)
+	}
+	action, err := cli.SelectKey(ctx.Context, ctx.UI, "privacy.core_secrets.action", "IAM core secrets are missing; choose a repair action", []cli.SelectOption{
+		{Value: privacyCoreActionGenerateFile, Label: "生成并写入配置文件", Description: "生成稳定随机密钥并禁用这些路径的环境变量覆盖"},
+		{Value: privacyActionRuntimeEnvOnly, Label: "继续使用环境变量", Description: "校验真实环境变量，配置文件不写入密钥"},
+		{Value: privacyCoreActionManual, Label: "逐项输入", Description: "手动输入；也可以输入 generate 自动生成单项"},
+		{Value: privacyActionSkip, Label: "跳过", Description: "保留当前配置并返回可操作错误"},
+	})
+	if err != nil {
+		return false, err
+	}
+	switch action {
+	case privacyCoreActionGenerateFile:
+		updates := map[string]string{}
+		for _, path := range coreSecretPaths {
+			updates[path] = randomSecret()
+		}
+		if err := applyPrivacyForceFileUpdates(configPath, updates); err != nil {
+			return false, err
+		}
+		_ = ctx.UI.Info("IAM core secrets generated and written to config.")
+		return true, nil
+	case privacyActionRuntimeEnvOnly:
+		if err := applyPrivacyRuntimeEnvOnlyDirect(configPath, coreSecretPaths); err != nil {
+			return false, err
+		}
+		_ = ctx.UI.Info("IAM core secrets will be read from environment variables.")
+		return true, nil
+	case privacyCoreActionManual:
+		return promptAndWriteCoreSecrets(ctx, configPath)
+	case privacyActionSkip, "":
+		return false, nil
+	default:
+		return false, fmt.Errorf("unknown IAM core secret repair action %q", action)
+	}
+}
+
+func coreSecretValueAnswersProvided(ui cli.PromptUI) bool {
+	for _, path := range coreSecretPaths {
+		if _, ok := cli.PromptAnswer(ui, "privacy."+path+".value"); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func promptAndWriteCoreSecrets(ctx *cli.Context, configPath string) (bool, error) {
+	updates := map[string]string{}
+	for _, path := range coreSecretPaths {
+		value, err := promptPrivacyValue(ctx, path)
+		if err != nil {
+			return false, err
+		}
+		if value != "" {
+			updates[path] = value
+		}
+	}
+	if len(updates) == 0 {
+		return false, nil
+	}
+	if err := applyPrivacyForceFileUpdates(configPath, updates); err != nil {
+		return false, err
+	}
+	_ = ctx.UI.Info("IAM core secrets written to config.")
+	return true, nil
 }
 
 func startServiceOptions() []cli.SelectOption {

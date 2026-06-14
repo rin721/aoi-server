@@ -68,6 +68,26 @@ func TestYAMLPathContainsEnvPlaceholder(t *testing.T) {
 	}
 }
 
+func TestYAMLStringSlice(t *testing.T) {
+	configPath := writeYAMLScalarTestFile(t)
+
+	values, err := YAMLStringSlice(configPath, "env_override.disabled_paths")
+	if err != nil {
+		t.Fatalf("YAMLStringSlice() error = %v", err)
+	}
+	if len(values) != 1 || values[0] != "auth.signing_key" {
+		t.Fatalf("values = %#v", values)
+	}
+
+	values, err = YAMLStringSlice(configPath, "env_override.missing")
+	if err != nil {
+		t.Fatalf("YAMLStringSlice(missing) error = %v", err)
+	}
+	if len(values) != 0 {
+		t.Fatalf("missing values = %#v, want empty", values)
+	}
+}
+
 func TestUpdateYAMLScalarsCreatesMissingStringSliceAndDeduplicates(t *testing.T) {
 	configPath := writeYAMLScalarTestFile(t)
 
@@ -104,6 +124,9 @@ func writeYAMLScalarTestFile(t *testing.T) string {
 auth:
   issuer: go-scaffold
   signing_key: ${AUTH_SIGNING_KEY:dev-secret}
+env_override:
+  disabled_paths:
+    - auth.signing_key
 `)
 	if err := os.WriteFile(configPath, content, 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
