@@ -53,7 +53,16 @@ export type SignupRequest = {
 
 export type InitialAdminSetupRequest = SignupRequest
 
+export type PasswordPolicy = {
+  minLength: number
+  requireLower: boolean
+  requireNumber: boolean
+  requireSymbol: boolean
+  requireUpper: boolean
+}
+
 export type SetupStatus = {
+  passwordPolicy?: PasswordPolicy
   required: boolean
 }
 
@@ -705,5 +714,4 @@ export type MFASetupPayload = {
 }
 
 export type Status = "active" | "disabled" | "expired" | "pending" | "used" | "revoked"
-
 

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/rei0721/go-scaffold/internal/app/dbapp"
+	"github.com/rei0721/go-scaffold/internal/app/testsupport"
 	"github.com/rei0721/go-scaffold/internal/modules/demo/repository"
 	"github.com/rei0721/go-scaffold/internal/modules/demo/service"
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
@@ -135,5 +136,6 @@ func newCustomerService(t *testing.T) service.CustomerService {
 		t.Fatalf("apply demo schema: %v", err)
 	}
 
-	return service.NewCustomerService(db, repository.NewCustomerRepository(db))
+	moduleDB := testsupport.Database(db)
+	return service.NewCustomerService(moduleDB, repository.NewCustomerRepository(moduleDB))
 }

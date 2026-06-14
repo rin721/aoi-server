@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/url"
 	"sort"
@@ -20,12 +21,7 @@ import (
 
 	"github.com/rei0721/go-scaffold/internal/modules/iam/model"
 	"github.com/rei0721/go-scaffold/internal/modules/iam/repository"
-	"github.com/rei0721/go-scaffold/pkg/authorization"
-	passwordcrypto "github.com/rei0721/go-scaffold/pkg/crypto"
-	"github.com/rei0721/go-scaffold/pkg/database"
-	"github.com/rei0721/go-scaffold/pkg/mfa"
-	"github.com/rei0721/go-scaffold/pkg/token"
-	"github.com/rei0721/go-scaffold/pkg/utils"
+	"github.com/rei0721/go-scaffold/internal/ports"
 )
 
 var (
@@ -63,11 +59,11 @@ type Config struct {
 }
 
 type PasswordPolicy struct {
-	MinLength     int
-	RequireLower  bool
-	RequireUpper  bool
-	RequireNumber bool
-	RequireSymbol bool
+	MinLength     int  `json:"minLength"`
+	RequireLower  bool `json:"requireLower"`
+	RequireUpper  bool `json:"requireUpper"`
+	RequireNumber bool `json:"requireNumber"`
+	RequireSymbol bool `json:"requireSymbol"`
 }
 
 type Principal struct {
@@ -334,7 +330,8 @@ type NotificationDelivery struct {
 }
 
 type SetupStatus struct {
-	Required bool `json:"required"`
+	Required       bool           `json:"required"`
+	PasswordPolicy PasswordPolicy `json:"passwordPolicy"`
 }
 
 type Notifier interface {
@@ -401,12 +398,13 @@ type Service interface {
 }
 
 type service struct {
-	db       database.Database
+	db       ports.Database
 	repo     repository.Repository
-	crypto   passwordcrypto.Crypto
-	tokens   token.Manager
-	authz    authorization.Enforcer
-	ids      utils.IDGenerator
+	crypto   ports.PasswordCrypto
+	tokens   ports.TokenManager
+	authz    ports.AuthorizerEnforcer
+	ids      ports.IDGenerator
+	totp     ports.TOTPProvider
 	cfg      Config
 	notifier Notifier
 
@@ -414,7 +412,7 @@ type service struct {
 	captchaChallenges map[string]captchaState
 }
 
-func New(db database.Database, repo repository.Repository, crypto passwordcrypto.Crypto, tokens token.Manager, authz authorization.Enforcer, ids utils.IDGenerator, cfg Config, notifier Notifier) Service {
+func New(db ports.Database, repo repository.Repository, crypto ports.PasswordCrypto, tokens ports.TokenManager, authz ports.AuthorizerEnforcer, ids ports.IDGenerator, totp ports.TOTPProvider, cfg Config, notifier Notifier) Service {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
@@ -445,6 +443,9 @@ func New(db database.Database, repo repository.Repository, crypto passwordcrypto
 	if notifier == nil {
 		notifier = NoopNotifier{}
 	}
+	if totp == nil {
+		totp = noopTOTPProvider{}
+	}
 	return &service{
 		db:                db,
 		repo:              repo,
@@ -452,10 +453,21 @@ func New(db database.Database, repo repository.Repository, crypto passwordcrypto
 		tokens:            tokens,
 		authz:             authz,
 		ids:               ids,
+		totp:              totp,
 		cfg:               cfg,
 		notifier:          notifier,
 		captchaChallenges: make(map[string]captchaState),
 	}
+}
+
+type noopTOTPProvider struct{}
+
+func (noopTOTPProvider) GenerateTOTP(string, string) (ports.TOTPKey, error) {
+	return ports.TOTPKey{}, ErrInvalidInput
+}
+
+func (noopTOTPProvider) ValidateTOTP(string, string) bool {
+	return false
 }
 
 func (s *service) BootstrapAdmin(ctx context.Context, input BootstrapAdminInput) (*Principal, error) {
@@ -483,17 +495,17 @@ func (s *service) SetupStatus(ctx context.Context) (SetupStatus, error) {
 			return SetupStatus{}, err
 		}
 		if !hasUsersTable {
-			return SetupStatus{Required: true}, nil
+			return s.setupStatus(true), nil
 		}
 	}
 	count, err := s.repo.CountUsers(ctx)
 	if err != nil {
 		if isMissingTableError(err) {
-			return SetupStatus{Required: true}, nil
+			return s.setupStatus(true), nil
 		}
 		return SetupStatus{}, err
 	}
-	return SetupStatus{Required: count == 0}, nil
+	return s.setupStatus(count == 0), nil
 }
 
 func (s *service) InitialAdminSetup(ctx context.Context, input InitialAdminSetupInput) (TokenPair, error) {
@@ -564,7 +576,7 @@ func (s *service) bootstrapOwner(ctx context.Context, input ownerBootstrapInput)
 	}
 
 	var result ownerBootstrapResult
-	err := s.db.WithTx(ctx, func(txCtx context.Context, tx database.Executor) error {
+	err := s.db.WithTx(ctx, func(txCtx context.Context, tx ports.Executor) error {
 		repo := s.repo.WithExecutor(tx)
 		if input.RequireEmpty {
 			count, err := repo.CountUsers(txCtx)
@@ -578,7 +590,7 @@ func (s *service) bootstrapOwner(ctx context.Context, input ownerBootstrapInput)
 
 		org, err := repo.FindOrganizationByCode(txCtx, input.OrgCode)
 		if err != nil {
-			if !errors.Is(err, database.ErrNotFound) {
+			if !errors.Is(err, ports.ErrNotFound) {
 				return err
 			}
 			now := s.now()
@@ -592,7 +604,7 @@ func (s *service) bootstrapOwner(ctx context.Context, input ownerBootstrapInput)
 
 		user, err := repo.FindUserByIdentifier(txCtx, input.Email)
 		if err != nil {
-			if !errors.Is(err, database.ErrNotFound) {
+			if !errors.Is(err, ports.ErrNotFound) {
 				return err
 			}
 			hash, err := s.crypto.HashPassword(input.Password)
@@ -667,22 +679,22 @@ func (s *service) Signup(ctx context.Context, input SignupInput) (TokenPair, err
 	}
 
 	var pair TokenPair
-	err := s.db.WithTx(ctx, func(txCtx context.Context, tx database.Executor) error {
+	err := s.db.WithTx(ctx, func(txCtx context.Context, tx ports.Executor) error {
 		repo := s.repo.WithExecutor(tx)
 		if _, err := repo.FindOrganizationByCode(txCtx, input.OrgCode); err == nil {
 			return ErrDuplicate
-		} else if !errors.Is(err, database.ErrNotFound) {
+		} else if !errors.Is(err, ports.ErrNotFound) {
 			return err
 		}
 		if _, err := repo.FindUserByIdentifier(txCtx, input.Username); err == nil {
 			return ErrDuplicate
-		} else if !errors.Is(err, database.ErrNotFound) {
+		} else if !errors.Is(err, ports.ErrNotFound) {
 			return err
 		}
 		if input.Email != input.Username {
 			if _, err := repo.FindUserByIdentifier(txCtx, input.Email); err == nil {
 				return ErrDuplicate
-			} else if !errors.Is(err, database.ErrNotFound) {
+			} else if !errors.Is(err, ports.ErrNotFound) {
 				return err
 			}
 		}
@@ -786,7 +798,7 @@ func (s *service) Refresh(ctx context.Context, input RefreshInput) (TokenPair, e
 	if _, err := s.repo.FindMembership(ctx, session.OrgID, session.UserID); err != nil {
 		return TokenPair{}, ErrForbidden
 	}
-	pair, err := s.tokens.IssuePair(ctx, token.Subject{UserID: user.ID, OrgID: session.OrgID, SessionID: session.ID})
+	pair, err := s.tokens.IssuePair(ctx, ports.TokenSubject{UserID: user.ID, OrgID: session.OrgID, SessionID: session.ID})
 	if err != nil {
 		return TokenPair{}, err
 	}
@@ -824,7 +836,7 @@ func (s *service) SwitchOrg(ctx context.Context, principal Principal, orgID int6
 }
 
 func (s *service) AuthenticateToken(ctx context.Context, raw string) (Principal, error) {
-	claims, err := s.tokens.Parse(ctx, raw, token.TokenTypeAccess)
+	claims, err := s.tokens.Parse(ctx, raw, ports.TokenTypeAccess)
 	if err != nil {
 		return s.authenticateAPIToken(ctx, raw)
 	}
@@ -912,11 +924,11 @@ func (s *service) CreateOrganization(ctx context.Context, p Principal, code, nam
 		return nil, ErrInvalidInput
 	}
 	var org *model.Organization
-	err := s.db.WithTx(ctx, func(txCtx context.Context, tx database.Executor) error {
+	err := s.db.WithTx(ctx, func(txCtx context.Context, tx ports.Executor) error {
 		repo := s.repo.WithExecutor(tx)
 		if _, err := repo.FindOrganizationByCode(txCtx, code); err == nil {
 			return ErrDuplicate
-		} else if !errors.Is(err, database.ErrNotFound) {
+		} else if !errors.Is(err, ports.ErrNotFound) {
 			return err
 		}
 		now := s.now()
@@ -1033,11 +1045,11 @@ func (s *service) AcceptInvitation(ctx context.Context, input AcceptInvitationIn
 		displayName = username
 	}
 	var principal *Principal
-	err = s.db.WithTx(ctx, func(txCtx context.Context, tx database.Executor) error {
+	err = s.db.WithTx(ctx, func(txCtx context.Context, tx ports.Executor) error {
 		repo := s.repo.WithExecutor(tx)
 		user, err := repo.FindUserByIdentifier(txCtx, email)
 		if err != nil {
-			if !errors.Is(err, database.ErrNotFound) {
+			if !errors.Is(err, ports.ErrNotFound) {
 				return err
 			}
 			hash, err := s.crypto.HashPassword(input.Password)
@@ -1145,7 +1157,7 @@ func (s *service) SetupMFA(ctx context.Context, p Principal) (string, string, er
 	if err != nil {
 		return "", "", ErrInvalidToken
 	}
-	key, err := mfa.GenerateTOTP(s.cfg.MFAIssuer, user.Email)
+	key, err := s.totp.GenerateTOTP(s.cfg.MFAIssuer, user.Email)
 	if err != nil {
 		return "", "", err
 	}
@@ -1155,7 +1167,7 @@ func (s *service) SetupMFA(ctx context.Context, p Principal) (string, string, er
 	}
 	now := s.now()
 	factor, err := s.repo.FindActiveMFAFactor(ctx, user.ID)
-	if err != nil && !errors.Is(err, database.ErrNotFound) {
+	if err != nil && !errors.Is(err, ports.ErrNotFound) {
 		return "", "", err
 	}
 	if err == nil {
@@ -1763,7 +1775,7 @@ func (s *service) createSessionAndTokens(ctx context.Context, user *model.User, 
 func (s *service) createSessionAndTokensWithRepo(ctx context.Context, repo repository.Repository, user *model.User, orgID int64, userAgent, ip string) (TokenPair, error) {
 	now := s.now()
 	sessionID := s.ids.NextID()
-	pair, err := s.tokens.IssuePair(ctx, token.Subject{UserID: user.ID, OrgID: orgID, SessionID: sessionID})
+	pair, err := s.tokens.IssuePair(ctx, ports.TokenSubject{UserID: user.ID, OrgID: orgID, SessionID: sessionID})
 	if err != nil {
 		return TokenPair{}, err
 	}
@@ -1894,7 +1906,7 @@ func (s *service) verifyUserMFA(ctx context.Context, userID int64, code string) 
 	if err != nil {
 		return err
 	}
-	if !mfa.ValidateTOTP(code, secret) {
+	if !s.totp.ValidateTOTP(code, secret) {
 		return ErrUnauthorized
 	}
 	return nil
@@ -1903,7 +1915,7 @@ func (s *service) verifyUserMFA(ctx context.Context, userID int64, code string) 
 func (s *service) ensureMembership(ctx context.Context, repo repository.Repository, orgID, userID int64) error {
 	if _, err := repo.FindMembership(ctx, orgID, userID); err == nil {
 		return nil
-	} else if !errors.Is(err, database.ErrNotFound) {
+	} else if !errors.Is(err, ports.ErrNotFound) {
 		return err
 	}
 	now := s.now()
@@ -1914,7 +1926,7 @@ func (s *service) ensureBuiltins(ctx context.Context, repo repository.Repository
 	for _, permission := range builtinPermissions {
 		if _, err := repo.FindPermission(ctx, permission.Code); err == nil {
 			continue
-		} else if !errors.Is(err, database.ErrNotFound) {
+		} else if !errors.Is(err, ports.ErrNotFound) {
 			return err
 		}
 		now := s.now()
@@ -1932,7 +1944,7 @@ func (s *service) ensureBuiltins(ctx context.Context, repo repository.Repository
 	} {
 		if _, err := repo.FindRole(ctx, orgID, role.code); err == nil {
 			continue
-		} else if !errors.Is(err, database.ErrNotFound) {
+		} else if !errors.Is(err, ports.ErrNotFound) {
 			return err
 		}
 		now := s.now()
@@ -2070,13 +2082,22 @@ func (s *service) publicBaseURL() string {
 	return strings.TrimRight(strings.TrimSpace(s.cfg.PublicBaseURL), "/")
 }
 
-func (s *service) validatePassword(value string) error {
+func (s *service) setupStatus(required bool) SetupStatus {
+	return SetupStatus{Required: required, PasswordPolicy: s.passwordPolicy()}
+}
+
+func (s *service) passwordPolicy() PasswordPolicy {
 	policy := s.cfg.PasswordPolicy
 	if policy.MinLength <= 0 {
 		policy.MinLength = 8
 	}
+	return policy
+}
+
+func (s *service) validatePassword(value string) error {
+	policy := s.passwordPolicy()
 	if len([]rune(value)) < policy.MinLength {
-		return ErrInvalidInput
+		return passwordPolicyError(policy)
 	}
 	var hasLower, hasUpper, hasNumber, hasSymbol bool
 	for _, r := range value {
@@ -2092,18 +2113,42 @@ func (s *service) validatePassword(value string) error {
 		}
 	}
 	if policy.RequireLower && !hasLower {
-		return ErrInvalidInput
+		return passwordPolicyError(policy)
 	}
 	if policy.RequireUpper && !hasUpper {
-		return ErrInvalidInput
+		return passwordPolicyError(policy)
 	}
 	if policy.RequireNumber && !hasNumber {
-		return ErrInvalidInput
+		return passwordPolicyError(policy)
 	}
 	if policy.RequireSymbol && !hasSymbol {
-		return ErrInvalidInput
+		return passwordPolicyError(policy)
 	}
 	return nil
+}
+
+func passwordPolicyError(policy PasswordPolicy) error {
+	return fmt.Errorf("%w: 密码必须%s", ErrInvalidInput, strings.Join(passwordPolicyRequirements(policy), "、"))
+}
+
+func passwordPolicyRequirements(policy PasswordPolicy) []string {
+	if policy.MinLength <= 0 {
+		policy.MinLength = 8
+	}
+	requirements := []string{"至少 " + strconv.Itoa(policy.MinLength) + " 位"}
+	if policy.RequireLower {
+		requirements = append(requirements, "包含小写字母")
+	}
+	if policy.RequireUpper {
+		requirements = append(requirements, "包含大写字母")
+	}
+	if policy.RequireNumber {
+		requirements = append(requirements, "包含数字")
+	}
+	if policy.RequireSymbol {
+		requirements = append(requirements, "包含符号")
+	}
+	return requirements
 }
 
 func (s *service) encryptSecret(secret string) (string, error) {
@@ -2151,7 +2196,7 @@ func (s *service) now() time.Time {
 	return s.cfg.Now().UTC()
 }
 
-func tokenPair(pair token.Pair) TokenPair {
+func tokenPair(pair ports.TokenPair) TokenPair {
 	return TokenPair{AccessToken: pair.AccessToken, AccessExpiresAt: pair.AccessExpiresAt, RefreshToken: pair.RefreshToken, RefreshExpiresAt: pair.RefreshExpiresAt}
 }
 

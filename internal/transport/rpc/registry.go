@@ -4,21 +4,20 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/rei0721/go-scaffold/pkg/rpcserver"
+	"github.com/rei0721/go-scaffold/internal/ports"
 )
 
-// NewRegistry 创建应用内置 RPC 方法注册表。
-func NewRegistry() (*rpcserver.Registry, error) {
-	registry := rpcserver.NewRegistry()
+// Register 向应用层传入的 RPC 注册表登记内置方法。
+func Register(registry ports.RPCRegistry) error {
 	if err := registry.Register("system.ping", ping); err != nil {
-		return nil, err
+		return err
 	}
 	if err := registry.Register("system.methods", func(context.Context, json.RawMessage) (any, error) {
 		return registry.Methods(), nil
 	}); err != nil {
-		return nil, err
+		return err
 	}
-	return registry, nil
+	return nil
 }
 
 func ping(_ context.Context, params json.RawMessage) (any, error) {
@@ -29,7 +28,7 @@ func ping(_ context.Context, params json.RawMessage) (any, error) {
 
 	var values map[string]any
 	if err := json.Unmarshal(params, &values); err != nil {
-		return nil, rpcserver.InvalidParams("params must be an object")
+		return nil, ports.InvalidRPCParams("params must be an object")
 	}
 	if echo, ok := values["echo"]; ok {
 		response["echo"] = echo

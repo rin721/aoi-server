@@ -1,7 +1,5 @@
 package httptransport
 
-// 本文件定义 HTTP 传输层装配，把中间件顺序、健康检查和业务路由注册为 Gin Engine。
-
 import (
 	"bytes"
 	"context"
@@ -9,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -19,54 +18,56 @@ import (
 	systemhandler "github.com/rei0721/go-scaffold/internal/modules/system/handler"
 	systemmodel "github.com/rei0721/go-scaffold/internal/modules/system/model"
 	systemservice "github.com/rei0721/go-scaffold/internal/modules/system/service"
-	"github.com/rei0721/go-scaffold/pkg/database"
-	"github.com/rei0721/go-scaffold/pkg/i18n"
-	"github.com/rei0721/go-scaffold/pkg/logger"
-	"github.com/rei0721/go-scaffold/pkg/utils"
-	"github.com/rei0721/go-scaffold/pkg/web"
+	"github.com/rei0721/go-scaffold/internal/ports"
 	appconstants "github.com/rei0721/go-scaffold/types/constants"
 	apperrors "github.com/rei0721/go-scaffold/types/errors"
 	"github.com/rei0721/go-scaffold/types/result"
 )
 
-// RouterDeps 聚合 HTTP 路由装配所需依赖，允许测试或可选模块传入 nil 以裁剪路由。
+// RouterDeps 聚合 HTTP 路由装配所需依赖。
 type RouterDeps struct {
-	Mode            string
-	Logger          logger.Logger
-	I18n            i18n.I18n
-	Database        database.Database
-	Middleware      middleware.MiddlewareConfig
-	TodoHandler     *demohandler.TodoHandler
-	CustomerHandler *demohandler.CustomerHandler
-	IAMHandler      *iamhandler.Handler
-	PluginHandler   *pluginhandler.Handler
-	SystemHandler   *systemhandler.Handler
-	IAMAuth         middleware.Authenticator
-	IAMAuthz        middleware.Authorizer
-	WebUI           WebUIDeps
+	Router           ports.HTTPRouter
+	RouteLister      ports.RouteLister
+	StaticSPA        ports.StaticSPAMounter
+	Logger           ports.Logger
+	I18n             ports.I18n
+	Database         ports.Database
+	TraceIDGenerator ports.IDGenerator
+	Middleware       middleware.MiddlewareConfig
+	TodoHandler      *demohandler.TodoHandler
+	CustomerHandler  *demohandler.CustomerHandler
+	IAMHandler       *iamhandler.Handler
+	PluginHandler    *pluginhandler.Handler
+	SystemHandler    *systemhandler.Handler
+	IAMAuth          middleware.Authenticator
+	IAMAuthz         middleware.Authorizer
+	WebUI            WebUIDeps
 }
 
-// WebUIDeps 描述管理台静态产物挂载所需配置，避免 transport 层直接依赖应用配置结构。
+// WebUIDeps 描述管理台静态产物挂载所需配置。
 type WebUIDeps struct {
 	Enabled   bool
 	MountPath string
 	DistDir   string
 }
 
-// NewRouter 按固定顺序注册中间件、健康检查和业务路由，返回可直接交给 HTTPServer 的 Gin Engine。
-func NewRouter(deps RouterDeps) *web.Engine {
-	r := web.New(deps.Mode)
+// NewRouter 把中间件和业务路由注册到传入的 router。
+func NewRouter(deps RouterDeps) ports.HTTPRouter {
+	r := deps.Router
+	if r == nil {
+		return nil
+	}
 
 	if deps.I18n != nil {
 		r.Use(middleware.I18n(deps.I18n))
 	}
-	r.Use(middleware.TraceID(deps.Middleware.TraceID))
+	r.Use(middleware.TraceID(deps.Middleware.TraceID, deps.TraceIDGenerator))
 	r.Use(middleware.CORSMiddleware(deps.Middleware.CORS))
 	if deps.Logger != nil {
 		r.Use(middleware.Logger(deps.Middleware.Logger, deps.Logger))
 		r.Use(middleware.Recovery(deps.Middleware.Recovery, deps.Logger))
 	} else {
-		r.Use(web.Recovery())
+		r.Use(middleware.Recovery(deps.Middleware.Recovery, nil))
 	}
 
 	r.GET(appconstants.HTTPHealthPath, health)
@@ -100,18 +101,32 @@ func NewRouter(deps RouterDeps) *web.Engine {
 	}
 	if deps.SystemHandler != nil {
 		registerSystemRoutes(v1, deps)
-		deps.SystemHandler.RegisterAPIs(catalogAPIRoutes(r.Routes()))
+		if deps.RouteLister != nil {
+			deps.SystemHandler.RegisterAPIs(catalogAPIRoutes(deps.RouteLister.Routes()))
+		}
 	}
-	registerWebUI(r, deps)
+	registerWebUI(deps)
 
 	return r
 }
 
-func registerWebUI(r *web.Engine, deps RouterDeps) {
+func registerWebUI(deps RouterDeps) {
 	if !deps.WebUI.Enabled {
 		return
 	}
-	err := r.MountStaticSPA(web.StaticSPAConfig{
+	mounter := deps.StaticSPA
+	if mounter == nil {
+		if candidate, ok := deps.Router.(ports.StaticSPAMounter); ok {
+			mounter = candidate
+		}
+	}
+	if mounter == nil {
+		if deps.Logger != nil {
+			deps.Logger.Warn("admin webui mount skipped", "mount_path", deps.WebUI.MountPath, "dist_dir", deps.WebUI.DistDir, "error", "static spa mounter missing")
+		}
+		return
+	}
+	err := mounter.MountStaticSPA(ports.StaticSPAConfig{
 		MountPath: deps.WebUI.MountPath,
 		DistDir:   deps.WebUI.DistDir,
 	})
@@ -124,14 +139,14 @@ func registerWebUI(r *web.Engine, deps RouterDeps) {
 	if deps.Logger == nil {
 		return
 	}
-	if errors.Is(err, web.ErrStaticSPAIndexMissing) {
+	if errors.Is(err, ports.ErrStaticSPAIndexMissing) {
 		deps.Logger.Warn("admin webui static files missing", "mount_path", deps.WebUI.MountPath, "dist_dir", deps.WebUI.DistDir)
 		return
 	}
 	deps.Logger.Warn("admin webui mount skipped", "mount_path", deps.WebUI.MountPath, "dist_dir", deps.WebUI.DistDir, "error", err)
 }
 
-func registerIAMRoutes(v1 web.Router, deps RouterDeps) {
+func registerIAMRoutes(v1 ports.HTTPRouter, deps RouterDeps) {
 	auth := v1.Group("/auth")
 	auth.Use(middleware.RateLimit(middleware.RateLimitConfig{Enabled: true, Limit: 20, Window: time.Minute}))
 	auth.GET("/setup/status", deps.IAMHandler.SetupStatus)
@@ -158,7 +173,7 @@ func registerIAMRoutes(v1 web.Router, deps RouterDeps) {
 	protected.GET("/me/orgs", deps.IAMHandler.MyOrganizations)
 
 	orgs := protected.Group("/orgs")
-	orgScoped := func(obj, act string, next web.HandlerFunc) web.HandlerFunc {
+	orgScoped := func(obj, act string, next ports.HTTPHandlerFunc) ports.HTTPHandlerFunc {
 		return middleware.RequireOrgParam("orgId", middleware.RequirePermission(deps.IAMAuthz, obj, act, next))
 	}
 	orgs.GET("", middleware.RequirePermission(deps.IAMAuthz, "org", "read", deps.IAMHandler.ListOrganizations))
@@ -181,7 +196,7 @@ func registerIAMRoutes(v1 web.Router, deps RouterDeps) {
 	orgs.GET("/:orgId/audit-logs", orgScoped("audit", "read", deps.IAMHandler.ListAuditLogs))
 }
 
-func registerPluginRoutes(v1 web.Router, deps RouterDeps) {
+func registerPluginRoutes(v1 ports.HTTPRouter, deps RouterDeps) {
 	plugins := v1.Group("/plugins")
 	plugins.Use(middleware.Auth(deps.IAMAuth))
 	plugins.Use(OperationRecorder(deps.SystemHandler))
@@ -191,7 +206,7 @@ func registerPluginRoutes(v1 web.Router, deps RouterDeps) {
 	plugins.ANY("/:pluginId/proxy/*path", middleware.RequirePermission(deps.IAMAuthz, "plugin", "proxy", deps.PluginHandler.Proxy))
 }
 
-func registerSystemRoutes(v1 web.Router, deps RouterDeps) {
+func registerSystemRoutes(v1 ports.HTTPRouter, deps RouterDeps) {
 	system := v1.Group("/system")
 	system.Use(middleware.Auth(deps.IAMAuth))
 	system.Use(OperationRecorder(deps.SystemHandler))
@@ -245,9 +260,9 @@ type operationRecorder interface {
 	RecordOperation(context.Context, systemservice.OperationRecordInput) error
 }
 
-func OperationRecorder(recorder operationRecorder) web.HandlerFunc {
-	return func(c web.Context) {
-		if recorder == nil || !appconstants.IsAPIPath(c.Path()) {
+func OperationRecorder(recorder operationRecorder) ports.HTTPHandlerFunc {
+	return func(c ports.HTTPContext) {
+		if isNilOperationRecorder(recorder) || !appconstants.IsAPIPath(c.Path()) {
 			c.Next()
 			return
 		}
@@ -262,7 +277,7 @@ func OperationRecorder(recorder operationRecorder) web.HandlerFunc {
 		principal, _ := middleware.GetPrincipal(c)
 		input := systemservice.OperationRecordInput{
 			Body:      body,
-			IPAddress: utils.ClientIPRealIP(c),
+			IPAddress: middleware.ClientIPRealIP(c),
 			LatencyMs: time.Since(start).Milliseconds(),
 			Method:    c.Method(),
 			Path:      c.Path(),
@@ -276,6 +291,19 @@ func OperationRecorder(recorder operationRecorder) web.HandlerFunc {
 			input.ErrorMessage = http.StatusText(status)
 		}
 		_ = recorder.RecordOperation(context.Background(), input)
+	}
+}
+
+func isNilOperationRecorder(recorder operationRecorder) bool {
+	if recorder == nil {
+		return true
+	}
+	value := reflect.ValueOf(recorder)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
 	}
 }
 
@@ -325,7 +353,7 @@ func sanitizeOperationRequestBody(method string, path string, body string) strin
 	return string(raw)
 }
 
-func catalogAPIRoutes(routes []web.RouteInfo) []systemmodel.APIEntry {
+func catalogAPIRoutes(routes []ports.RouteInfo) []systemmodel.APIEntry {
 	entries := make([]systemmodel.APIEntry, 0, len(routes))
 	for _, route := range routes {
 		if !appconstants.IsAPIPath(route.Path) {
@@ -556,14 +584,14 @@ func apiRouteMethodOrder(method string) int {
 	}
 }
 
-// health 返回轻量存活探针响应，只证明进程与路由栈仍可处理请求。
-func health(c web.Context) {
+// health 返回轻量存活探针响应。
+func health(c ports.HTTPContext) {
 	c.JSON(http.StatusOK, result.Success(map[string]any{"status": "ok"}))
 }
 
-// ready 执行数据库就绪检查，并把失败原因转化为 503 响应。
-func ready(db database.Database) web.HandlerFunc {
-	return func(c web.Context) {
+// ready 执行数据库就绪检查。
+func ready(db ports.Database) ports.HTTPHandlerFunc {
+	return func(c ports.HTTPContext) {
 		if db == nil {
 			c.JSON(http.StatusServiceUnavailable, &result.Result[map[string]any]{
 				Code:    apperrors.ErrDatabaseError,
@@ -595,8 +623,8 @@ func ready(db database.Database) web.HandlerFunc {
 	}
 }
 
-// ReadyCheck 构造就绪探针回调，通过数据库健康检查表达服务是否可以承接流量。
-func ReadyCheck(db database.Database) func(context.Context) error {
+// ReadyCheck 构造就绪探针回调。
+func ReadyCheck(db ports.Database) func(context.Context) error {
 	return func(ctx context.Context) error {
 		if db == nil {
 			return http.ErrServerClosed

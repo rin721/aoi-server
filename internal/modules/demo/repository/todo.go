@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/rei0721/go-scaffold/internal/modules/demo/model"
-	"github.com/rei0721/go-scaffold/pkg/database"
+	database "github.com/rei0721/go-scaffold/internal/ports"
 )
 
 // TodoRepository defines the persistence port for Demo Todo.

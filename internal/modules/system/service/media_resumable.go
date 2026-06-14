@@ -17,7 +17,7 @@ import (
 
 	"github.com/rei0721/go-scaffold/internal/modules/system/model"
 	"github.com/rei0721/go-scaffold/internal/modules/system/repository"
-	"github.com/rei0721/go-scaffold/pkg/database"
+	database "github.com/rei0721/go-scaffold/internal/ports"
 	appconstants "github.com/rei0721/go-scaffold/types/constants"
 )
 

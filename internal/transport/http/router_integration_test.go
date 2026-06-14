@@ -14,13 +14,14 @@ import (
 	"testing"
 
 	"github.com/rei0721/go-scaffold/internal/app/dbapp"
+	"github.com/rei0721/go-scaffold/internal/app/testsupport"
 	"github.com/rei0721/go-scaffold/internal/middleware"
 	demohandler "github.com/rei0721/go-scaffold/internal/modules/demo/handler"
 	"github.com/rei0721/go-scaffold/internal/modules/demo/model"
 	"github.com/rei0721/go-scaffold/internal/modules/demo/repository"
 	demoservice "github.com/rei0721/go-scaffold/internal/modules/demo/service"
+	"github.com/rei0721/go-scaffold/internal/ports"
 	"github.com/rei0721/go-scaffold/pkg/database"
-	"github.com/rei0721/go-scaffold/pkg/logger"
 	"github.com/rei0721/go-scaffold/pkg/web"
 	apperrors "github.com/rei0721/go-scaffold/types/errors"
 )
@@ -179,11 +180,12 @@ func newDemoIntegrationRouter(t *testing.T) (*web.Engine, database.Database) {
 		t.Fatalf("apply todo schema: %v", err)
 	}
 
-	todoService := demoservice.NewTodoService(db, repository.NewTodoRepository(db))
+	moduleDB := testsupport.Database(db)
+	todoService := demoservice.NewTodoService(moduleDB, repository.NewTodoRepository(moduleDB))
 	todoHandler := demohandler.NewTodoHandler(todoService, &recordingLogger{})
 
 	return newTestRouter(RouterDeps{
-		Database:    db,
+		Database:    moduleDB,
 		Logger:      &recordingLogger{},
 		TodoHandler: todoHandler,
 		Middleware: middleware.MiddlewareConfig{
@@ -290,18 +292,13 @@ func (l *recordingLogger) Fatal(msg string, keysAndValues ...interface{}) {
 	l.record(msg)
 }
 
-// With 实现测试日志桩的字段绑定入口，返回自身以保持 logger.Logger 链式调用契约。
-func (l *recordingLogger) With(keysAndValues ...interface{}) logger.Logger {
+// With 实现测试日志桩的字段绑定入口，返回自身以保持 ports.Logger 链式调用契约。
+func (l *recordingLogger) With(keysAndValues ...interface{}) ports.Logger {
 	return l
 }
 
 // Sync 实现测试日志桩的刷新入口，测试环境不持有真实缓冲区。
 func (l *recordingLogger) Sync() error {
-	return nil
-}
-
-// Reload 实现测试桩的配置重载入口，用于验证调用路径而不触发真实资源替换。
-func (l *recordingLogger) Reload(*logger.Config) error {
 	return nil
 }
 

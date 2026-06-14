@@ -31,6 +31,9 @@ export function formatStatus(value?: string | null) {
 export function errorMessage(error: unknown) {
   if (error && typeof error === "object" && "message" in error) {
     const message = String((error as { message?: unknown }).message || "")
+    if (message.startsWith("invalid iam input: ")) {
+      return message.replace("invalid iam input: ", "")
+    }
     if (message === "invalid iam input") {
       return "输入不符合 IAM 要求，请检查必填项和密码规则。"
     }

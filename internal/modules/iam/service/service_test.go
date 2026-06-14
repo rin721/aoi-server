@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rei0721/go-scaffold/internal/app/testsupport"
 	"github.com/rei0721/go-scaffold/internal/modules/iam/model"
 	"github.com/rei0721/go-scaffold/internal/modules/iam/repository"
 	"github.com/rei0721/go-scaffold/pkg/authorization"
@@ -285,6 +286,44 @@ func TestInitialAdminSetupCreatesFirstOwnerAndClosesSetup(t *testing.T) {
 	}
 	if _, err := svc.InitialAdminSetup(ctx, InitialAdminSetupInput{OrgCode: "other", OrgName: "Other", Username: "other", Email: "other@example.com", Password: "password123"}); !errors.Is(err, ErrSetupCompleted) {
 		t.Fatalf("second InitialAdminSetup() error = %v, want ErrSetupCompleted", err)
+	}
+}
+
+func TestSetupStatusIncludesPasswordPolicyAndPasswordErrorExplainsRules(t *testing.T) {
+	ctx := context.Background()
+	svc, cleanup := newTestServiceWithSignup(t, false)
+	defer cleanup()
+
+	impl := svc.(*service)
+	impl.cfg.PasswordPolicy = PasswordPolicy{
+		MinLength:     10,
+		RequireLower:  true,
+		RequireUpper:  true,
+		RequireNumber: true,
+	}
+
+	status, err := svc.SetupStatus(ctx)
+	if err != nil {
+		t.Fatalf("SetupStatus() failed: %v", err)
+	}
+	if status.PasswordPolicy.MinLength != 10 || !status.PasswordPolicy.RequireLower || !status.PasswordPolicy.RequireUpper || !status.PasswordPolicy.RequireNumber || status.PasswordPolicy.RequireSymbol {
+		t.Fatalf("unexpected setup password policy: %#v", status.PasswordPolicy)
+	}
+
+	_, err = svc.InitialAdminSetup(ctx, InitialAdminSetupInput{
+		OrgCode:  "acme",
+		OrgName:  "Acme",
+		Username: "admin",
+		Email:    "admin@example.com",
+		Password: "password123",
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("InitialAdminSetup() error = %v, want ErrInvalidInput", err)
+	}
+	for _, want := range []string{"密码必须", "至少 10 位", "包含小写字母", "包含大写字母", "包含数字"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("password policy error missing %q: %v", want, err)
+		}
 	}
 }
 
@@ -595,8 +634,9 @@ func newTestServiceWithSignup(t *testing.T, selfSignupEnabled bool) (Service, fu
 	if err != nil {
 		t.Fatalf("utils.NewSnowflake() failed: %v", err)
 	}
-	repo := repository.New(db)
-	svc := New(db, repo, passwords, tokens, authz, ids, Config{
+	moduleDB := testsupport.Database(db)
+	repo := repository.New(moduleDB)
+	svc := New(moduleDB, repo, passwords, testsupport.TokenManager(tokens), testsupport.AuthorizerEnforcer(authz), ids, testsupport.TOTPProvider(), Config{
 		SelfSignupEnabled:  selfSignupEnabled,
 		MFAIssuer:          "go-scaffold-test",
 		MFASecretKey:       "01234567890123456789012345678901",

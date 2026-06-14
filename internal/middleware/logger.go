@@ -3,17 +3,18 @@ package middleware
 // 本文件定义 Gin 中间件能力，约束请求进入业务 handler 前后的链路上下文、副作用和错误输出。
 
 import (
+	"net"
+	"net/netip"
+	"strings"
 	"time"
 
-	"github.com/rei0721/go-scaffold/pkg/logger"
-	"github.com/rei0721/go-scaffold/pkg/utils"
-	"github.com/rei0721/go-scaffold/pkg/web"
+	"github.com/rei0721/go-scaffold/internal/ports"
 )
 
 // Logger 返回一个记录请求信息的中间件
 // 它会记录每个 HTTP 请求的方法、路径、状态码和处理时长
 // 这对于监控应用性能和排查问题至关重要
-func Logger(cfg LoggerConfig, log logger.Logger) web.HandlerFunc {
+func Logger(cfg LoggerConfig, log ports.Logger) ports.HTTPHandlerFunc {
 	// 构建跳过路径的映射表,实现 O(1) 时间复杂度的查找
 	// 使用 map 而不是遍历切片,可以显著提高性能
 	// 特别是当跳过路径列表较长时(例如健康检查、监控端点等)
@@ -25,7 +26,7 @@ func Logger(cfg LoggerConfig, log logger.Logger) web.HandlerFunc {
 
 	// 返回 Gin 中间件处理函数
 	// 这个函数会在每个请求处理前后被调用
-	return func(c web.Context) {
+	return func(c ports.HTTPContext) {
 		// 检查是否启用了日志中间件
 		// 如果未启用,直接调用 c.Next() 跳过日志记录
 		// 这个设计允许在配置中动态开关日志功能
@@ -74,8 +75,76 @@ func Logger(cfg LoggerConfig, log logger.Logger) web.HandlerFunc {
 			"duration", duration.String(), // 耗时的字符串表示(如 "123ms")
 			"durationMs", duration.Milliseconds(), // 耗时的毫秒数,便于监控系统计算
 			"clientIP", c.ClientIP(), // 路由框架识别的客户端 IP
-			"realIP", utils.ClientIPRealIP(c), // 代理头解析后的真实客户端 IP
+			"realIP", ClientIPRealIP(c), // 代理头解析后的真实客户端 IP
 			"traceId", traceID, // 追踪 ID,用于请求链路追踪
 		)
 	}
+}
+
+func ClientIPRealIP(c ports.HTTPContext) string {
+	for _, candidate := range []string{
+		forwardedForHeader(c.GetHeader("Forwarded")),
+		firstForwardedIP(c.GetHeader("X-Forwarded-For")),
+		c.GetHeader("X-Real-IP"),
+		c.GetHeader("CF-Connecting-IP"),
+		c.GetHeader("True-Client-IP"),
+		c.ClientIP(),
+		remoteAddrIP(c),
+	} {
+		if ip := normalizeIP(candidate); ip != "" {
+			return ip
+		}
+	}
+	return ""
+}
+
+func firstForwardedIP(value string) string {
+	for _, part := range strings.Split(value, ",") {
+		if normalizeIP(part) != "" {
+			return part
+		}
+	}
+	return ""
+}
+
+func forwardedForHeader(value string) string {
+	for _, element := range strings.Split(value, ",") {
+		for _, part := range strings.Split(element, ";") {
+			key, val, ok := strings.Cut(strings.TrimSpace(part), "=")
+			if !ok || !strings.EqualFold(key, "for") {
+				continue
+			}
+			if normalizeIP(val) != "" {
+				return val
+			}
+		}
+	}
+	return ""
+}
+
+func remoteAddrIP(c ports.HTTPContext) string {
+	req := c.Request()
+	if req == nil {
+		return ""
+	}
+	return req.RemoteAddr
+}
+
+func normalizeIP(value string) string {
+	value = strings.Trim(strings.TrimSpace(value), `"`)
+	if value == "" || strings.EqualFold(value, "unknown") {
+		return ""
+	}
+	if ip, err := netip.ParseAddr(value); err == nil {
+		return ip.String()
+	}
+	if host, _, err := net.SplitHostPort(value); err == nil {
+		if ip, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil {
+			return ip.String()
+		}
+	}
+	if ip, err := netip.ParseAddr(strings.Trim(value, "[]")); err == nil {
+		return ip.String()
+	}
+	return ""
 }

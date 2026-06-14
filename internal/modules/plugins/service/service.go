@@ -16,8 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rei0721/go-scaffold/pkg/configloader"
-	"github.com/rei0721/go-scaffold/pkg/logger"
+	"github.com/rei0721/go-scaffold/internal/ports"
 )
 
 const (
@@ -38,7 +37,6 @@ var (
 
 type Config struct {
 	Enabled       bool
-	ManifestPaths []string
 	Inline        []Manifest
 	HealthTimeout time.Duration
 	ProxyTimeout  time.Duration
@@ -123,10 +121,10 @@ type service struct {
 	plugins      map[string]Manifest
 	healthClient *http.Client
 	proxyClient  *http.Client
-	log          logger.Logger
+	log          ports.Logger
 }
 
-func New(cfg Config, log logger.Logger) (Service, error) {
+func New(cfg Config, log ports.Logger) (Service, error) {
 	if cfg.HealthTimeout <= 0 {
 		cfg.HealthTimeout = 3 * time.Second
 	}
@@ -143,16 +141,6 @@ func New(cfg Config, log logger.Logger) (Service, error) {
 			return nil, err
 		}
 	}
-	for _, path := range cfg.ManifestPaths {
-		manifest, err := loadManifestFile(path)
-		if err != nil {
-			return nil, err
-		}
-		if err := registerManifest(plugins, manifest); err != nil {
-			return nil, err
-		}
-	}
-
 	return &service{
 		enabled:      true,
 		plugins:      plugins,
@@ -252,23 +240,6 @@ func (s *service) Proxy(ctx context.Context, req ProxyRequest) (ProxyResponse, e
 		Headers:     filteredResponseHeaders(resp.Header),
 		Body:        raw,
 	}, nil
-}
-
-func loadManifestFile(path string) (Manifest, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return Manifest{}, fmt.Errorf("plugin manifest path is required")
-	}
-	var manifest Manifest
-	loader := configloader.New()
-	loader.SetConfigFile(path)
-	if err := loader.ReadInConfig(); err != nil {
-		return Manifest{}, fmt.Errorf("read plugin manifest %s: %w", path, err)
-	}
-	if err := loader.Unmarshal(&manifest); err != nil {
-		return Manifest{}, fmt.Errorf("parse plugin manifest %s: %w", path, err)
-	}
-	return manifest, nil
 }
 
 func registerManifest(plugins map[string]Manifest, manifest Manifest) error {

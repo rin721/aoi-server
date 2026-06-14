@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -84,36 +82,5 @@ func TestProxyRejectsPathOutsidePrefixes(t *testing.T) {
 	})
 	if err != ErrProxyForbidden {
 		t.Fatalf("Proxy() error = %v, want %v", err, ErrProxyForbidden)
-	}
-}
-
-func TestLoadManifestFileSupportsPublicFieldNames(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "plugin.yaml")
-	raw := []byte(`
-id: demo
-name: Demo
-version: 0.1.0
-baseURL: http://127.0.0.1:10098
-healthPath: /healthz
-frontend:
-  entry: /assets/remote.js
-menus:
-  - code: demo.home
-    label: Demo
-    path: /
-proxy:
-  prefixes:
-    - /api
-secretRef: AOI_PLUGIN_TEST_SECRET
-`)
-	if err := os.WriteFile(path, raw, 0o600); err != nil {
-		t.Fatalf("write manifest: %v", err)
-	}
-	manifest, err := loadManifestFile(path)
-	if err != nil {
-		t.Fatalf("loadManifestFile() error = %v", err)
-	}
-	if manifest.BaseURL != "http://127.0.0.1:10098" || manifest.HealthPath != "/healthz" || manifest.SecretRef != "AOI_PLUGIN_TEST_SECRET" {
-		t.Fatalf("manifest fields not decoded: %#v", manifest)
 	}
 }

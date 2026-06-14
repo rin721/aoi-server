@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/rei0721/go-scaffold/internal/modules/system/model"
-	"github.com/rei0721/go-scaffold/pkg/database"
+	"github.com/rei0721/go-scaffold/internal/ports"
 )
 
 func TestSyncAPIsPersistsCurrentRoutesAndMarksStaleRecords(t *testing.T) {
@@ -271,7 +271,19 @@ func TestGetServerInfoReportsRuntimeAndMemory(t *testing.T) {
 	svc := New(Config{
 		Now:       func() time.Time { return now },
 		StartTime: now.Add(-time.Hour),
-	})
+	}, WithHostMetrics(fakeHostMetricsCollector{metrics: ports.HostMetrics{
+		CPU: ports.CPUInfo{Cores: 4, Percent: []float64{10.5}},
+		RAM: ports.RAMInfo{TotalMB: 8192, UsedMB: 4096, UsedPercent: 50},
+		Disk: []ports.DiskInfo{{
+			FSType:      "ext4",
+			MountPoint:  "/",
+			TotalGB:     100,
+			TotalMB:     102400,
+			UsedGB:      50,
+			UsedMB:      51200,
+			UsedPercent: 50,
+		}},
+	}}))
 
 	info, err := svc.GetServerInfo(context.Background())
 	if err != nil {
@@ -308,6 +320,14 @@ func TestGetServerInfoReportsRuntimeAndMemory(t *testing.T) {
 	if !info.RefreshedAt.Equal(now) {
 		t.Fatalf("expected refreshedAt %s, got %s", now, info.RefreshedAt)
 	}
+}
+
+type fakeHostMetricsCollector struct {
+	metrics ports.HostMetrics
+}
+
+func (c fakeHostMetricsCollector) Collect(context.Context) ports.HostMetrics {
+	return c.metrics
 }
 
 func TestDictionaryManagementCreatesUpdatesAndDeletesDictionariesAndItems(t *testing.T) {
@@ -1029,7 +1049,7 @@ func (r *memoryAPIRepo) CreateVersion(_ context.Context, version *model.Version)
 func (r *memoryAPIRepo) DeleteDictionary(_ context.Context, id int64, deletedAt time.Time) error {
 	dictionary, ok := r.dictionaries[id]
 	if !ok || dictionary.DeletedAt != nil {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	dictionary.DeletedAt = &deletedAt
 	dictionary.UpdatedAt = deletedAt
@@ -1048,7 +1068,7 @@ func (r *memoryAPIRepo) DeleteDictionary(_ context.Context, id int64, deletedAt 
 func (r *memoryAPIRepo) DeleteDictionaryItem(_ context.Context, id int64, deletedAt time.Time) error {
 	item, ok := r.items[id]
 	if !ok || item.DeletedAt != nil {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	item.DeletedAt = &deletedAt
 	item.UpdatedAt = deletedAt
@@ -1059,7 +1079,7 @@ func (r *memoryAPIRepo) DeleteDictionaryItem(_ context.Context, id int64, delete
 func (r *memoryAPIRepo) DeleteMediaAsset(_ context.Context, id int64, deletedAt time.Time) error {
 	asset, ok := r.mediaAssets[id]
 	if !ok || asset.DeletedAt != nil {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	asset.DeletedAt = &deletedAt
 	asset.UpdatedAt = deletedAt
@@ -1070,7 +1090,7 @@ func (r *memoryAPIRepo) DeleteMediaAsset(_ context.Context, id int64, deletedAt 
 func (r *memoryAPIRepo) DeleteMediaCategory(_ context.Context, id int64, deletedAt time.Time) error {
 	category, ok := r.mediaCategories[id]
 	if !ok || category.DeletedAt != nil {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	category.DeletedAt = &deletedAt
 	category.UpdatedAt = deletedAt
@@ -1097,7 +1117,7 @@ func (r *memoryAPIRepo) DeleteOperationRecords(_ context.Context, ids []int64) e
 func (r *memoryAPIRepo) DeleteParameter(_ context.Context, id int64, deletedAt time.Time) error {
 	parameter, ok := r.parameters[id]
 	if !ok || parameter.DeletedAt != nil {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	parameter.DeletedAt = &deletedAt
 	parameter.UpdatedAt = deletedAt
@@ -1121,7 +1141,7 @@ func (r *memoryAPIRepo) DeleteParameters(_ context.Context, ids []int64, deleted
 func (r *memoryAPIRepo) DeleteVersion(_ context.Context, id int64, deletedAt time.Time) error {
 	version, ok := r.versions[id]
 	if !ok || version.DeletedAt != nil {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	version.DeletedAt = &deletedAt
 	version.UpdatedAt = deletedAt
@@ -1156,13 +1176,13 @@ func (r *memoryAPIRepo) FindDictionaryByCode(_ context.Context, code string) (*m
 			return &dictionary, nil
 		}
 	}
-	return nil, database.ErrNotFound
+	return nil, ports.ErrNotFound
 }
 
 func (r *memoryAPIRepo) FindDictionaryByID(_ context.Context, id int64) (*model.Dictionary, error) {
 	dictionary, ok := r.dictionaries[id]
 	if !ok || dictionary.DeletedAt != nil {
-		return nil, database.ErrNotFound
+		return nil, ports.ErrNotFound
 	}
 	return &dictionary, nil
 }
@@ -1170,7 +1190,7 @@ func (r *memoryAPIRepo) FindDictionaryByID(_ context.Context, id int64) (*model.
 func (r *memoryAPIRepo) FindDictionaryItemByID(_ context.Context, id int64) (*model.DictionaryItem, error) {
 	item, ok := r.items[id]
 	if !ok || item.DeletedAt != nil {
-		return nil, database.ErrNotFound
+		return nil, ports.ErrNotFound
 	}
 	return &item, nil
 }
@@ -1178,7 +1198,7 @@ func (r *memoryAPIRepo) FindDictionaryItemByID(_ context.Context, id int64) (*mo
 func (r *memoryAPIRepo) FindMediaAssetByID(_ context.Context, id int64) (*model.MediaAsset, error) {
 	asset, ok := r.mediaAssets[id]
 	if !ok || asset.DeletedAt != nil {
-		return nil, database.ErrNotFound
+		return nil, ports.ErrNotFound
 	}
 	return &asset, nil
 }
@@ -1186,7 +1206,7 @@ func (r *memoryAPIRepo) FindMediaAssetByID(_ context.Context, id int64) (*model.
 func (r *memoryAPIRepo) FindMediaCategoryByID(_ context.Context, id int64) (*model.MediaCategory, error) {
 	category, ok := r.mediaCategories[id]
 	if !ok || category.DeletedAt != nil {
-		return nil, database.ErrNotFound
+		return nil, ports.ErrNotFound
 	}
 	return &category, nil
 }
@@ -1197,7 +1217,7 @@ func (r *memoryAPIRepo) FindMediaUploadChunk(_ context.Context, sessionID int64,
 			return &chunk, nil
 		}
 	}
-	return nil, database.ErrNotFound
+	return nil, ports.ErrNotFound
 }
 
 func (r *memoryAPIRepo) FindMediaUploadSessionByHash(_ context.Context, fileHash string, fileName string, categoryID int64, uploadedBy int64) (*model.MediaUploadSession, error) {
@@ -1212,7 +1232,7 @@ func (r *memoryAPIRepo) FindMediaUploadSessionByHash(_ context.Context, fileHash
 		}
 	}
 	if found == nil {
-		return nil, database.ErrNotFound
+		return nil, ports.ErrNotFound
 	}
 	return found, nil
 }
@@ -1220,7 +1240,7 @@ func (r *memoryAPIRepo) FindMediaUploadSessionByHash(_ context.Context, fileHash
 func (r *memoryAPIRepo) FindMediaUploadSessionByID(_ context.Context, id int64) (*model.MediaUploadSession, error) {
 	session, ok := r.mediaSessions[id]
 	if !ok || session.DeletedAt != nil {
-		return nil, database.ErrNotFound
+		return nil, ports.ErrNotFound
 	}
 	return &session, nil
 }
@@ -1228,7 +1248,7 @@ func (r *memoryAPIRepo) FindMediaUploadSessionByID(_ context.Context, id int64) 
 func (r *memoryAPIRepo) FindParameterByID(_ context.Context, id int64) (*model.Parameter, error) {
 	parameter, ok := r.parameters[id]
 	if !ok || parameter.DeletedAt != nil {
-		return nil, database.ErrNotFound
+		return nil, ports.ErrNotFound
 	}
 	return &parameter, nil
 }
@@ -1239,13 +1259,13 @@ func (r *memoryAPIRepo) FindParameterByKey(_ context.Context, key string) (*mode
 			return &parameter, nil
 		}
 	}
-	return nil, database.ErrNotFound
+	return nil, ports.ErrNotFound
 }
 
 func (r *memoryAPIRepo) FindVersionByID(_ context.Context, id int64) (*model.Version, error) {
 	version, ok := r.versions[id]
 	if !ok || version.DeletedAt != nil {
-		return nil, database.ErrNotFound
+		return nil, ports.ErrNotFound
 	}
 	return &version, nil
 }
@@ -1525,7 +1545,7 @@ func (r *memoryAPIRepo) SaveAPI(_ context.Context, api *model.APIRecord) error {
 
 func (r *memoryAPIRepo) SaveDictionary(_ context.Context, dictionary *model.Dictionary) error {
 	if _, ok := r.dictionaries[dictionary.ID]; !ok {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	r.dictionaries[dictionary.ID] = *dictionary
 	return nil
@@ -1533,7 +1553,7 @@ func (r *memoryAPIRepo) SaveDictionary(_ context.Context, dictionary *model.Dict
 
 func (r *memoryAPIRepo) SaveDictionaryItem(_ context.Context, item *model.DictionaryItem) error {
 	if _, ok := r.items[item.ID]; !ok {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	r.items[item.ID] = *item
 	return nil
@@ -1541,7 +1561,7 @@ func (r *memoryAPIRepo) SaveDictionaryItem(_ context.Context, item *model.Dictio
 
 func (r *memoryAPIRepo) SaveMediaAsset(_ context.Context, asset *model.MediaAsset) error {
 	if _, ok := r.mediaAssets[asset.ID]; !ok {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	r.mediaAssets[asset.ID] = *asset
 	return nil
@@ -1549,7 +1569,7 @@ func (r *memoryAPIRepo) SaveMediaAsset(_ context.Context, asset *model.MediaAsse
 
 func (r *memoryAPIRepo) SaveMediaCategory(_ context.Context, category *model.MediaCategory) error {
 	if _, ok := r.mediaCategories[category.ID]; !ok {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	r.mediaCategories[category.ID] = *category
 	return nil
@@ -1557,7 +1577,7 @@ func (r *memoryAPIRepo) SaveMediaCategory(_ context.Context, category *model.Med
 
 func (r *memoryAPIRepo) SaveMediaUploadChunk(_ context.Context, chunk *model.MediaUploadChunk) error {
 	if _, ok := r.mediaChunks[chunk.ID]; !ok {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	r.mediaChunks[chunk.ID] = *chunk
 	return nil
@@ -1565,7 +1585,7 @@ func (r *memoryAPIRepo) SaveMediaUploadChunk(_ context.Context, chunk *model.Med
 
 func (r *memoryAPIRepo) SaveMediaUploadSession(_ context.Context, session *model.MediaUploadSession) error {
 	if _, ok := r.mediaSessions[session.ID]; !ok {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	r.mediaSessions[session.ID] = *session
 	return nil
@@ -1573,7 +1593,7 @@ func (r *memoryAPIRepo) SaveMediaUploadSession(_ context.Context, session *model
 
 func (r *memoryAPIRepo) SaveParameter(_ context.Context, parameter *model.Parameter) error {
 	if _, ok := r.parameters[parameter.ID]; !ok {
-		return database.ErrNotFound
+		return ports.ErrNotFound
 	}
 	r.parameters[parameter.ID] = *parameter
 	return nil

@@ -15,19 +15,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rei0721/go-scaffold/internal/app/testsupport"
 	iamhandler "github.com/rei0721/go-scaffold/internal/modules/iam/handler"
 	iammodel "github.com/rei0721/go-scaffold/internal/modules/iam/model"
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
 	systemhandler "github.com/rei0721/go-scaffold/internal/modules/system/handler"
 	systemmodel "github.com/rei0721/go-scaffold/internal/modules/system/model"
 	systemservice "github.com/rei0721/go-scaffold/internal/modules/system/service"
-	"github.com/rei0721/go-scaffold/pkg/database"
+	"github.com/rei0721/go-scaffold/internal/ports"
 	"github.com/rei0721/go-scaffold/pkg/web"
 	apperrors "github.com/rei0721/go-scaffold/types/errors"
 )
 
 type fakeDatabase struct {
-	database.Database
+	ports.Database
 	pingErr error
 }
 
@@ -42,10 +43,6 @@ func (db *fakeDatabase) Ping(context.Context) error {
 }
 
 // Reload 实现测试桩的配置重载入口，用于验证调用路径而不触发真实资源替换。
-func (db *fakeDatabase) Reload(*database.Config) error {
-	return nil
-}
-
 type routerResponse struct {
 	Code    int            `json:"code"`
 	Message string         `json:"message"`
@@ -264,7 +261,7 @@ func TestNewRouterHealthEndpoint(t *testing.T) {
 func TestNewRouterReadyEndpoint(t *testing.T) {
 	tests := []struct {
 		name           string
-		db             database.Database
+		db             ports.Database
 		wantHTTPStatus int
 		wantCode       int
 		wantMessage    string
@@ -974,10 +971,18 @@ func TestNewRouterServesAdminWebUIAfterLateStaticGeneration(t *testing.T) {
 
 // newTestRouter 构造当前测试场景所需的最小依赖集合，避免测试直接耦合生产装配流程。
 func newTestRouter(deps RouterDeps) *web.Engine {
-	if deps.Mode == "" {
-		deps.Mode = "test"
+	engine, router := testsupport.HTTPRouter("test")
+	if deps.Router == nil {
+		deps.Router = router
 	}
-	return NewRouter(deps)
+	if deps.RouteLister == nil {
+		deps.RouteLister = router
+	}
+	if deps.StaticSPA == nil {
+		deps.StaticSPA = router
+	}
+	NewRouter(deps)
+	return engine
 }
 
 func newAdminWebUIDist(t *testing.T) string {

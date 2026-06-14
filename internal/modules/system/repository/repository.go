@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/rei0721/go-scaffold/internal/modules/system/model"
-	"github.com/rei0721/go-scaffold/pkg/database"
+	database "github.com/rei0721/go-scaffold/internal/ports"
 )
 
 type Repository interface {

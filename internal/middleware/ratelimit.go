@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rei0721/go-scaffold/pkg/web"
+	"github.com/rei0721/go-scaffold/internal/ports"
 	apperrors "github.com/rei0721/go-scaffold/types/errors"
 	"github.com/rei0721/go-scaffold/types/result"
 )
@@ -24,9 +24,9 @@ type rateLimitWindow struct {
 }
 
 // RateLimit 使用客户端 IP、方法和路径作为限流键。
-func RateLimit(cfg RateLimitConfig) web.HandlerFunc {
+func RateLimit(cfg RateLimitConfig) ports.HTTPHandlerFunc {
 	if !cfg.Enabled {
-		return func(c web.Context) {
+		return func(c ports.HTTPContext) {
 			c.Next()
 		}
 	}
@@ -40,7 +40,7 @@ func RateLimit(cfg RateLimitConfig) web.HandlerFunc {
 	var mu sync.Mutex
 	windows := map[string]rateLimitWindow{}
 
-	return func(c web.Context) {
+	return func(c ports.HTTPContext) {
 		now := time.Now()
 		key := c.ClientIP() + "|" + c.Method() + "|" + c.Path()
 

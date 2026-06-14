@@ -4,9 +4,6 @@ import (
 	"context"
 	"net/http"
 	"testing"
-
-	"github.com/rei0721/go-scaffold/pkg/logger"
-	"github.com/rei0721/go-scaffold/pkg/utils"
 )
 
 func TestRealIP(t *testing.T) {
@@ -80,7 +77,7 @@ func TestRealIP(t *testing.T) {
 				clientIP: tt.clientIP,
 			}
 
-			if got := utils.ClientIPRealIP(ctx); got != tt.want {
+			if got := ClientIPRealIP(ctx); got != tt.want {
 				t.Fatalf("realIP() = %q, want %q", got, tt.want)
 			}
 		})
@@ -181,10 +178,4 @@ func (l *capturingLogger) Info(msg string, keysAndValues ...interface{}) {
 func (l *capturingLogger) Warn(string, ...interface{})  {}
 func (l *capturingLogger) Error(string, ...interface{}) {}
 func (l *capturingLogger) Fatal(string, ...interface{}) {}
-func (l *capturingLogger) With(...interface{}) logger.Logger {
-	return l
-}
-func (l *capturingLogger) Sync() error { return nil }
-func (l *capturingLogger) Reload(*logger.Config) error {
-	return nil
-}
+func (l *capturingLogger) Sync() error                  { return nil }

@@ -13,15 +13,14 @@ import (
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
 	"github.com/rei0721/go-scaffold/internal/modules/system/model"
 	"github.com/rei0721/go-scaffold/internal/modules/system/service"
-	"github.com/rei0721/go-scaffold/pkg/logger"
-	"github.com/rei0721/go-scaffold/pkg/web"
+	"github.com/rei0721/go-scaffold/internal/ports"
 	"github.com/rei0721/go-scaffold/types/result"
 )
 
 type Handler struct {
 	service    service.Service
 	authorizer middleware.Authorizer
-	logger     logger.Logger
+	logger     ports.Logger
 }
 
 type createDictionaryRequest struct {
@@ -140,11 +139,11 @@ type mediaResumableSessionRequest struct {
 
 type systemID int64
 
-func New(service service.Service, authorizer middleware.Authorizer, logger logger.Logger) *Handler {
+func New(service service.Service, authorizer middleware.Authorizer, logger ports.Logger) *Handler {
 	return &Handler{service: service, authorizer: authorizer, logger: logger}
 }
 
-func (h *Handler) ListMenus(c web.Context) {
+func (h *Handler) ListMenus(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -157,7 +156,7 @@ func (h *Handler) ListMenus(c web.Context) {
 	result.OK(c, h.filterMenus(c.RequestContext(), principal, groups))
 }
 
-func (h *Handler) ListAPIs(c web.Context) {
+func (h *Handler) ListAPIs(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -169,7 +168,7 @@ func (h *Handler) ListAPIs(c web.Context) {
 	result.OK(c, groups)
 }
 
-func (h *Handler) ListConfig(c web.Context) {
+func (h *Handler) ListConfig(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -177,7 +176,7 @@ func (h *Handler) ListConfig(c web.Context) {
 	writeOK(c, snapshot, err, h.writeError)
 }
 
-func (h *Handler) UpdateConfig(c web.Context) {
+func (h *Handler) UpdateConfig(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -196,7 +195,7 @@ func (h *Handler) UpdateConfig(c web.Context) {
 	writeOK(c, snapshot, err, h.writeError)
 }
 
-func (h *Handler) GetServerInfo(c web.Context) {
+func (h *Handler) GetServerInfo(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -204,7 +203,7 @@ func (h *Handler) GetServerInfo(c web.Context) {
 	writeOK(c, info, err, h.writeError)
 }
 
-func (h *Handler) SyncAPIs(c web.Context) {
+func (h *Handler) SyncAPIs(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -216,7 +215,7 @@ func (h *Handler) SyncAPIs(c web.Context) {
 	result.OK(c, syncResult)
 }
 
-func (h *Handler) SyncPermissions(c web.Context) {
+func (h *Handler) SyncPermissions(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -228,7 +227,7 @@ func (h *Handler) SyncPermissions(c web.Context) {
 	result.OK(c, syncResult)
 }
 
-func (h *Handler) ListDictionaries(c web.Context) {
+func (h *Handler) ListDictionaries(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -236,7 +235,7 @@ func (h *Handler) ListDictionaries(c web.Context) {
 	writeOK(c, catalog, err, h.writeError)
 }
 
-func (h *Handler) CreateDictionary(c web.Context) {
+func (h *Handler) CreateDictionary(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -253,7 +252,7 @@ func (h *Handler) CreateDictionary(c web.Context) {
 	writeCreated(c, dictionary, err, h.writeError)
 }
 
-func (h *Handler) UpdateDictionary(c web.Context) {
+func (h *Handler) UpdateDictionary(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -273,7 +272,7 @@ func (h *Handler) UpdateDictionary(c web.Context) {
 	writeOK(c, dictionary, err, h.writeError)
 }
 
-func (h *Handler) DeleteDictionary(c web.Context) {
+func (h *Handler) DeleteDictionary(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -284,7 +283,7 @@ func (h *Handler) DeleteDictionary(c web.Context) {
 	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteDictionary(c.RequestContext(), id), h.writeError)
 }
 
-func (h *Handler) CreateDictionaryItem(c web.Context) {
+func (h *Handler) CreateDictionaryItem(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -306,7 +305,7 @@ func (h *Handler) CreateDictionaryItem(c web.Context) {
 	writeCreated(c, item, err, h.writeError)
 }
 
-func (h *Handler) UpdateDictionaryItem(c web.Context) {
+func (h *Handler) UpdateDictionaryItem(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -328,7 +327,7 @@ func (h *Handler) UpdateDictionaryItem(c web.Context) {
 	writeOK(c, item, err, h.writeError)
 }
 
-func (h *Handler) DeleteDictionaryItem(c web.Context) {
+func (h *Handler) DeleteDictionaryItem(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -339,7 +338,7 @@ func (h *Handler) DeleteDictionaryItem(c web.Context) {
 	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteDictionaryItem(c.RequestContext(), id), h.writeError)
 }
 
-func (h *Handler) ListOperationRecords(c web.Context) {
+func (h *Handler) ListOperationRecords(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -367,7 +366,7 @@ func (h *Handler) ListOperationRecords(c web.Context) {
 	writeOK(c, records, err, h.writeError)
 }
 
-func (h *Handler) DeleteOperationRecords(c web.Context) {
+func (h *Handler) DeleteOperationRecords(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -378,7 +377,7 @@ func (h *Handler) DeleteOperationRecords(c web.Context) {
 	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteOperationRecords(c.RequestContext(), req.int64s()), h.writeError)
 }
 
-func (h *Handler) ListParameters(c web.Context) {
+func (h *Handler) ListParameters(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -410,7 +409,7 @@ func (h *Handler) ListParameters(c web.Context) {
 	writeOK(c, parameters, err, h.writeError)
 }
 
-func (h *Handler) CreateParameter(c web.Context) {
+func (h *Handler) CreateParameter(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -427,7 +426,7 @@ func (h *Handler) CreateParameter(c web.Context) {
 	writeCreated(c, parameter, err, h.writeError)
 }
 
-func (h *Handler) GetParameter(c web.Context) {
+func (h *Handler) GetParameter(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -439,7 +438,7 @@ func (h *Handler) GetParameter(c web.Context) {
 	writeOK(c, parameter, err, h.writeError)
 }
 
-func (h *Handler) GetParameterByKey(c web.Context) {
+func (h *Handler) GetParameterByKey(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -447,7 +446,7 @@ func (h *Handler) GetParameterByKey(c web.Context) {
 	writeOK(c, parameter, err, h.writeError)
 }
 
-func (h *Handler) UpdateParameter(c web.Context) {
+func (h *Handler) UpdateParameter(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -468,7 +467,7 @@ func (h *Handler) UpdateParameter(c web.Context) {
 	writeOK(c, parameter, err, h.writeError)
 }
 
-func (h *Handler) DeleteParameter(c web.Context) {
+func (h *Handler) DeleteParameter(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -479,7 +478,7 @@ func (h *Handler) DeleteParameter(c web.Context) {
 	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteParameter(c.RequestContext(), id), h.writeError)
 }
 
-func (h *Handler) DeleteParameters(c web.Context) {
+func (h *Handler) DeleteParameters(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -490,7 +489,7 @@ func (h *Handler) DeleteParameters(c web.Context) {
 	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteParameters(c.RequestContext(), req.int64s()), h.writeError)
 }
 
-func (h *Handler) ListVersionSources(c web.Context) {
+func (h *Handler) ListVersionSources(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -498,7 +497,7 @@ func (h *Handler) ListVersionSources(c web.Context) {
 	writeOK(c, sources, err, h.writeError)
 }
 
-func (h *Handler) ListVersions(c web.Context) {
+func (h *Handler) ListVersions(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -530,7 +529,7 @@ func (h *Handler) ListVersions(c web.Context) {
 	writeOK(c, versions, err, h.writeError)
 }
 
-func (h *Handler) GetVersion(c web.Context) {
+func (h *Handler) GetVersion(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -542,7 +541,7 @@ func (h *Handler) GetVersion(c web.Context) {
 	writeOK(c, version, err, h.writeError)
 }
 
-func (h *Handler) ExportVersion(c web.Context) {
+func (h *Handler) ExportVersion(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -564,7 +563,7 @@ func (h *Handler) ExportVersion(c web.Context) {
 	writeCreated(c, version, err, h.writeError)
 }
 
-func (h *Handler) ImportVersion(c web.Context) {
+func (h *Handler) ImportVersion(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -581,7 +580,7 @@ func (h *Handler) ImportVersion(c web.Context) {
 	writeCreated(c, importResult, err, h.writeError)
 }
 
-func (h *Handler) DownloadVersion(c web.Context) {
+func (h *Handler) DownloadVersion(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -598,7 +597,7 @@ func (h *Handler) DownloadVersion(c web.Context) {
 	result.OK(c, pkg)
 }
 
-func (h *Handler) DeleteVersion(c web.Context) {
+func (h *Handler) DeleteVersion(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -609,7 +608,7 @@ func (h *Handler) DeleteVersion(c web.Context) {
 	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteVersion(c.RequestContext(), id), h.writeError)
 }
 
-func (h *Handler) DeleteVersions(c web.Context) {
+func (h *Handler) DeleteVersions(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -620,7 +619,7 @@ func (h *Handler) DeleteVersions(c web.Context) {
 	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteVersions(c.RequestContext(), req.int64s()), h.writeError)
 }
 
-func (h *Handler) ListMediaCategories(c web.Context) {
+func (h *Handler) ListMediaCategories(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -628,7 +627,7 @@ func (h *Handler) ListMediaCategories(c web.Context) {
 	writeOK(c, catalog, err, h.writeError)
 }
 
-func (h *Handler) UpsertMediaCategory(c web.Context) {
+func (h *Handler) UpsertMediaCategory(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -649,7 +648,7 @@ func (h *Handler) UpsertMediaCategory(c web.Context) {
 	writeCreated(c, category, err, h.writeError)
 }
 
-func (h *Handler) DeleteMediaCategory(c web.Context) {
+func (h *Handler) DeleteMediaCategory(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -660,7 +659,7 @@ func (h *Handler) DeleteMediaCategory(c web.Context) {
 	writeOK(c, map[string]bool{"deleted": true}, h.service.DeleteMediaCategory(c.RequestContext(), id), h.writeError)
 }
 
-func (h *Handler) ListMediaAssets(c web.Context) {
+func (h *Handler) ListMediaAssets(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -686,7 +685,7 @@ func (h *Handler) ListMediaAssets(c web.Context) {
 	writeOK(c, assets, err, h.writeError)
 }
 
-func (h *Handler) UploadMediaAsset(c web.Context) {
+func (h *Handler) UploadMediaAsset(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -717,7 +716,7 @@ func (h *Handler) UploadMediaAsset(c web.Context) {
 	writeCreated(c, asset, err, h.writeError)
 }
 
-func (h *Handler) CheckMediaResumableUpload(c web.Context) {
+func (h *Handler) CheckMediaResumableUpload(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -739,7 +738,7 @@ func (h *Handler) CheckMediaResumableUpload(c web.Context) {
 	writeOK(c, check, err, h.writeError)
 }
 
-func (h *Handler) UploadMediaChunk(c web.Context) {
+func (h *Handler) UploadMediaChunk(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -784,7 +783,7 @@ func (h *Handler) UploadMediaChunk(c web.Context) {
 	writeCreated(c, chunk, err, h.writeError)
 }
 
-func (h *Handler) CompleteMediaResumableUpload(c web.Context) {
+func (h *Handler) CompleteMediaResumableUpload(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -801,7 +800,7 @@ func (h *Handler) CompleteMediaResumableUpload(c web.Context) {
 	writeCreated(c, complete, err, h.writeError)
 }
 
-func (h *Handler) AbortMediaResumableUpload(c web.Context) {
+func (h *Handler) AbortMediaResumableUpload(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -818,7 +817,7 @@ func (h *Handler) AbortMediaResumableUpload(c web.Context) {
 	writeOK(c, abort, err, h.writeError)
 }
 
-func (h *Handler) ImportMediaURLs(c web.Context) {
+func (h *Handler) ImportMediaURLs(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -836,7 +835,7 @@ func (h *Handler) ImportMediaURLs(c web.Context) {
 	writeCreated(c, importResult, err, h.writeError)
 }
 
-func (h *Handler) UpdateMediaAsset(c web.Context) {
+func (h *Handler) UpdateMediaAsset(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -852,7 +851,7 @@ func (h *Handler) UpdateMediaAsset(c web.Context) {
 	writeOK(c, asset, err, h.writeError)
 }
 
-func (h *Handler) DownloadMediaAsset(c web.Context) {
+func (h *Handler) DownloadMediaAsset(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -870,7 +869,7 @@ func (h *Handler) DownloadMediaAsset(c web.Context) {
 	c.Data(http.StatusOK, download.ContentType, download.Data)
 }
 
-func (h *Handler) DeleteMediaAsset(c web.Context) {
+func (h *Handler) DeleteMediaAsset(c ports.HTTPContext) {
 	if _, ok := requirePrincipal(c); !ok {
 		return
 	}
@@ -919,7 +918,7 @@ func (h *Handler) allowed(ctx context.Context, principal iamservice.Principal, p
 	return err == nil && allowed
 }
 
-func (h *Handler) writeError(c web.Context, err error) {
+func (h *Handler) writeError(c ports.HTTPContext, err error) {
 	switch {
 	case errors.Is(err, context.Canceled):
 		result.Fail(c, http.StatusRequestTimeout, "request canceled")
@@ -937,7 +936,7 @@ func (h *Handler) writeError(c web.Context, err error) {
 	}
 }
 
-func requirePrincipal(c web.Context) (iamservice.Principal, bool) {
+func requirePrincipal(c ports.HTTPContext) (iamservice.Principal, bool) {
 	principal, ok := middleware.GetPrincipal(c)
 	if !ok {
 		result.Unauthorized(c, "missing principal")
@@ -946,7 +945,7 @@ func requirePrincipal(c web.Context) (iamservice.Principal, bool) {
 	return principal, true
 }
 
-func bind(c web.Context, dest any) bool {
+func bind(c ports.HTTPContext, dest any) bool {
 	if err := c.BindJSON(dest); err != nil {
 		result.BadRequest(c, err.Error())
 		return false
@@ -954,7 +953,7 @@ func bind(c web.Context, dest any) bool {
 	return true
 }
 
-func parseInt64Param(c web.Context, name string) (int64, bool) {
+func parseInt64Param(c ports.HTTPContext, name string) (int64, bool) {
 	id, err := strconv.ParseInt(c.Param(name), 10, 64)
 	if err != nil || id <= 0 {
 		result.BadRequest(c, "invalid "+name)
@@ -963,7 +962,7 @@ func parseInt64Param(c web.Context, name string) (int64, bool) {
 	return id, true
 }
 
-func parseIntQuery(c web.Context, name string, fallback int) (int, bool) {
+func parseIntQuery(c ports.HTTPContext, name string, fallback int) (int, bool) {
 	raw := strings.TrimSpace(c.Request().URL.Query().Get(name))
 	if raw == "" {
 		return fallback, true
@@ -976,7 +975,7 @@ func parseIntQuery(c web.Context, name string, fallback int) (int, bool) {
 	return value, true
 }
 
-func parseInt64Query(c web.Context, name string, fallback int64) (int64, bool) {
+func parseInt64Query(c ports.HTTPContext, name string, fallback int64) (int64, bool) {
 	raw := strings.TrimSpace(c.Request().URL.Query().Get(name))
 	if raw == "" {
 		return fallback, true
@@ -989,7 +988,7 @@ func parseInt64Query(c web.Context, name string, fallback int64) (int64, bool) {
 	return value, true
 }
 
-func parseInt64Form(c web.Context, name string, fallback int64) (int64, bool) {
+func parseInt64Form(c ports.HTTPContext, name string, fallback int64) (int64, bool) {
 	raw := strings.TrimSpace(c.Request().FormValue(name))
 	if raw == "" {
 		return fallback, true
@@ -1002,7 +1001,7 @@ func parseInt64Form(c web.Context, name string, fallback int64) (int64, bool) {
 	return value, true
 }
 
-func parseIntForm(c web.Context, name string, fallback int) (int, bool) {
+func parseIntForm(c ports.HTTPContext, name string, fallback int) (int, bool) {
 	raw := strings.TrimSpace(c.Request().FormValue(name))
 	if raw == "" {
 		return fallback, true
@@ -1015,7 +1014,7 @@ func parseIntForm(c web.Context, name string, fallback int) (int, bool) {
 	return value, true
 }
 
-func parseTimeQuery(c web.Context, name string, endExclusive bool) (*time.Time, bool) {
+func parseTimeQuery(c ports.HTTPContext, name string, endExclusive bool) (*time.Time, bool) {
 	raw := strings.TrimSpace(c.Request().URL.Query().Get(name))
 	if raw == "" {
 		return nil, true
@@ -1102,7 +1101,7 @@ func (id *systemID) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-func writeOK(c web.Context, data any, err error, writeError func(web.Context, error)) {
+func writeOK(c ports.HTTPContext, data any, err error, writeError func(ports.HTTPContext, error)) {
 	if err != nil {
 		writeError(c, err)
 		return
@@ -1110,7 +1109,7 @@ func writeOK(c web.Context, data any, err error, writeError func(web.Context, er
 	result.OK(c, data)
 }
 
-func writeCreated(c web.Context, data any, err error, writeError func(web.Context, error)) {
+func writeCreated(c ports.HTTPContext, data any, err error, writeError func(ports.HTTPContext, error)) {
 	if err != nil {
 		writeError(c, err)
 		return

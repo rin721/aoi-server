@@ -257,13 +257,17 @@ func TestWebInitialSetupRunsSharedInitialization(t *testing.T) {
 		t.Fatalf("setup status HTTP status = %d, body=%s", statusRecorder.Code, statusRecorder.Body.String())
 	}
 	var statusBody appAPIResponse[struct {
-		Required bool `json:"required"`
+		Required       bool                      `json:"required"`
+		PasswordPolicy iamservice.PasswordPolicy `json:"passwordPolicy"`
 	}]
 	if err := json.Unmarshal(statusRecorder.Body.Bytes(), &statusBody); err != nil {
 		t.Fatalf("decode setup status: %v", err)
 	}
 	if !statusBody.Data.Required {
 		t.Fatalf("setup status required = false, want true: %#v", statusBody)
+	}
+	if statusBody.Data.PasswordPolicy.MinLength != 8 {
+		t.Fatalf("setup status password min length = %d, want 8: %#v", statusBody.Data.PasswordPolicy.MinLength, statusBody.Data.PasswordPolicy)
 	}
 
 	setupBody := `{"orgCode":"acme","orgName":"Acme Corp","username":"admin","displayName":"Admin","email":"admin@example.com","password":"password123"}`

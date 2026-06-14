@@ -5,8 +5,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/rei0721/go-scaffold/pkg/logger"
-	"github.com/rei0721/go-scaffold/pkg/web"
+	"github.com/rei0721/go-scaffold/internal/ports"
 	"github.com/rei0721/go-scaffold/types/errors"
 	"github.com/rei0721/go-scaffold/types/result"
 )
@@ -22,8 +21,8 @@ import (
 // - 处理意外的运行时错误(nil 指针、数组越界等)
 // - 防止第三方库的 panic 导致整个服务崩溃
 // - 在生产环境中必须使用,确保服务的高可用性
-func Recovery(cfg RecoveryConfig, log logger.Logger) web.HandlerFunc {
-	return func(c web.Context) {
+func Recovery(cfg RecoveryConfig, log ports.Logger) ports.HTTPHandlerFunc {
+	return func(c ports.HTTPContext) {
 		// 检查中间件是否启用
 		// 在测试环境可能需要禁用以便 panic 能够直接暴露
 		if !cfg.Enabled {
@@ -47,12 +46,14 @@ func Recovery(cfg RecoveryConfig, log logger.Logger) web.HandlerFunc {
 				// - path: 发生错误的请求路径
 				// - method: HTTP 方法
 				// - traceId: 请求追踪 ID
-				log.Error("panic recovered",
-					"error", err,
-					"path", c.Path(),
-					"method", c.Method(),
-					"traceId", traceID,
-				)
+				if log != nil {
+					log.Error("panic recovered",
+						"error", err,
+						"path", c.Path(),
+						"method", c.Method(),
+						"traceId", traceID,
+					)
+				}
 
 				// 返回 500 错误给客户端
 				// AbortWithStatusJSON 会立即返回响应并停止后续中间件执行

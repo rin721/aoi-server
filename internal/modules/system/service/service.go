@@ -6,15 +6,14 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/rei0721/go-scaffold/internal/modules/system/model"
 	"github.com/rei0721/go-scaffold/internal/modules/system/repository"
-	"github.com/rei0721/go-scaffold/pkg/database"
-	"github.com/rei0721/go-scaffold/pkg/hostmetrics"
-	"github.com/rei0721/go-scaffold/pkg/utils"
+	"github.com/rei0721/go-scaffold/internal/ports"
 )
 
 type Config struct {
@@ -182,7 +181,8 @@ var (
 
 type service struct {
 	cfg             Config
-	ids             utils.IDGenerator
+	ids             ports.IDGenerator
+	hostMetrics     ports.HostMetricsCollector
 	mu              sync.RWMutex
 	apis            []model.APIEntry
 	objectStore     MediaObjectStorage
@@ -196,9 +196,15 @@ func WithRepository(repo repository.Repository) Option {
 	}
 }
 
-func WithIDGenerator(ids utils.IDGenerator) Option {
+func WithIDGenerator(ids ports.IDGenerator) Option {
 	return func(s *service) {
 		s.ids = ids
+	}
+}
+
+func WithHostMetrics(collector ports.HostMetricsCollector) Option {
+	return func(s *service) {
+		s.hostMetrics = collector
 	}
 }
 
@@ -220,7 +226,10 @@ func New(cfg Config, options ...Option) Service {
 		option(s)
 	}
 	if s.ids == nil {
-		s.ids = utils.DefaultSnowflake()
+		s.ids = &sequentialIDGenerator{}
+	}
+	if s.hostMetrics == nil {
+		s.hostMetrics = noopHostMetricsCollector{}
 	}
 	if strings.TrimSpace(s.cfg.MediaPrefix) == "" {
 		s.cfg.MediaPrefix = "media"
@@ -229,6 +238,28 @@ func New(cfg Config, options ...Option) Service {
 		s.cfg.MediaMaxBytes = 20 * 1024 * 1024
 	}
 	return s
+}
+
+type sequentialIDGenerator struct {
+	mu   sync.Mutex
+	next int64
+}
+
+func (g *sequentialIDGenerator) NextID() int64 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.next++
+	return g.next
+}
+
+func (g *sequentialIDGenerator) NextIDString() string {
+	return strconv.FormatInt(g.NextID(), 10)
+}
+
+type noopHostMetricsCollector struct{}
+
+func (noopHostMetricsCollector) Collect(context.Context) ports.HostMetrics {
+	return ports.HostMetrics{}
 }
 
 func (s *service) ListMenus(context.Context) ([]model.MenuGroup, error) {
@@ -289,7 +320,7 @@ func (s *service) GetServerInfo(ctx context.Context) (model.ServerInfo, error) {
 	var stats runtime.MemStats
 	runtime.ReadMemStats(&stats)
 
-	host := hostmetrics.Collect(ctx)
+	host := s.hostMetrics.Collect(ctx)
 
 	info := model.ServerInfo{
 		Build: buildInfo(),
@@ -379,7 +410,7 @@ func (s *service) CreateDictionary(ctx context.Context, input CreateDictionaryIn
 	}
 	if _, err := s.repo.FindDictionaryByCode(ctx, code); err == nil {
 		return nil, ErrDuplicate
-	} else if !errors.Is(err, database.ErrNotFound) {
+	} else if !errors.Is(err, ports.ErrNotFound) {
 		if repository.IsStorageUnavailable(err) {
 			return nil, ErrStorageUnavailable
 		}
@@ -599,7 +630,7 @@ func (s *service) CreateParameter(ctx context.Context, input CreateParameterInpu
 	}
 	if _, err := s.repo.FindParameterByKey(ctx, key); err == nil {
 		return nil, ErrDuplicate
-	} else if !errors.Is(err, database.ErrNotFound) {
+	} else if !errors.Is(err, ports.ErrNotFound) {
 		return nil, mapParameterLookupError(err)
 	}
 	now := s.now()
@@ -646,7 +677,7 @@ func (s *service) UpdateParameter(ctx context.Context, id int64, input UpdatePar
 			if err == nil && existing.ID != parameter.ID {
 				return nil, ErrDuplicate
 			}
-			if err != nil && !errors.Is(err, database.ErrNotFound) {
+			if err != nil && !errors.Is(err, ports.ErrNotFound) {
 				return nil, mapParameterLookupError(err)
 			}
 		}
@@ -1226,7 +1257,7 @@ func normalizeDictionaryStatus(value string) (string, error) {
 
 func mapDictionaryLookupError(err error) error {
 	switch {
-	case errors.Is(err, database.ErrNotFound):
+	case errors.Is(err, ports.ErrNotFound):
 		return ErrNotFound
 	case repository.IsStorageUnavailable(err):
 		return ErrStorageUnavailable
@@ -1237,7 +1268,7 @@ func mapDictionaryLookupError(err error) error {
 
 func mapParameterLookupError(err error) error {
 	switch {
-	case errors.Is(err, database.ErrNotFound):
+	case errors.Is(err, ports.ErrNotFound):
 		return ErrNotFound
 	case repository.IsStorageUnavailable(err):
 		return ErrStorageUnavailable
@@ -1396,14 +1427,14 @@ func bytesToMB(value uint64) uint64 {
 	return value / bytesPerMB
 }
 
-func mapServerCPU(src hostmetrics.CPUInfo) model.ServerCPUInfo {
+func mapServerCPU(src ports.CPUInfo) model.ServerCPUInfo {
 	return model.ServerCPUInfo{
 		Cores:   src.Cores,
 		Percent: append([]float64(nil), src.Percent...),
 	}
 }
 
-func mapServerRAM(src hostmetrics.RAMInfo) model.ServerRAMInfo {
+func mapServerRAM(src ports.RAMInfo) model.ServerRAMInfo {
 	return model.ServerRAMInfo{
 		TotalMB:     src.TotalMB,
 		UsedMB:      src.UsedMB,
@@ -1411,7 +1442,7 @@ func mapServerRAM(src hostmetrics.RAMInfo) model.ServerRAMInfo {
 	}
 }
 
-func mapServerDisks(src []hostmetrics.DiskInfo) []model.ServerDiskInfo {
+func mapServerDisks(src []ports.DiskInfo) []model.ServerDiskInfo {
 	out := make([]model.ServerDiskInfo, 0, len(src))
 	for _, item := range src {
 		out = append(out, model.ServerDiskInfo{

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
-	"github.com/rei0721/go-scaffold/pkg/web"
+	"github.com/rei0721/go-scaffold/internal/ports"
 	apperrors "github.com/rei0721/go-scaffold/types/errors"
 	"github.com/rei0721/go-scaffold/types/result"
 )
@@ -22,8 +22,8 @@ type Authorizer interface {
 	Authorize(context.Context, iamservice.Principal, string, string) (bool, error)
 }
 
-func Auth(authenticator Authenticator) web.HandlerFunc {
-	return func(c web.Context) {
+func Auth(authenticator Authenticator) ports.HTTPHandlerFunc {
+	return func(c ports.HTTPContext) {
 		if authenticator == nil {
 			abort(c, http.StatusUnauthorized, apperrors.ErrUnauthorized, "authentication unavailable")
 			return
@@ -43,8 +43,8 @@ func Auth(authenticator Authenticator) web.HandlerFunc {
 	}
 }
 
-func RequirePermission(authorizer Authorizer, obj, act string, next web.HandlerFunc) web.HandlerFunc {
-	return func(c web.Context) {
+func RequirePermission(authorizer Authorizer, obj, act string, next ports.HTTPHandlerFunc) ports.HTTPHandlerFunc {
+	return func(c ports.HTTPContext) {
 		if authorizer == nil {
 			abort(c, http.StatusForbidden, apperrors.ErrPermissionDenied, "authorization unavailable")
 			return
@@ -63,8 +63,8 @@ func RequirePermission(authorizer Authorizer, obj, act string, next web.HandlerF
 	}
 }
 
-func RequireOrgParam(param string, next web.HandlerFunc) web.HandlerFunc {
-	return func(c web.Context) {
+func RequireOrgParam(param string, next ports.HTTPHandlerFunc) ports.HTTPHandlerFunc {
+	return func(c ports.HTTPContext) {
 		principal, ok := GetPrincipal(c)
 		if !ok {
 			abort(c, http.StatusUnauthorized, apperrors.ErrUnauthorized, "missing principal")
@@ -79,7 +79,7 @@ func RequireOrgParam(param string, next web.HandlerFunc) web.HandlerFunc {
 	}
 }
 
-func GetPrincipal(c web.Context) (iamservice.Principal, bool) {
+func GetPrincipal(c ports.HTTPContext) (iamservice.Principal, bool) {
 	value, ok := c.Get(PrincipalKey)
 	if !ok {
 		return iamservice.Principal{}, false
@@ -96,6 +96,6 @@ func bearerToken(header string) string {
 	return parts[1]
 }
 
-func abort(c web.Context, status int, code int, message string) {
+func abort(c ports.HTTPContext, status int, code int, message string) {
 	c.AbortWithStatusJSON(status, result.ErrorWithTrace(code, message, GetTraceID(c)))
 }

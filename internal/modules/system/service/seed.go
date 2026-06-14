@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/rei0721/go-scaffold/internal/modules/system/model"
 	"github.com/rei0721/go-scaffold/internal/modules/system/repository"
-	"github.com/rei0721/go-scaffold/pkg/database"
+	database "github.com/rei0721/go-scaffold/internal/ports"
 )
 
 // SeedResult 描述系统默认数据补齐的执行结果。

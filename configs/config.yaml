@@ -1,83 +1,120 @@
+# 生产部署完整示例。
+# deploy.sh 在宿主机缺少 config.yaml 时会复制本文件；Compose 会把它只读挂载到 /app/configs/config.yaml。
+# 生产敏感值必须通过系统环境变量、CI/CD secrets 或编排平台 secret 注入，不要写入 Git。
+# 环境变量覆盖优先级高于 YAML；本示例大量使用 ${RIN_APP_*} 占位符以便容器运行时注入。
+
 server:
-    # 服务器状态页会自动采集主机 CPU、内存和磁盘指标，无需额外配置。
-    host: 127.0.0.1
-    port: 5000
-    mode: debug
-    read_timeout: 10
-    write_timeout: 10
-    idle_timeout: 30
-webui:
-    # Admin WebUI 静态产物由 web/admin 的 pnpm generate 生成。
-    # mount_path、dist_dir 与 Nuxt NUXT_APP_BASE_URL 需要保持同一部署语义。
-    # Server Status Dashboard 的指标阈值、状态文案和刷新策略位于前端配置，不在示例 YAML 中写死。
-    enabled: true
-    mount_path: /admin
-    dist_dir: ./web/admin/.output/public
-    public_base_url: /admin
-rpc:
-    enabled: true
+    # 容器内通常监听 0.0.0.0，由 Docker/反向代理控制宿主机暴露端口。
     host: 0.0.0.0
-    port: 5099
-    read_timeout: 10
-    write_timeout: 10
-    idle_timeout: 30
+    # 容器内 HTTP 端口；docker-compose.production.example.yml 会将 APP_PORT 映射到该端口。
+    port: ${RIN_APP_SERVER_PORT:9999}
+    # 生产使用 release，减少调试输出并启用 Gin 生产模式。
+    mode: release
+    # HTTP 读取超时时间，单位秒。
+    read_timeout: ${RIN_APP_SERVER_READ_TIMEOUT:10}
+    # HTTP 写入超时时间，单位秒。
+    write_timeout: ${RIN_APP_SERVER_WRITE_TIMEOUT:10}
+    # keep-alive 空闲连接保留时间，单位秒。
+    idle_timeout: ${RIN_APP_SERVER_IDLE_TIMEOUT:30}
+webui:
+    # 是否由 Go 服务托管 Admin WebUI 静态产物。
+    enabled: ${RIN_APP_WEBUI_ENABLED:true}
+    # 后台挂载路径，必须与 Docker 构建时 NUXT_APP_BASE_URL 对齐。
+    mount_path: ${RIN_APP_WEBUI_MOUNT_PATH:/admin}
+    # 镜像内 Nuxt 静态产物目录。
+    dist_dir: ${RIN_APP_WEBUI_DIST_DIR:./web/admin/.output/public}
+    # 对外访问 Admin WebUI 的 base URL，用于邀请和密码重置链接。
+    public_base_url: ${RIN_APP_WEBUI_PUBLIC_BASE_URL:/admin}
+rpc:
+    # 独立 JSON-RPC 入口默认关闭；启用时建议只在内网暴露。
+    enabled: ${RIN_APP_RPC_ENABLED:false}
+    host: ${RIN_APP_RPC_HOST:127.0.0.1}
+    port: ${RIN_APP_RPC_PORT:10099}
+    read_timeout: ${RIN_APP_RPC_READ_TIMEOUT:10}
+    write_timeout: ${RIN_APP_RPC_WRITE_TIMEOUT:10}
+    idle_timeout: ${RIN_APP_RPC_IDLE_TIMEOUT:30}
 plugins:
-    enabled: false
+    # 插件系统默认关闭。启用插件时必须同时保证 auth.enabled=true。
+    enabled: ${RIN_APP_PLUGINS_ENABLED:false}
+    # 多个 manifest 可通过 RIN_APP_PLUGINS_MANIFESTS 逗号分隔覆盖。
     manifests:
-        - ./plugins/demo1/plugin.yaml
-    health_timeout_seconds: 3
-    proxy_timeout_seconds: 30
+        - ${RIN_APP_PLUGINS_MANIFESTS:./plugins/demo1/plugin.yaml}
+    # 生产默认不写内联插件；如需内联插件，请参考 configs/examples/plugins-sidecar.example.yaml。
+    items: []
+    health_timeout_seconds: ${RIN_APP_PLUGINS_HEALTH_TIMEOUT_SECONDS:3}
+    proxy_timeout_seconds: ${RIN_APP_PLUGINS_PROXY_TIMEOUT_SECONDS:30}
 database:
-    # 本地默认使用 SQLite。只有在目标数据库可用时才切换到 mysql/postgres。
-    driver: sqlite
-    dbname: ./data/app.db
+    # 生产建议使用 postgres 或 mysql。SQLite 只适合单机轻量场景。
+    driver: "sqlite"
+    # 网络数据库连接信息。driver 非 sqlite 时 host、port、user、dbname 必填。
+    host: ""
+    port: 0
+    user: ""
+    # 数据库密码必须通过环境变量或 secret 注入。
+    password: ${RIN_APP_DB_PASSWORD}
+    dbname: "./data/app.db"
+    # 连接池大小按数据库容量、应用副本数和接口并发量调整。
     max_open_conns: 1
     max_idle_conns: 1
 redis:
-    enabled: false
-    host: 127.0.0.1
-    port: 6379
-    db: 0
+    # Redis 是可选增强能力；关闭或连接失败时服务会以无缓存模式运行。
+    enabled: ${RIN_APP_REDIS_ENABLED:false}
+    host: ${RIN_APP_REDIS_HOST:127.0.0.1}
+    port: ${RIN_APP_REDIS_PORT:6379}
+    password: ${RIN_APP_REDIS_PASSWORD:}
+    db: ${RIN_APP_REDIS_DB:0}
+    pool_size: ${RIN_APP_REDIS_POOL_SIZE:20}
+    min_idle_conns: ${RIN_APP_REDIS_MIN_IDLE_CONNS:5}
+    max_retries: ${RIN_APP_REDIS_MAX_RETRIES:3}
+    dial_timeout: ${RIN_APP_REDIS_DIAL_TIMEOUT:5}
+    read_timeout: ${RIN_APP_REDIS_READ_TIMEOUT:3}
+    write_timeout: ${RIN_APP_REDIS_WRITE_TIMEOUT:3}
 logger:
-    level: info
-    format: console
-    output: stdout
+    # 生产默认 stdout + json，方便容器日志收集。
+    level: ${RIN_APP_LOG_LEVEL:info}
+    format: ${RIN_APP_LOG_FORMAT:json}
+    console_format: ${RIN_APP_LOG_CONSOLE_FORMAT:json}
+    file_format: ${RIN_APP_LOG_FILE_FORMAT:json}
+    output: ${RIN_APP_LOG_OUTPUT:stdout}
+    # output=file 或 both 时需要确保 /app/logs 可写；Compose 会挂载 HOST_LOGS_DIR。
+    file_path: ${RIN_APP_LOG_FILE_PATH:/app/logs/go-scaffold.log}
+    max_size: ${RIN_APP_LOG_MAX_SIZE:100}
+    max_backups: ${RIN_APP_LOG_MAX_BACKUPS:7}
+    max_age: ${RIN_APP_LOG_MAX_AGE:30}
 i18n:
-    default: zh-CN
+    default: ${RIN_APP_I18N_DEFAULT:zh-CN}
+    # 如果使用环境变量覆盖 supported，多个语言用逗号分隔。
     supported:
         - zh-CN
         - en-US
-    messages_dir: ./configs/locales
+    messages_dir: ${RIN_APP_I18N_MESSAGES_DIR:./configs/locales}
 executor:
-    enabled: true
+    enabled: ${RIN_APP_EXECUTOR_ENABLED:true}
     pools:
         - name: background
-          size: 8
+          size: 16
           expiry: 30
           non_blocking: true
 storage:
-    # 媒体库普通上传、断点上传、分片合并和本地下载依赖 storage.enabled=true。
-    # 仅浏览记录或使用外链导入时可以保持禁用。
-    # 本地开发建议使用 basepath + ./data，让媒体对象写入 data/media/...，临时分片写入 data/media/chunks/...。
-    enabled: true
-    fs_type: basepath
-    base_path: ./data
-    enable_watch: true
-    watch_buffer_size: 100
+    # 只浏览媒体记录或使用外链导入时可关闭；普通上传/断点上传/本地下载需要开启。
+    enabled: ${RIN_APP_STORAGE_ENABLED:false}
+    fs_type: ${RIN_APP_STORAGE_FS_TYPE:basepath}
+    # 容器内默认 /app/data，由 Compose 挂载 HOST_DATA_DIR。
+    base_path: ${RIN_APP_STORAGE_BASE_PATH:/app/data}
+    enable_watch: ${RIN_APP_STORAGE_ENABLE_WATCH:false}
+    watch_buffer_size: ${RIN_APP_STORAGE_WATCH_BUFFER_SIZE:100}
 demo:
-    # Demo 模块包含公开 Todo 与受 IAM 保护的客户资源示例。
-    enabled: true
-    # 启动时应用 demo_todos 与 demo_customers 表结构；生产示例应关闭。
-    apply_schema_on_start: true
+    # 生产默认关闭示例模块，避免暴露演示路由和示例表结构。
+    enabled: ${RIN_APP_DEMO_ENABLED:false}
+    apply_schema_on_start: ${RIN_APP_DEMO_APPLY_SCHEMA_ON_START:false}
 system:
-    # 版本管理使用 system_versions 迁移和 IAM version:* 权限，不需要额外运行期开关。
-    # 媒体库使用 system_media_categories/system_media_assets 迁移和 IAM media:* 权限。
-    # 断点上传还需要 system_media_upload_sessions/system_media_upload_chunks 迁移。
-    seed_defaults_on_start: true
+    # 启动时幂等补齐系统默认数据。已有数据不会被覆盖。
+    seed_defaults_on_start: ${RIN_APP_SYSTEM_SEED_DEFAULTS_ON_START:true}
 cors:
-    enabled: true
+    enabled: ${RIN_APP_CORS_ENABLED:true}
+    # 生产不要长期使用 "*"；如果 allow_credentials=true，校验也会拒绝 "*"。
     allow_origins:
-        - "*"
+        - ${RIN_APP_CORS_ALLOW_ORIGINS:https://admin.example.invalid}
     allow_methods:
         - GET
         - POST
@@ -92,43 +129,61 @@ cors:
         - Authorization
     expose_headers:
         - X-Request-ID
-    allow_credentials: false
-    max_age: 3600
+    allow_credentials: ${RIN_APP_CORS_ALLOW_CREDENTIALS:false}
+    max_age: ${RIN_APP_CORS_MAX_AGE:3600}
 auth:
-    enabled: true
-    self_signup_enabled: true
-    issuer: go-scaffold
+    enabled: ${RIN_APP_AUTH_ENABLED:true}
+    # 生产建议关闭公开注册，改为管理员邀请。
+    self_signup_enabled: ${RIN_APP_AUTH_SELF_SIGNUP_ENABLED:false}
+    issuer: ${RIN_APP_AUTH_ISSUER:go-scaffold}
     audience:
         - go-scaffold-api
-    signing_key: "A86efGoOns_eWJOr7QNVVUkHeENrgmz5zpRcFSocwwU"
-    access_token_ttl_seconds: 900
-    refresh_token_ttl_seconds: 604800
-    # Also hashes IAM API Token values. Rotating this invalidates existing refresh tokens and API tokens.
-    refresh_token_pepper: "ovNbwy1Xd2HLZmsqa3Wp3mcGnCORVv2G7uE9UavHW5Y"
-    mfa_issuer: go-scaffold
-    mfa_secret_key: "N0l_WUxNIttBPyrTzKuTunKrItDX-9CQsRS25EF5ynU"
-    login_max_failures: 5
-    login_lock_minutes: 15
-    login_captcha_enabled: false
-    captcha_ttl_seconds: 120
-    invitation_ttl_seconds: 86400
-    password_reset_ttl_seconds: 1800
-    notification_driver: debug
+    # 以下三个 secret 是 IAM 启动必需值，必须由运行时环境注入。
+    signing_key: "9xNiEEqXNxO6dLBr0xxz0xb3gWpDDHjeUkKqwx_3lHs"
+    access_token_ttl_seconds: ${RIN_APP_AUTH_ACCESS_TOKEN_TTL_SECONDS:900}
+    refresh_token_ttl_seconds: ${RIN_APP_AUTH_REFRESH_TOKEN_TTL_SECONDS:604800}
+    refresh_token_pepper: "Dak5NZyynyouyoejgvSGLPEFLWK9eizTOvWF-x3Cby8"
+    mfa_issuer: ${RIN_APP_AUTH_MFA_ISSUER:go-scaffold}
+    mfa_secret_key: "nJvL6okNCtewy123Xu4PM_KNJTmosoNmgdOZcmP69U4"
+    login_max_failures: ${RIN_APP_AUTH_LOGIN_MAX_FAILURES:5}
+    login_lock_minutes: ${RIN_APP_AUTH_LOGIN_LOCK_MINUTES:15}
+    login_captcha_enabled: ${RIN_APP_AUTH_LOGIN_CAPTCHA_ENABLED:false}
+    captcha_ttl_seconds: ${RIN_APP_AUTH_CAPTCHA_TTL_SECONDS:120}
+    invitation_ttl_seconds: ${RIN_APP_AUTH_INVITATION_TTL_SECONDS:86400}
+    password_reset_ttl_seconds: ${RIN_APP_AUTH_PASSWORD_RESET_TTL_SECONDS:1800}
+    # 生产默认使用 smtp。若该值被环境变量覆盖成 smtp，host、port、from 必须同时有效。
+    notification_driver: "debug"
     smtp:
-        host: ${AUTH_SMTP_HOST:}
-        port: ${AUTH_SMTP_PORT:587}
-        username: ${AUTH_SMTP_USERNAME:}
-        password: ${AUTH_SMTP_PASSWORD:}
-        from: ${AUTH_SMTP_FROM:}
-        from_name: ${AUTH_SMTP_FROM_NAME:Aoi Admin}
-        starttls: true
+        host: ${RIN_APP_AUTH_SMTP_HOST}
+        port: ${RIN_APP_AUTH_SMTP_PORT:587}
+        username: ${RIN_APP_AUTH_SMTP_USERNAME}
+        password: ${RIN_APP_AUTH_SMTP_PASSWORD}
+        from: ${RIN_APP_AUTH_SMTP_FROM}
+        from_name: ${RIN_APP_AUTH_SMTP_FROM_NAME:Aoi Admin}
+        starttls: ${RIN_APP_AUTH_SMTP_STARTTLS:true}
     password_policy:
-        min_length: 8
-        require_lower: false
-        require_upper: false
-        require_number: false
-        require_symbol: false
-    casbin_reload_interval_seconds: 300
+        min_length: ${RIN_APP_AUTH_PASSWORD_MIN_LENGTH:10}
+        require_lower: ${RIN_APP_AUTH_PASSWORD_REQUIRE_LOWER:true}
+        require_upper: ${RIN_APP_AUTH_PASSWORD_REQUIRE_UPPER:true}
+        require_number: ${RIN_APP_AUTH_PASSWORD_REQUIRE_NUMBER:true}
+        require_symbol: ${RIN_APP_AUTH_PASSWORD_REQUIRE_SYMBOL:false}
+    casbin_reload_interval_seconds: ${RIN_APP_AUTH_CASBIN_RELOAD_INTERVAL_SECONDS:300}
 migration:
-    auto_apply: true
-    dir: ./internal/migrations
+    # 生产默认不随服务启动自动迁移，应在发布流程中显式执行 db migrate up。
+    auto_apply: ${RIN_APP_MIGRATION_AUTO_APPLY:false}
+    dir: ${RIN_APP_MIGRATION_DIR:./internal/migrations}
+env_override:
+    # 写入这里的路径会使用配置文件值而不是环境变量覆盖值。
+    # 生产通常保持空列表，让编排系统和 secret 管理负责覆盖。
+    disabled_paths:
+        - "database.driver"
+        - "database.host"
+        - "database.port"
+        - "database.user"
+        - "database.dbname"
+        - "database.max_open_conns"
+        - "database.max_idle_conns"
+        - "auth.mfa_secret_key"
+        - "auth.refresh_token_pepper"
+        - "auth.signing_key"
+        - "auth.notification_driver"

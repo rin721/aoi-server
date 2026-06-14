@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
-	"github.com/rei0721/go-scaffold/pkg/web"
+	"github.com/rei0721/go-scaffold/internal/ports"
 	"github.com/rei0721/go-scaffold/types/result"
 )
 
@@ -45,7 +45,7 @@ func TestRequireOrgParam(t *testing.T) {
 			ctx.params["orgId"] = tt.param
 
 			called := false
-			RequireOrgParam("orgId", func(c web.Context) {
+			RequireOrgParam("orgId", func(c ports.HTTPContext) {
 				called = true
 			})(ctx)
 
@@ -66,7 +66,7 @@ func TestRequirePermissionWithoutAuthorizer(t *testing.T) {
 	ctx := newAuthTestContext()
 	ctx.values[PrincipalKey] = iamservice.Principal{OrgID: 42}
 
-	RequirePermission(nil, "user", "read", func(c web.Context) {
+	RequirePermission(nil, "user", "read", func(c ports.HTTPContext) {
 		t.Fatal("next should not be called")
 	})(ctx)
 

@@ -10,8 +10,7 @@ import (
 	"github.com/rei0721/go-scaffold/internal/middleware"
 	iamservice "github.com/rei0721/go-scaffold/internal/modules/iam/service"
 	"github.com/rei0721/go-scaffold/internal/modules/plugins/service"
-	"github.com/rei0721/go-scaffold/pkg/logger"
-	"github.com/rei0721/go-scaffold/pkg/web"
+	"github.com/rei0721/go-scaffold/internal/ports"
 	"github.com/rei0721/go-scaffold/types/result"
 )
 
@@ -27,14 +26,14 @@ type Handler struct {
 	service    service.Service
 	authorizer middleware.Authorizer
 	auditor    Auditor
-	logger     logger.Logger
+	logger     ports.Logger
 }
 
-func New(service service.Service, authorizer middleware.Authorizer, auditor Auditor, logger logger.Logger) *Handler {
+func New(service service.Service, authorizer middleware.Authorizer, auditor Auditor, logger ports.Logger) *Handler {
 	return &Handler{service: service, authorizer: authorizer, auditor: auditor, logger: logger}
 }
 
-func (h *Handler) List(c web.Context) {
+func (h *Handler) List(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -50,7 +49,7 @@ func (h *Handler) List(c web.Context) {
 	result.OK(c, plugins)
 }
 
-func (h *Handler) Get(c web.Context) {
+func (h *Handler) Get(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -63,7 +62,7 @@ func (h *Handler) Get(c web.Context) {
 	result.OK(c, h.filterManifest(c.RequestContext(), principal, plugin))
 }
 
-func (h *Handler) Health(c web.Context) {
+func (h *Handler) Health(c ports.HTTPContext) {
 	status, err := h.service.Health(c.RequestContext(), c.Param("pluginId"))
 	if err != nil {
 		h.writeError(c, err)
@@ -72,7 +71,7 @@ func (h *Handler) Health(c web.Context) {
 	result.OK(c, status)
 }
 
-func (h *Handler) Proxy(c web.Context) {
+func (h *Handler) Proxy(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -137,7 +136,7 @@ func (h *Handler) allowed(ctx context.Context, principal iamservice.Principal, p
 	return err == nil && allowed
 }
 
-func (h *Handler) auditProxy(c web.Context, principal iamservice.Principal, path string, status int, err error) {
+func (h *Handler) auditProxy(c ports.HTTPContext, principal iamservice.Principal, path string, status int, err error) {
 	if h.auditor == nil {
 		return
 	}
@@ -153,7 +152,7 @@ func (h *Handler) auditProxy(c web.Context, principal iamservice.Principal, path
 	_ = h.auditor.RecordAudit(c.RequestContext(), principal, "plugin.proxy", "plugin", c.Param("pluginId"), c.ClientIP(), c.GetHeader("User-Agent"), metadata)
 }
 
-func (h *Handler) writeError(c web.Context, err error) {
+func (h *Handler) writeError(c ports.HTTPContext, err error) {
 	switch {
 	case errors.Is(err, service.ErrDisabled):
 		result.NotFound(c, "plugins disabled")
@@ -169,7 +168,7 @@ func (h *Handler) writeError(c web.Context, err error) {
 	}
 }
 
-func requirePrincipal(c web.Context) (iamservice.Principal, bool) {
+func requirePrincipal(c ports.HTTPContext) (iamservice.Principal, bool) {
 	principal, ok := middleware.GetPrincipal(c)
 	if !ok {
 		result.Unauthorized(c, "missing principal")

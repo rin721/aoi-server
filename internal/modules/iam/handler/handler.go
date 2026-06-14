@@ -9,15 +9,14 @@ import (
 
 	"github.com/rei0721/go-scaffold/internal/middleware"
 	"github.com/rei0721/go-scaffold/internal/modules/iam/service"
-	"github.com/rei0721/go-scaffold/pkg/logger"
-	"github.com/rei0721/go-scaffold/pkg/web"
+	"github.com/rei0721/go-scaffold/internal/ports"
 	"github.com/rei0721/go-scaffold/types/result"
 )
 
 type Handler struct {
 	service      service.Service
 	setupService setupService
-	logger       logger.Logger
+	logger       ports.Logger
 }
 
 type setupService interface {
@@ -25,7 +24,7 @@ type setupService interface {
 	InitialAdminSetup(context.Context, service.InitialAdminSetupInput) (service.TokenPair, error)
 }
 
-func New(service service.Service, logger logger.Logger) *Handler {
+func New(service service.Service, logger ports.Logger) *Handler {
 	return &Handler{service: service, setupService: iamSetupService{service: service}, logger: logger}
 }
 
@@ -149,7 +148,7 @@ type updateRoleRequest struct {
 	Permissions *[]string `json:"permissions"`
 }
 
-func (h *Handler) Signup(c web.Context) {
+func (h *Handler) Signup(c ports.HTTPContext) {
 	var req signupRequest
 	if !bind(c, &req) {
 		return
@@ -167,12 +166,12 @@ func (h *Handler) Signup(c web.Context) {
 	h.write(c, pair, err)
 }
 
-func (h *Handler) SetupStatus(c web.Context) {
+func (h *Handler) SetupStatus(c ports.HTTPContext) {
 	status, err := h.setupService.SetupStatus(c.RequestContext())
 	h.write(c, status, err)
 }
 
-func (h *Handler) InitialAdminSetup(c web.Context) {
+func (h *Handler) InitialAdminSetup(c ports.HTTPContext) {
 	var req initialAdminSetupRequest
 	if !bind(c, &req) {
 		return
@@ -194,7 +193,7 @@ func (h *Handler) InitialAdminSetup(c web.Context) {
 	result.OK(c, pair)
 }
 
-func (h *Handler) Login(c web.Context) {
+func (h *Handler) Login(c ports.HTTPContext) {
 	var req loginRequest
 	if !bind(c, &req) {
 		return
@@ -212,12 +211,12 @@ func (h *Handler) Login(c web.Context) {
 	h.write(c, pair, err)
 }
 
-func (h *Handler) Captcha(c web.Context) {
+func (h *Handler) Captcha(c ports.HTTPContext) {
 	challenge, err := h.service.Captcha(c.RequestContext())
 	h.write(c, challenge, err)
 }
 
-func (h *Handler) Refresh(c web.Context) {
+func (h *Handler) Refresh(c ports.HTTPContext) {
 	var req refreshRequest
 	if !bind(c, &req) {
 		return
@@ -230,7 +229,7 @@ func (h *Handler) Refresh(c web.Context) {
 	h.write(c, pair, err)
 }
 
-func (h *Handler) Logout(c web.Context) {
+func (h *Handler) Logout(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -238,7 +237,7 @@ func (h *Handler) Logout(c web.Context) {
 	h.write(c, map[string]bool{"loggedOut": true}, h.service.Logout(c.RequestContext(), principal))
 }
 
-func (h *Handler) SwitchOrg(c web.Context) {
+func (h *Handler) SwitchOrg(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -251,7 +250,7 @@ func (h *Handler) SwitchOrg(c web.Context) {
 	h.write(c, pair, err)
 }
 
-func (h *Handler) Me(c web.Context) {
+func (h *Handler) Me(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -260,7 +259,7 @@ func (h *Handler) Me(c web.Context) {
 	h.write(c, user, err)
 }
 
-func (h *Handler) MyOrganizations(c web.Context) {
+func (h *Handler) MyOrganizations(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -269,7 +268,7 @@ func (h *Handler) MyOrganizations(c web.Context) {
 	h.write(c, orgs, err)
 }
 
-func (h *Handler) ListOrganizations(c web.Context) {
+func (h *Handler) ListOrganizations(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -282,7 +281,7 @@ func (h *Handler) ListOrganizations(c web.Context) {
 	h.write(c, orgs, err)
 }
 
-func (h *Handler) CreateOrganization(c web.Context) {
+func (h *Handler) CreateOrganization(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -295,7 +294,7 @@ func (h *Handler) CreateOrganization(c web.Context) {
 	h.writeCreated(c, org, err)
 }
 
-func (h *Handler) UpdateOrganization(c web.Context) {
+func (h *Handler) UpdateOrganization(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -318,7 +317,7 @@ func (h *Handler) UpdateOrganization(c web.Context) {
 	h.write(c, org, err)
 }
 
-func (h *Handler) InviteUser(c web.Context) {
+func (h *Handler) InviteUser(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -337,7 +336,7 @@ func (h *Handler) InviteUser(c web.Context) {
 	h.writeCreated(c, delivery, err)
 }
 
-func (h *Handler) ListInvitations(c web.Context) {
+func (h *Handler) ListInvitations(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -346,7 +345,7 @@ func (h *Handler) ListInvitations(c web.Context) {
 	h.write(c, invitations, err)
 }
 
-func (h *Handler) RevokeInvitation(c web.Context) {
+func (h *Handler) RevokeInvitation(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -358,7 +357,7 @@ func (h *Handler) RevokeInvitation(c web.Context) {
 	h.write(c, map[string]bool{"revoked": true}, h.service.RevokeInvitation(c.RequestContext(), principal, id, c.GetHeader("User-Agent"), c.ClientIP()))
 }
 
-func (h *Handler) AcceptInvitation(c web.Context) {
+func (h *Handler) AcceptInvitation(c ports.HTTPContext) {
 	var req acceptInvitationRequest
 	if !bind(c, &req) {
 		return
@@ -374,7 +373,7 @@ func (h *Handler) AcceptInvitation(c web.Context) {
 	h.writeCreated(c, principal, err)
 }
 
-func (h *Handler) ForgotPassword(c web.Context) {
+func (h *Handler) ForgotPassword(c ports.HTTPContext) {
 	var req forgotPasswordRequest
 	if !bind(c, &req) {
 		return
@@ -387,7 +386,7 @@ func (h *Handler) ForgotPassword(c web.Context) {
 	h.write(c, delivery, err)
 }
 
-func (h *Handler) ResetPassword(c web.Context) {
+func (h *Handler) ResetPassword(c ports.HTTPContext) {
 	var req resetPasswordRequest
 	if !bind(c, &req) {
 		return
@@ -401,7 +400,7 @@ func (h *Handler) ResetPassword(c web.Context) {
 	h.write(c, map[string]bool{"reset": true}, err)
 }
 
-func (h *Handler) SetupMFA(c web.Context) {
+func (h *Handler) SetupMFA(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -410,7 +409,7 @@ func (h *Handler) SetupMFA(c web.Context) {
 	h.write(c, map[string]string{"secret": secret, "otpauthUrl": url}, err)
 }
 
-func (h *Handler) VerifyMFA(c web.Context) {
+func (h *Handler) VerifyMFA(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -422,7 +421,7 @@ func (h *Handler) VerifyMFA(c web.Context) {
 	h.write(c, map[string]bool{"verified": true}, h.service.VerifyMFA(c.RequestContext(), principal, req.Code))
 }
 
-func (h *Handler) ListUsers(c web.Context) {
+func (h *Handler) ListUsers(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -435,7 +434,7 @@ func (h *Handler) ListUsers(c web.Context) {
 	h.write(c, users, err)
 }
 
-func (h *Handler) UpdateUser(c web.Context) {
+func (h *Handler) UpdateUser(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -463,7 +462,7 @@ func (h *Handler) UpdateUser(c web.Context) {
 	h.write(c, user, err)
 }
 
-func (h *Handler) ListAPITokens(c web.Context) {
+func (h *Handler) ListAPITokens(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -476,7 +475,7 @@ func (h *Handler) ListAPITokens(c web.Context) {
 	h.write(c, page, err)
 }
 
-func (h *Handler) CreateAPIToken(c web.Context) {
+func (h *Handler) CreateAPIToken(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -497,7 +496,7 @@ func (h *Handler) CreateAPIToken(c web.Context) {
 	h.writeCreated(c, created, err)
 }
 
-func (h *Handler) RevokeAPIToken(c web.Context) {
+func (h *Handler) RevokeAPIToken(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -514,7 +513,7 @@ func (h *Handler) RevokeAPIToken(c web.Context) {
 	}))
 }
 
-func (h *Handler) ListRoles(c web.Context) {
+func (h *Handler) ListRoles(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -523,7 +522,7 @@ func (h *Handler) ListRoles(c web.Context) {
 	h.write(c, roles, err)
 }
 
-func (h *Handler) CreateRole(c web.Context) {
+func (h *Handler) CreateRole(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -542,7 +541,7 @@ func (h *Handler) CreateRole(c web.Context) {
 	h.writeCreated(c, role, err)
 }
 
-func (h *Handler) UpdateRole(c web.Context) {
+func (h *Handler) UpdateRole(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -571,7 +570,7 @@ func (h *Handler) UpdateRole(c web.Context) {
 	h.write(c, role, err)
 }
 
-func (h *Handler) ListPermissions(c web.Context) {
+func (h *Handler) ListPermissions(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -580,7 +579,7 @@ func (h *Handler) ListPermissions(c web.Context) {
 	h.write(c, permissions, err)
 }
 
-func (h *Handler) ListSessions(c web.Context) {
+func (h *Handler) ListSessions(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -593,7 +592,7 @@ func (h *Handler) ListSessions(c web.Context) {
 	h.write(c, sessions, err)
 }
 
-func (h *Handler) RevokeSession(c web.Context) {
+func (h *Handler) RevokeSession(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -605,7 +604,7 @@ func (h *Handler) RevokeSession(c web.Context) {
 	h.write(c, map[string]bool{"revoked": true}, h.service.RevokeSession(c.RequestContext(), principal, id))
 }
 
-func (h *Handler) ListAuditLogs(c web.Context) {
+func (h *Handler) ListAuditLogs(c ports.HTTPContext) {
 	principal, ok := requirePrincipal(c)
 	if !ok {
 		return
@@ -618,7 +617,7 @@ func (h *Handler) ListAuditLogs(c web.Context) {
 	h.write(c, logs, err)
 }
 
-func parseAuditLogFilter(c web.Context) (service.AuditLogFilter, bool) {
+func parseAuditLogFilter(c ports.HTTPContext) (service.AuditLogFilter, bool) {
 	query := c.Request().URL.Query()
 	filter := service.AuditLogFilter{Action: query.Get("action")}
 	if raw := query.Get("limit"); raw != "" {
@@ -664,7 +663,7 @@ func parseAuditLogFilter(c web.Context) (service.AuditLogFilter, bool) {
 	return filter, true
 }
 
-func parseAPITokenFilter(c web.Context) (service.APITokenFilter, bool) {
+func parseAPITokenFilter(c ports.HTTPContext) (service.APITokenFilter, bool) {
 	query := c.Request().URL.Query()
 	filter := service.APITokenFilter{Status: query.Get("status")}
 	if raw := query.Get("page"); raw != "" {
@@ -694,7 +693,7 @@ func parseAPITokenFilter(c web.Context) (service.APITokenFilter, bool) {
 	return filter, true
 }
 
-func parseUserListFilter(c web.Context) (service.UserListFilter, bool) {
+func parseUserListFilter(c ports.HTTPContext) (service.UserListFilter, bool) {
 	query := c.Request().URL.Query()
 	filter := service.UserListFilter{
 		Keyword:     query.Get("keyword"),
@@ -725,7 +724,7 @@ func parseUserListFilter(c web.Context) (service.UserListFilter, bool) {
 	return filter, true
 }
 
-func parseOrganizationListFilter(c web.Context) (service.OrganizationListFilter, bool) {
+func parseOrganizationListFilter(c ports.HTTPContext) (service.OrganizationListFilter, bool) {
 	query := c.Request().URL.Query()
 	filter := service.OrganizationListFilter{
 		Keyword:  query.Get("keyword"),
@@ -754,7 +753,7 @@ func parseOrganizationListFilter(c web.Context) (service.OrganizationListFilter,
 	return filter, true
 }
 
-func parseSessionListFilter(c web.Context) (service.SessionListFilter, bool) {
+func parseSessionListFilter(c ports.HTTPContext) (service.SessionListFilter, bool) {
 	query := c.Request().URL.Query()
 	filter := service.SessionListFilter{
 		Keyword:   query.Get("keyword"),
@@ -800,7 +799,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func bind(c web.Context, dest any) bool {
+func bind(c ports.HTTPContext, dest any) bool {
 	if err := c.BindJSON(dest); err != nil {
 		result.BadRequest(c, err.Error())
 		return false
@@ -808,7 +807,7 @@ func bind(c web.Context, dest any) bool {
 	return true
 }
 
-func requirePrincipal(c web.Context) (service.Principal, bool) {
+func requirePrincipal(c ports.HTTPContext) (service.Principal, bool) {
 	principal, ok := middleware.GetPrincipal(c)
 	if !ok {
 		result.Unauthorized(c, "missing principal")
@@ -817,7 +816,7 @@ func requirePrincipal(c web.Context) (service.Principal, bool) {
 	return principal, true
 }
 
-func parseInt64Param(c web.Context, name string) (int64, bool) {
+func parseInt64Param(c ports.HTTPContext, name string) (int64, bool) {
 	id, err := strconv.ParseInt(c.Param(name), 10, 64)
 	if err != nil || id <= 0 {
 		result.BadRequest(c, "invalid "+name)
@@ -826,7 +825,7 @@ func parseInt64Param(c web.Context, name string) (int64, bool) {
 	return id, true
 }
 
-func (h *Handler) write(c web.Context, data any, err error) {
+func (h *Handler) write(c ports.HTTPContext, data any, err error) {
 	if err != nil {
 		h.writeError(c, err)
 		return
@@ -834,7 +833,7 @@ func (h *Handler) write(c web.Context, data any, err error) {
 	result.OK(c, data)
 }
 
-func (h *Handler) writeCreated(c web.Context, data any, err error) {
+func (h *Handler) writeCreated(c ports.HTTPContext, data any, err error) {
 	if err != nil {
 		h.writeError(c, err)
 		return
@@ -842,7 +841,7 @@ func (h *Handler) writeCreated(c web.Context, data any, err error) {
 	c.JSON(http.StatusCreated, result.Success(data))
 }
 
-func (h *Handler) writeSetupError(c web.Context, err error) {
+func (h *Handler) writeSetupError(c ports.HTTPContext, err error) {
 	switch {
 	case errors.Is(err, service.ErrInvalidInput):
 		result.BadRequest(c, err.Error())
@@ -858,7 +857,7 @@ func (h *Handler) writeSetupError(c web.Context, err error) {
 	}
 }
 
-func (h *Handler) writeError(c web.Context, err error) {
+func (h *Handler) writeError(c ports.HTTPContext, err error) {
 	switch {
 	case errors.Is(err, service.ErrInvalidInput), errors.Is(err, service.ErrCaptchaRequired), errors.Is(err, service.ErrCaptchaInvalid):
 		result.BadRequest(c, err.Error())

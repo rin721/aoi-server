@@ -3,8 +3,10 @@ package middleware
 // 本文件定义 Gin 中间件能力，约束请求进入业务 handler 前后的链路上下文、副作用和错误输出。
 
 import (
-	"github.com/rei0721/go-scaffold/pkg/utils"
-	"github.com/rei0721/go-scaffold/pkg/web"
+	"crypto/rand"
+	"encoding/hex"
+
+	"github.com/rei0721/go-scaffold/internal/ports"
 )
 
 // TraceIDKey 是存储追踪 ID 的上下文键
@@ -19,24 +21,6 @@ const DefaultHeaderName = "X-Request-ID"
 // traceIDGenerator TraceID 生成器
 // 使用包级别变量,在整个应用中复用同一个生成器
 // 这样可以确保生成的 ID 在单个实例中是唯一的
-var traceIDGenerator utils.IDGenerator
-
-// init 为进程级随机源设置种子，保证未传入 trace id 时生成值具备基础离散性。
-func init() {
-	// 在包初始化时创建 TraceID 生成器
-	// init() 函数会在包被导入时自动执行,且只执行一次
-	// 使用 node ID 1 初始化 Snowflake 算法
-	// 在分布式环境中,每个节点应该使用不同的 node ID
-	var err error
-	traceIDGenerator, err = utils.NewSnowflake(1)
-	if err != nil {
-		// 如果初始化失败,程序无法正常工作
-		// 使用 panic 立即终止程序,暴露问题
-		// 这在启动阶段失败是可接受的,避免以错误状态运行
-		panic("failed to initialize trace ID generator: " + err.Error())
-	}
-}
-
 // TraceID 返回一个生成或提取 TraceID 的中间件
 // TraceID 用于请求链路追踪,是分布式系统可观测性的重要组成部分
 // 功能:
@@ -49,7 +33,7 @@ func init() {
 // - 关联同一请求在不同组件中的日志
 // - 客户端报告问题时提供追踪标识
 // 注意:这个中间件应该最先注册,确保所有后续中间件都能访问 TraceID
-func TraceID(cfg TraceIDConfig) web.HandlerFunc {
+func TraceID(cfg TraceIDConfig, generator ports.IDGenerator) ports.HTTPHandlerFunc {
 	// 确定 header 名称
 	// 允许通过配置自定义,提供灵活性
 	headerName := cfg.HeaderName
@@ -58,7 +42,7 @@ func TraceID(cfg TraceIDConfig) web.HandlerFunc {
 		headerName = DefaultHeaderName
 	}
 
-	return func(c web.Context) {
+	return func(c ports.HTTPContext) {
 		// 检查中间件是否启用
 		// 在某些场景下可能需要禁用(如简单的健康检查)
 		if !cfg.Enabled {
@@ -77,7 +61,7 @@ func TraceID(cfg TraceIDConfig) web.HandlerFunc {
 		// - 时间有序性(可以通过 ID 判断请求时间)
 		// - 高性能(无需访问数据库或外部服务)
 		if traceID == "" {
-			traceID = traceIDGenerator.NextIDString()
+			traceID = nextTraceID(generator)
 		}
 
 		// 3. 将 TraceID 存储在 Gin 上下文中
@@ -98,6 +82,17 @@ func TraceID(cfg TraceIDConfig) web.HandlerFunc {
 	}
 }
 
+func nextTraceID(generator ports.IDGenerator) string {
+	if generator != nil {
+		return generator.NextIDString()
+	}
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "trace-unavailable"
+	}
+	return hex.EncodeToString(raw[:])
+}
+
 // GetTraceID 从 Gin 上下文中获取 TraceID
 // 这是一个便捷函数,封装了类型断言的细节
 // 参数:
@@ -112,7 +107,7 @@ func TraceID(cfg TraceIDConfig) web.HandlerFunc {
 // - 在处理器中获取 TraceID 并添加到日志
 // - 在中间件中获取 TraceID 并传递给下游服务
 // - 在错误处理中包含 TraceID
-func GetTraceID(c web.Context) string {
+func GetTraceID(c ports.HTTPContext) string {
 	// 从上下文中获取值
 	// c.Get() 返回 (interface{}, bool)
 	if traceID, exists := c.Get(TraceIDKey); exists {

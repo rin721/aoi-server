@@ -32,6 +32,31 @@ func TestInternalPackagesDoNotImportThirdPartyInfrastructure(t *testing.T) {
 	}
 }
 
+func TestInternalProductionCodeDoesNotImportPkgOutsideAppAndConfig(t *testing.T) {
+	files, err := goFilesUnder(".")
+	if err != nil {
+		t.Fatalf("collect internal go files: %v", err)
+	}
+
+	for _, file := range files {
+		normalized := filepath.ToSlash(file)
+		if strings.HasSuffix(normalized, "_test.go") || internalPkgImportAllowed(normalized) {
+			continue
+		}
+		parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatalf("parse %s imports: %v", file, err)
+		}
+
+		for _, spec := range parsed.Imports {
+			path := strings.Trim(spec.Path.Value, `"`)
+			if strings.HasPrefix(path, modulePath+"/pkg/") {
+				t.Fatalf("internal production code outside app/config must depend on internal ports instead of pkg import %q from %s", path, file)
+			}
+		}
+	}
+}
+
 func goFilesUnder(root string) ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
@@ -47,6 +72,11 @@ func goFilesUnder(root string) ([]string, error) {
 		return nil
 	})
 	return files, err
+}
+
+func internalPkgImportAllowed(path string) bool {
+	path = strings.TrimPrefix(path, "./")
+	return strings.HasPrefix(path, "app/") || strings.HasPrefix(path, "config/")
 }
 
 func isThirdPartyImport(path string) bool {

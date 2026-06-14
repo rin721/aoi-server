@@ -7,8 +7,7 @@ import (
 	"time"
 
 	"github.com/rei0721/go-scaffold/internal/modules/iam/model"
-	"github.com/rei0721/go-scaffold/pkg/authorization"
-	"github.com/rei0721/go-scaffold/pkg/database"
+	database "github.com/rei0721/go-scaffold/internal/ports"
 )
 
 type Repository interface {
@@ -65,7 +64,7 @@ type Repository interface {
 	ListAuditLogs(context.Context, int64, AuditLogFilter) ([]model.AuditLog, error)
 	AddCasbinRule(context.Context, *model.CasbinRule) error
 	DeleteCasbinRules(context.Context, string, ...string) error
-	ListCasbinRules(context.Context) ([]authorization.Rule, error)
+	ListCasbinRules(context.Context) ([]database.AuthorizationRule, error)
 }
 
 type AuditLogFilter struct {
@@ -528,12 +527,12 @@ func (r *repository) DeleteCasbinRules(ctx context.Context, ptype string, values
 	return err
 }
 
-func (r *repository) ListCasbinRules(ctx context.Context) ([]authorization.Rule, error) {
+func (r *repository) ListCasbinRules(ctx context.Context) ([]database.AuthorizationRule, error) {
 	var rows []model.CasbinRule
 	if err := r.db.Find(ctx, &rows, database.Order("id ASC")); err != nil {
 		return nil, err
 	}
-	rules := make([]authorization.Rule, 0, len(rows))
+	rules := make([]database.AuthorizationRule, 0, len(rows))
 	for _, row := range rows {
 		values := []string{row.V0, row.V1, row.V2, row.V3, row.V4, row.V5}
 		switch row.PType {
@@ -542,7 +541,7 @@ func (r *repository) ListCasbinRules(ctx context.Context) ([]authorization.Rule,
 		case "g":
 			values = values[:3]
 		}
-		rules = append(rules, authorization.Rule{PType: row.PType, Values: values})
+		rules = append(rules, database.AuthorizationRule{PType: row.PType, Values: values})
 	}
 	return rules, nil
 }

@@ -1,4 +1,6 @@
 ﻿<script setup lang="ts">
+import type { PasswordPolicy } from "~/types/admin"
+
 definePageMeta({
   layout: "auth",
   public: true
@@ -17,12 +19,24 @@ const checking = ref(true)
 const completed = ref(false)
 const submitting = ref(false)
 const error = ref("")
-const passwordMinLength = 8
-const passwordError = computed(() =>
-  password.value && password.value.length < passwordMinLength
-    ? `密码至少需要 ${passwordMinLength} 位。`
-    : undefined
-)
+const fallbackPasswordPolicy: PasswordPolicy = {
+  minLength: 8,
+  requireLower: false,
+  requireNumber: false,
+  requireSymbol: false,
+  requireUpper: false
+}
+const passwordPolicy = ref<PasswordPolicy>({ ...fallbackPasswordPolicy })
+const normalizedPasswordPolicy = computed(() => normalizePasswordPolicy(passwordPolicy.value))
+const passwordRequirementItems = computed(() => passwordRequirements(normalizedPasswordPolicy.value))
+const passwordRequirementText = computed(() => passwordRequirementItems.value.join("，"))
+const passwordError = computed(() => {
+  if (!password.value) {
+    return undefined
+  }
+  const missing = missingPasswordRequirements(password.value, normalizedPasswordPolicy.value)
+  return missing.length ? `密码需要${missing.join("、")}。` : undefined
+})
 
 const canSubmit = computed(() => Boolean(
   orgCode.value.trim()
@@ -38,6 +52,7 @@ async function checkSetupStatus() {
   error.value = ""
   try {
     const status = await api.getSetupStatus()
+    passwordPolicy.value = normalizePasswordPolicy(status.passwordPolicy)
     completed.value = !status.required
     if (!status.required) {
       await navigateTo(auth.authenticated ? "/" : "/login")
@@ -82,6 +97,53 @@ onMounted(checkSetupStatus)
 useHead({
   title: "首次初始化 - Aoi Admin"
 })
+
+function normalizePasswordPolicy(policy?: Partial<PasswordPolicy>): PasswordPolicy {
+  return {
+    minLength: Math.max(1, Number(policy?.minLength || fallbackPasswordPolicy.minLength)),
+    requireLower: Boolean(policy?.requireLower),
+    requireNumber: Boolean(policy?.requireNumber),
+    requireSymbol: Boolean(policy?.requireSymbol),
+    requireUpper: Boolean(policy?.requireUpper)
+  }
+}
+
+function passwordRequirements(policy: PasswordPolicy) {
+  const items = [`至少 ${policy.minLength} 位`]
+  if (policy.requireLower) {
+    items.push("包含小写字母")
+  }
+  if (policy.requireUpper) {
+    items.push("包含大写字母")
+  }
+  if (policy.requireNumber) {
+    items.push("包含数字")
+  }
+  if (policy.requireSymbol) {
+    items.push("包含符号")
+  }
+  return items
+}
+
+function missingPasswordRequirements(value: string, policy: PasswordPolicy) {
+  const missing: string[] = []
+  if (Array.from(value).length < policy.minLength) {
+    missing.push(`至少 ${policy.minLength} 位`)
+  }
+  if (policy.requireLower && !/[a-z]/.test(value)) {
+    missing.push("包含小写字母")
+  }
+  if (policy.requireUpper && !/[A-Z]/.test(value)) {
+    missing.push("包含大写字母")
+  }
+  if (policy.requireNumber && !/\d/.test(value)) {
+    missing.push("包含数字")
+  }
+  if (policy.requireSymbol && !/[^A-Za-z0-9\s]/.test(value)) {
+    missing.push("包含符号")
+  }
+  return missing
+}
 </script>
 
 <template>
@@ -106,7 +168,7 @@ useHead({
       type="password"
       autocomplete="new-password"
       :disabled="checking || completed || submitting"
-      :supporting-text="`至少 ${passwordMinLength} 位`"
+      :supporting-text="passwordRequirementText"
       :error-text="passwordError"
       @enter="submit"
     />
@@ -132,6 +194,3 @@ h2 {
   font-weight: 760;
 }
 </style>
-
-
-

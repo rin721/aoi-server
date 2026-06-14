@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rei0721/go-scaffold/internal/app/adapters"
 	"github.com/rei0721/go-scaffold/internal/app/dbapp"
 	"github.com/rei0721/go-scaffold/internal/config"
 	demohandler "github.com/rei0721/go-scaffold/internal/modules/demo/handler"
@@ -24,6 +25,7 @@ import (
 	systemrepository "github.com/rei0721/go-scaffold/internal/modules/system/repository"
 	systemservice "github.com/rei0721/go-scaffold/internal/modules/system/service"
 	"github.com/rei0721/go-scaffold/pkg/authorization"
+	"github.com/rei0721/go-scaffold/pkg/configloader"
 	"github.com/rei0721/go-scaffold/pkg/crypto"
 	"github.com/rei0721/go-scaffold/pkg/database"
 	"github.com/rei0721/go-scaffold/pkg/logger"
@@ -161,11 +163,12 @@ func logDemoSchemaSkipped(log logger.Logger, policy DemoSchemaPolicy) {
 
 // NewDemoModule 装配 Demo Todo 的仓储、服务和 HTTP handler。
 func NewDemoModule(db database.Database, log logger.Logger) DemoModule {
-	todoRepo := demorepository.NewTodoRepository(db)
-	todoService := demoservice.NewTodoService(db, todoRepo)
+	moduleDB := adapters.NewDatabase(db)
+	todoRepo := demorepository.NewTodoRepository(moduleDB)
+	todoService := demoservice.NewTodoService(moduleDB, todoRepo)
 	todoHandler := demohandler.NewTodoHandler(todoService, log)
-	customerRepo := demorepository.NewCustomerRepository(db)
-	customerService := demoservice.NewCustomerService(db, customerRepo)
+	customerRepo := demorepository.NewCustomerRepository(moduleDB)
+	customerService := demoservice.NewCustomerService(moduleDB, customerRepo)
 	customerHandler := demohandler.NewCustomerHandler(customerService, log)
 
 	return DemoModule{
@@ -209,12 +212,13 @@ func NewIAMModule(core Core, infra Infrastructure) (IAMModule, error) {
 	if err != nil {
 		return IAMModule{}, fmt.Errorf("initialize authorization enforcer: %w", err)
 	}
-	repo := iamrepository.New(infra.Database)
+	moduleDB := adapters.NewDatabase(infra.Database)
+	repo := iamrepository.New(moduleDB)
 	notifier, err := NewIAMNotifier(authCfg)
 	if err != nil {
 		return IAMModule{}, err
 	}
-	service := iamservice.New(infra.Database, repo, passwords, tokenManager, enforcer, core.IDGenerator, iamservice.Config{
+	service := iamservice.New(moduleDB, repo, passwords, adapters.NewTokenManager(tokenManager), adapters.NewAuthorizerEnforcer(enforcer), core.IDGenerator, adapters.TOTPProvider{}, iamservice.Config{
 		SelfSignupEnabled:  authCfg.SelfSignupEnabled,
 		MFAIssuer:          authCfg.MFAIssuer,
 		MFASecretKey:       authCfg.MFASecretKey,
@@ -262,7 +266,11 @@ func NewIAMNotifier(cfg config.AuthConfig) (iamservice.Notifier, error) {
 }
 
 func NewPluginsModule(core Core, iam IAMModule) (PluginsModule, error) {
-	pluginService, err := pluginservice.New(PluginsServiceConfig(core.Config.Plugins), core.Logger)
+	serviceConfig, err := PluginsServiceConfig(core.Config.Plugins)
+	if err != nil {
+		return PluginsModule{}, err
+	}
+	pluginService, err := pluginservice.New(serviceConfig, core.Logger)
 	if err != nil {
 		return PluginsModule{}, err
 	}
@@ -280,9 +288,12 @@ func NewPluginsModule(core Core, iam IAMModule) (PluginsModule, error) {
 }
 
 func NewSystemModule(core Core, infra Infrastructure, iam IAMModule) SystemModule {
-	options := []systemservice.Option{systemservice.WithIDGenerator(core.IDGenerator)}
+	options := []systemservice.Option{
+		systemservice.WithIDGenerator(core.IDGenerator),
+		systemservice.WithHostMetrics(adapters.HostMetricsCollector{}),
+	}
 	if infra.Database != nil {
-		options = append(options, systemservice.WithRepository(systemrepository.New(infra.Database)))
+		options = append(options, systemservice.WithRepository(systemrepository.New(adapters.NewDatabase(infra.Database))))
 	}
 	if infra.Storage != nil {
 		options = append(options, systemservice.WithStorage(infra.Storage))
@@ -373,11 +384,10 @@ func (s *systemPermissionStore) CreatePermission(ctx context.Context, permission
 	})
 }
 
-func PluginsServiceConfig(cfg config.PluginsConfig) pluginservice.Config {
+func PluginsServiceConfig(cfg config.PluginsConfig) (pluginservice.Config, error) {
 	cfg.ApplyDefaults()
 	out := pluginservice.Config{
 		Enabled:       cfg.Enabled,
-		ManifestPaths: append([]string(nil), cfg.Manifests...),
 		HealthTimeout: time.Duration(cfg.HealthTimeoutSeconds) * time.Second,
 		ProxyTimeout:  time.Duration(cfg.ProxyTimeoutSeconds) * time.Second,
 		Inline:        make([]pluginservice.Manifest, 0, len(cfg.Items)),
@@ -400,7 +410,31 @@ func PluginsServiceConfig(cfg config.PluginsConfig) pluginservice.Config {
 			SecretRef: item.SecretRef,
 		})
 	}
-	return out
+	for _, path := range cfg.Manifests {
+		manifest, err := loadPluginManifestFile(path)
+		if err != nil {
+			return pluginservice.Config{}, err
+		}
+		out.Inline = append(out.Inline, manifest)
+	}
+	return out, nil
+}
+
+func loadPluginManifestFile(path string) (pluginservice.Manifest, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return pluginservice.Manifest{}, fmt.Errorf("plugin manifest path is required")
+	}
+	var manifest pluginservice.Manifest
+	loader := configloader.New()
+	loader.SetConfigFile(path)
+	if err := loader.ReadInConfig(); err != nil {
+		return pluginservice.Manifest{}, fmt.Errorf("read plugin manifest %s: %w", path, err)
+	}
+	if err := loader.Unmarshal(&manifest); err != nil {
+		return pluginservice.Manifest{}, fmt.Errorf("parse plugin manifest %s: %w", path, err)
+	}
+	return manifest, nil
 }
 
 func pluginMenusConfig(items []config.PluginMenuConfig) []pluginservice.Menu {

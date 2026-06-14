@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/rei0721/go-scaffold/internal/app/dbapp"
+	"github.com/rei0721/go-scaffold/internal/app/testsupport"
 	"github.com/rei0721/go-scaffold/internal/modules/demo/repository"
 	"github.com/rei0721/go-scaffold/internal/modules/demo/service"
 	"github.com/rei0721/go-scaffold/pkg/database"
@@ -145,5 +146,6 @@ func newTodoService(t *testing.T) service.TodoService {
 		t.Fatalf("apply todo schema: %v", err)
 	}
 
-	return service.NewTodoService(db, repository.NewTodoRepository(db))
+	moduleDB := testsupport.Database(db)
+	return service.NewTodoService(moduleDB, repository.NewTodoRepository(moduleDB))
 }
